@@ -62,8 +62,32 @@ The correctness foundation is covered by [diff parser tests](src/diff.rs), [PR r
 
 The workflow requirements above still need implementation and end-to-end verification. Public read checks do not establish authenticated write permissions or successful provisioning.
 
-Nonsecret configuration now supports saved host and canonical checkout defaults, explicit file selection, environment/flag precedence, atomic writes, and reproducible no-config operation. Tests cover missing/corrupt files, redacted TOML errors, checkout discovery, relative paths, and credential isolation when overriding the saved host. Diagnostics, project context, and the remaining workflows above are still required.
+Nonsecret configuration now supports saved host and canonical checkout defaults, explicit file selection, environment/flag precedence, atomic writes, and reproducible no-config operation. Tests cover missing/corrupt files, redacted TOML errors, checkout discovery, relative paths, and credential isolation when overriding the saved host. Shell evaluation, live access checks, and the remaining workflows above are still required.
 
 `project view` now joins the selected repository to its canonical governance owner, inherited membership, repository-specific features, and secret namespace. It validates both origin and organization before matching, rejects duplicate ownership, and provides source paths and the configured Keycloak account-linking URL. Tests cover differing repository/project slugs, case-insensitive forge names, unrelated forges/owners, missing declarations, and duplicate ownership. Live access and checkout freshness remain separate diagnostic requirements.
 
 `doctor` now aggregates runnable tools, Git identity/SSH-agent state, devenv files, canonical project ownership, secretspec namespace/profile alignment, and clean checkout revisions against last-fetched upstreams. Online checks verify Forgejo identity and Bao token acceptance without resolving secrets or printing subprocess output; offline mode skips those requests. Account linking stays manual. Isolated checkout/tool fixtures cover successful offline inspection, online request contracts, unavailable/failing tools, dirty checkouts, namespace/profile errors, redacted TOML diagnostics, and subprocess timeouts. SSH authentication, live project permissions, shell evaluation, and infrastructure health still need their respective workflow evidence.
+
+### Verified boundary
+
+At implementation commit `c109cae`, the following checks passed on x86_64 Linux:
+
+| Check | Evidence and scope |
+| --- | --- |
+| Focused Rust checks | 13 unit tests and 28 CLI integration tests; strict Clippy with `--all-targets -- -D warnings`. |
+| Contribution hooks | All applicable generated commit hooks passed, including workspace Rust tests/lints, dependency usage, secret scanning, and formatting. |
+| Crate documentation | Relative Markdown links resolve; formatting passed. |
+| Nix package | `nix build .#collar --no-link --print-out-paths --accept-flake-config` completed successfully. |
+| Packaged executable | Version, root/config/project/doctor help, and canonical governance project-context smoke checks passed. |
+| Canonical context | `ScottyLabs/link-shortener` resolved to team `devops`, namespace `link-shortener`, with repository-specific features and declared-only output. |
+
+These checks establish the current implementation and packaging boundary. They do not establish complete gh parity, saved login, project secret permissions, successful governance application, or deployment operations. The required-workflow table remains the completion gate.
+
+### Existing-tool integration constraints
+
+- New-machine Bao login must work before entering a project shell. Use the standalone Kennel flake login documented in the [local development guide](https://docs.kennel.scottylabs.org/guides/secrets.html#local-development).
+- `secretspec check` can prompt to set missing secrets. An inspection command must use `--no-prompt`, or the value-free `--json`/`--explain` modes, and propagate missing-secret failures. Doctor currently never invokes resolution.
+- `secretspec set NAME` prompts for the value when no value argument is supplied. A Collar integration must keep secret values out of command arguments, logs, and saved configuration.
+- Devenv's `--profile` selects a Nix development profile. `--secretspec-profile` selects a secret profile. A wrapper must use the latter explicitly and preserve the user's access reason rather than inventing one.
+
+The command contracts above were checked against the installed CLI help alongside Kennel's canonical documentation. They are requirements for the remaining environment commands, not claims that those commands are implemented.

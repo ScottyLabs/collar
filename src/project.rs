@@ -91,8 +91,10 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
     let organization_source = checkout.join("data/org.toml");
     let text = std::fs::read_to_string(&organization_source)
         .context("read governance organization at data/org.toml")?;
-    let organization: OrganizationFile =
-        toml::from_str(&text).context("parse governance organization")?;
+    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")
+        .context(
+        "parse governance organization; expected org.forgejo org/url and org.keycloak url/realm",
+    )?;
     let org = organization.org;
     ensure!(
         repo.origin == host_url(&org.forgejo.url)?,

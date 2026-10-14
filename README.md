@@ -30,6 +30,24 @@ Settings live in the platform's user configuration directory, such as `$XDG_CONF
 
 Only the default host and governance/infrastructure checkout paths are saved. Checkout flags and environment variables override saved paths. `config set` checks the checkout layout and saves an absolute path; manually entered relative paths resolve from the configuration file's directory. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
 
+## Diagnose setup
+
+```bash
+collar doctor
+collar doctor --offline --json
+collar doctor --profile preview
+```
+
+Run inside a project checkout after saving governance and infrastructure paths, or provide `--governance PATH` and `--infrastructure PATH`. Diagnostics check runnable tools, Git identity and SSH-agent keys, devenv files, canonical project ownership, and secretspec namespace/profile declarations. They also check whether governance and infrastructure are clean Git roots matching their last-fetched upstreams. Doctor does not fetch or update checkouts; matching a local tracking branch does not establish remote freshness.
+
+Online mode checks forge reachability and your host-bound token, then verifies your Bao token against ScottyLabs OpenBao. Tool output is suppressed, tool and Bao probes have time limits, and secrets are never resolved. `--offline` skips forge and Bao requests. Checks report `pass`, `fail`, `manual`, or `skipped`; failures produce exit code 1 after printing the full report. Account linking remains a manual check even when all automated checks pass. An SSH-agent key does not prove forge SSH access; a Bao token does not prove access to a project's secrets. Doctor checks configuration presence, without evaluating devenv or infrastructure or asserting deployment health.
+
+If a new machine cannot enter the shell because Bao login is missing, use the standalone login from [Kennel's local development guide](https://docs.kennel.scottylabs.org/guides/secrets.html#local-development):
+
+```bash
+nix run git+https://git.cmu.dev/ScottyLabs/kennel#login
+```
+
 ## Authentication
 
 Public reads work without login. Reviews and raw API writes require a personal access token from [Forgejo application settings](https://git.cmu.dev/user/settings/applications). Choose scopes appropriate to the operation; PR reviews require repository access.

@@ -61,7 +61,8 @@ impl Config {
         };
         let path = std::path::absolute(path).context("resolve configuration path")?;
         let settings = match std::fs::read_to_string(&path) {
-            Ok(text) => toml::from_str::<Settings>(&text).map_err(ConfigDecodeError)?,
+            Ok(text) => crate::document::parse(&text, "Collar configuration")
+                .context("expected only host, governance, and infrastructure settings")?,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound && (!is_explicit || creating) =>
             {
@@ -174,24 +175,6 @@ impl Config {
         Ok(())
     }
 }
-
-// TOML diagnostics may contain credentials copied into an unsupported setting.
-struct ConfigDecodeError(toml::de::Error);
-impl std::fmt::Display for ConfigDecodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "invalid Collar configuration at byte range {:?}; expected only host, governance, and infrastructure settings",
-            self.0.span()
-        )
-    }
-}
-impl std::fmt::Debug for ConfigDecodeError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        std::fmt::Display::fmt(self, f)
-    }
-}
-impl std::error::Error for ConfigDecodeError {}
 
 #[cfg(test)]
 mod tests {

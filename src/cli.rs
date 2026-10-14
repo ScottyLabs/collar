@@ -6,13 +6,13 @@ use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
-use url::Url;
 
+use crate::auth::api;
 use crate::client::{Api, host_url};
 use crate::config::{Config, Key};
 use crate::output::Output;
 use crate::repo::Repo;
-use crate::{config, governance, infra, pr, project};
+use crate::{config, doctor, governance, infra, pr, project};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -40,6 +40,8 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Diagnose local setup and ScottyLabs login readiness.
+    Doctor(doctor::Args),
     /// Connect the selected repository to its ScottyLabs project.
     Project {
         #[command(subcommand)]
@@ -242,24 +244,6 @@ enum InfraCommand {
     },
 }
 
-fn api(origin: Url, config: &Config) -> Result<Api> {
-    let configured = match std::env::var("COLLAR_HOST") {
-        Ok(host) => host,
-        Err(std::env::VarError::NotPresent) => config.host().into(),
-        Err(error) => return Err(error).context("read COLLAR_HOST"),
-    };
-    let token = if origin == host_url(&configured)? {
-        match std::env::var("COLLAR_TOKEN") {
-            Ok(token) => Some(token),
-            Err(std::env::VarError::NotPresent) => None,
-            Err(error) => return Err(error).context("read COLLAR_TOKEN"),
-        }
-    } else {
-        None
-    };
-    Api::new(origin, token)
-}
-
 fn read_file(path: &Path) -> Result<String> {
     if path == Path::new("-") {
         let mut text = String::new();
@@ -282,6 +266,9 @@ pub fn run(cli: Cli) -> Result<()> {
     let config = Config::load(cli.config, cli.no_config, creating)?;
     match cli.command {
         Command::Config { command } => config.run(command),
+        Command::Doctor(args) => {
+            doctor::run(args, &config, cli.repo.as_deref(), cli.host.as_deref())
+        }
         Command::Project {
             command: ContextCommand::View { checkout, output },
         } => {

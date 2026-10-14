@@ -37,6 +37,7 @@ The POC implements these workflows:
 
 | Group | Commands | Behavior |
 | --- | --- | --- |
+| Onboarding | doctor, project view | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode. |
 | Configuration | config get/set/unset | Atomic nonsecret user defaults; explicit flags/environment override saved paths and host. |
 | Forge | auth status, repo view, pr list/view/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. |
 | Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |

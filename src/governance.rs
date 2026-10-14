@@ -69,8 +69,8 @@ pub fn projects(checkout: &Path) -> Result<Vec<Project>> {
     for file in files {
         let content =
             std::fs::read_to_string(&file).with_context(|| format!("read {}", file.display()))?;
-        let team: TeamFile =
-            toml::from_str(&content).with_context(|| format!("parse {}", file.display()))?;
+        let team: TeamFile = crate::document::parse(&content, "governance team")
+            .with_context(|| format!("parse {}", file.display()))?;
         fn visit(
             group: &Group,
             team: &str,

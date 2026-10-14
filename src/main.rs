@@ -1,11 +1,15 @@
+mod auth;
 mod cli;
 mod client;
 mod config;
 mod diff;
+mod doctor;
+mod document;
 mod governance;
 mod infra;
 mod output;
 mod pr;
+mod process;
 mod project;
 mod repo;
 

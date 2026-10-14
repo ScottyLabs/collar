@@ -129,6 +129,21 @@ pub fn branch() -> Result<String> {
     Ok(String::from_utf8(output.stdout)?.trim().to_owned())
 }
 
+pub fn root() -> Result<std::path::PathBuf> {
+    let output = Command::new("git")
+        .args(["rev-parse", "--show-toplevel"])
+        .output()
+        .context("find Git checkout root")?;
+    ensure!(
+        output.status.success(),
+        "current directory is outside a Git checkout"
+    );
+    Ok(std::str::from_utf8(&output.stdout)
+        .context("Git checkout path is not UTF-8")?
+        .trim_end_matches(['\r', '\n'])
+        .into())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

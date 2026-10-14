@@ -108,6 +108,20 @@ PR commands accept a number, a PR URL belonging to the selected repository, or a
 
 See the [governance feature catalog](FEATURES.md) for managed services, secret names, and access workflows.
 
+## ScottyLabs changelog
+
+```sh
+collar changelog view kennel
+collar changelog view infrastructure --json
+collar changelog updates
+collar changelog update 17
+collar changelog new kennel-sqlite --checkout /path/to/changelog
+```
+
+Read commands resolve the latest default-branch revision of `ScottyLabs/changelog` and use the same verified snapshots and explicit `--offline` behavior as governance and infrastructure inspection. `view` reads the repository's generated Kennel, infrastructure, or governance summary; `updates` lists numbered tech-lead announcements newest first, and `update` reads one by number. JSON fields are `path`, `number`, `title`, `body`, and `dataSource`. `--checkout PATH` allows deliberate local inspection.
+
+`new` requires an explicit working checkout and invokes its existing `new-update.sh` with a validated lowercase slug. The helper creates the numbered announcement template and prints its path. Fill in the title, affected users, change instructions, verification, and references following that repository's `AGENTS.md`. Review the entry before publishing: new announcements pushed to its main branch notify tech leads on Discord. Collar does not commit or publish the entry. Generated summaries remain owned by the repository's hourly git-cliff workflow.
+
 Exactly one of `--approve`, `--request-changes`, or `--comment` is required. `--body-file -` reads stdin. Comments and requested changes require text or inline comments.
 
 For inline comments, create a JSON file:

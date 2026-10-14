@@ -20,6 +20,7 @@ use crate::{auth, document};
 pub enum Kind {
     Governance,
     Infrastructure,
+    Changelog,
 }
 
 impl Kind {
@@ -27,10 +28,17 @@ impl Kind {
         match self {
             Self::Governance => "governance",
             Self::Infrastructure => "infrastructure",
+            Self::Changelog => "changelog",
         }
     }
     fn includes(self, path: &str) -> bool {
         match self {
+            Self::Changelog => {
+                matches!(path, "kennel.md" | "governance.md" | "infrastructure.md")
+                    || path
+                        .strip_prefix("updates/")
+                        .is_some_and(|name| crate::changelog::update_number(name).is_some())
+            }
             Self::Governance => {
                 path == "data/org.toml"
                     || path
@@ -429,6 +437,14 @@ fn validate_snapshot(
                 "infrastructure snapshot is missing flake.nix"
             );
             crate::infra::hosts(directory)?;
+        }
+        Kind::Changelog => {
+            for name in ["kennel.md", "governance.md", "infrastructure.md"] {
+                ensure!(
+                    directory.join(name).is_file(),
+                    "changelog snapshot is missing {name}"
+                );
+            }
         }
     }
     Ok(manifest)

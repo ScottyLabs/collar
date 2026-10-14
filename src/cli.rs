@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Sources};
-use crate::{config, doctor, environment, governance, infra, pr, project, rfc, tui};
+use crate::{changelog, config, doctor, environment, governance, infra, pr, project, rfc, tui};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -44,6 +44,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Read ScottyLabs changelogs and prepare tech-lead announcements.
+    Changelog {
+        #[command(subcommand)]
+        command: changelog::Command,
+    },
     /// Check or update project secrets through secretspec.
     Secrets {
         #[command(subcommand)]
@@ -326,6 +331,7 @@ pub fn run(cli: Cli) -> Result<()> {
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Changelog { command } => changelog::run(command, &sources),
         Command::Config { command } => config.run(command),
         Command::Secrets { command } => {
             environment::secrets(command, &sources, cli.repo.as_deref(), cli.host.as_deref())

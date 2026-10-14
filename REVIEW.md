@@ -4,7 +4,9 @@ Status: In progress. The existing proof of concept does not satisfy the complete
 
 Terminal selection now includes `project select` and read-only `pr browse`, with fuzzy filtering, explicit cancellation, stderr prompts, and JSON selection output. Tests cover control-character removal and rejection of headless use before network access. A real terminal project-selection smoke test verified redirected JSON output. Focused tests, strict Clippy, and all applicable contribution hooks passed. Interactive review submission and mutation confirmations remain open.
 
-The [feature catalog](FEATURES.md) records all eight canonical governance feature families and their actual access contracts. Typed service operations and applied-permission checks remain open. Integration with `ScottyLabs/changelog` must expose its generated infrastructure/Kennel/governance summaries and numbered tech-lead announcements, and use its existing authoring conventions. Discord publication remains the canonical repository's workflow.
+The [feature catalog](FEATURES.md) records all eight canonical governance feature families and their actual access contracts. Typed service operations and applied-permission checks remain open.
+
+`changelog view`, `updates`, and `update` expose generated infrastructure/Kennel/governance summaries and numbered tech-lead announcements from the latest canonical snapshot. `changelog new` delegates to the existing authoring helper in an explicit local checkout. Snapshot/offline, numbering ambiguity, slug validation, and helper exit contracts have regression coverage. Public read verification returned all 17 announcements at revision `348c56dd491f823354f4588b2ca0582d3bb28c23`; an isolated smoke test using that revision's actual helper created the next template without changing an existing entry. Focused tests, strict Clippy, and applicable hooks passed. Discord publication remains the canonical repository's workflow.
 
 ## Required workflows
 

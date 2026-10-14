@@ -806,3 +806,68 @@ fn explicit_checkout_and_host_environment_override_saved_defaults() {
     failure(&output, "checkout is missing data/org.toml");
     assert_eq!(std::fs::read_to_string(&path).unwrap(), original);
 }
+
+fn project_governance(checkout: &std::path::Path) {
+    std::fs::create_dir_all(checkout.join("data/teams")).unwrap();
+    std::fs::write(checkout.join("data/org.toml"), "[org.forgejo]\norg = 'ScottyLabs'\nurl = 'https://git.cmu.dev'\n[org.keycloak]\nurl = 'https://idp.scottylabs.org'\nrealm = 'scottylabs'\n").unwrap();
+    std::fs::write(checkout.join("data/teams/team.toml"), "[team]\nslug = 'tech'\nname = 'Tech'\nleads = ['Lead']\n[[team.projects]]\nslug = 'collie'\nname = 'Collie'\nmembers = ['member']\n[[team.projects.repos]]\nname = 'collie-api'\n[team.projects.repos.features]\nkennel = {}\n[[team.projects.repos]]\nname = 'collie-web'\n[team.projects.repos.features]\nsentry = {}\n").unwrap();
+}
+
+#[test]
+fn project_context_uses_canonical_ownership_and_repository_specific_features() {
+    let temp = TempDir::new().unwrap();
+    project_governance(temp.path());
+    let output = command()
+        .args([
+            "-R",
+            "scottylabs/COLLIE-api",
+            "project",
+            "view",
+            "--checkout",
+        ])
+        .arg(temp.path())
+        .args([
+            "--json",
+            "slug,team,leads,members,features,secretNamespace,declaredOnly,linkedAccountsUrl",
+        ])
+        .output()
+        .unwrap();
+    success(&output);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        json!({
+            "slug": "collie", "team": "tech", "leads": ["Lead"], "members": ["member"],
+            "features": {"kennel": {}}, "secretNamespace": "collie", "declaredOnly": true,
+            "linkedAccountsUrl": "https://idp.scottylabs.org/realms/scottylabs/account/account-security/linked-accounts"
+        })
+    );
+    for (repo, expected) in [
+        ("other.example/ScottyLabs/collie-api", "different forge"),
+        ("someone/collie-api", "outside the governance organization"),
+        ("ScottyLabs/absent", "not declared in governance"),
+    ] {
+        let output = command()
+            .args(["-R", repo, "project", "view", "--checkout"])
+            .arg(temp.path())
+            .output()
+            .unwrap();
+        failure(&output, expected);
+        assert!(output.stdout.is_empty());
+    }
+    let file = temp.path().join("data/teams/team.toml");
+    let mut content = std::fs::read_to_string(&file).unwrap();
+    content.push_str("\n[[team.projects]]\nname = 'Duplicate'\nslug = 'duplicate'\n[[team.projects.repos]]\nname = 'COLLIE-API'\n");
+    std::fs::write(file, content).unwrap();
+    let output = command()
+        .args([
+            "-R",
+            "ScottyLabs/collie-api",
+            "project",
+            "view",
+            "--checkout",
+        ])
+        .arg(temp.path())
+        .output()
+        .unwrap();
+    failure(&output, "ambiguous governance ownership");
+}

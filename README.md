@@ -83,6 +83,17 @@ collar pr review 42 --request-changes --comments-file comments.json
 
 `pr checks` reports the latest commit status for each context. It exits unsuccessfully when no statuses exist or any reported status is not successful. It does not verify required branch protection or prove that every required check has reported.
 
+## Project context
+
+```bash
+collar project view
+collar project view -R ScottyLabs/terrier --json
+```
+
+Save a governance checkout first, or supply `--checkout PATH` or `COLLAR_GOVERNANCE`. Collar matches the selected repository against the forge and organization in `data/org.toml`, then reports the owning project, inherited leads and members, repository-specific features, secret namespace, and source files. For a fork, select the canonical upstream with `-R`.
+
+The secret namespace is the governance slug, which can differ from the repository name. Use it as `[project].name` in `secretspec.toml`. The account-linking URL comes from the organization's Keycloak configuration. These are local declarations; neither applied access nor deployment health is verified, and the checkout is not automatically refreshed.
+
 ## Inspect ScottyLabs projects
 
 Clone the canonical [governance repository](https://git.cmu.dev/ScottyLabs/governance). Its GitHub mirror may lag behind.

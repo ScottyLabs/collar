@@ -6,6 +6,7 @@ mod governance;
 mod infra;
 mod output;
 mod pr;
+mod project;
 mod repo;
 
 use clap::Parser;

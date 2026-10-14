@@ -12,7 +12,7 @@ use crate::client::{Api, host_url};
 use crate::config::{Config, Key};
 use crate::output::Output;
 use crate::repo::Repo;
-use crate::{config, governance, infra, pr};
+use crate::{config, governance, infra, pr, project};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -40,6 +40,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Connect the selected repository to its ScottyLabs project.
+    Project {
+        #[command(subcommand)]
+        command: ContextCommand,
+    },
     /// Manage nonsecret user defaults.
     Config {
         #[command(subcommand)]
@@ -76,6 +81,17 @@ enum Command {
     Infra {
         #[command(subcommand)]
         command: InfraCommand,
+    },
+}
+
+#[derive(Subcommand)]
+enum ContextCommand {
+    /// Show declared ownership, features, and the secret namespace.
+    View {
+        #[arg(long, env = "COLLAR_GOVERNANCE")]
+        checkout: Option<PathBuf>,
+        #[command(flatten)]
+        output: Output,
     },
 }
 
@@ -266,6 +282,16 @@ pub fn run(cli: Cli) -> Result<()> {
     let config = Config::load(cli.config, cli.no_config, creating)?;
     match cli.command {
         Command::Config { command } => config.run(command),
+        Command::Project {
+            command: ContextCommand::View { checkout, output },
+        } => {
+            output.validate_fields(project::Project::FIELDS)?;
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            let checkout = config.checkout(checkout, Key::Governance)?;
+            let project = project::resolve(&checkout, &repo)?;
+            output.print(&project, || project.print())
+        }
+
         Command::Governance {
             command: GovernanceCommand::Project { command },
         } => match command {

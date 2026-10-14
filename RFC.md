@@ -57,6 +57,8 @@ Raw api requests are relative to the selected host's /api/v1 namespace. Match gh
 
 ### ScottyLabs data
 
+Project context validates the selected repository against the governance organization and forge origin before matching ownership. Expose the repository-specific features, inherited ownership, namespace, and source paths together. Local diagnostics aggregate actionable failures without asserting that declarations establish live access or that account linking has been verified. Offline diagnostics must make no network requests or resolve secrets.
+
 Governance inspection reads an explicitly selected checkout and traverses team and nested project entries. It reports declared ownership rather than asserting that remote access has been applied. It does not replace governance-core validation or Terraform generation. Parse the subset needed for discovery while preserving feature names and settings as data; reject malformed required identity fields and ambiguous repository ownership.
 
 Infrastructure discovery reads modules/hosts and resolves service filenames beneath those host directories. Results are configuration locations, not live service health. Do not parse Nix with regular expressions or claim filesystem discovery is evaluated flake output.

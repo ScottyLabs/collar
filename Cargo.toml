@@ -1,0 +1,22 @@
+[package]
+name = "collar"
+version.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+clap = { version = "4.6.7", features = ["derive", "env"] }
+reqwest = { version = "0.13.5", default-features = false, features = [
+  "blocking",
+  "json",
+  "rustls",
+] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.1.8"
+url = "2.5.8"
+
+[dev-dependencies]
+tempfile = "3.27.0"

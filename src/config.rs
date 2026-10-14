@@ -1,6 +1,6 @@
-use std::path::PathBuf;
+use std::{collections::BTreeSet, path::PathBuf};
 
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use clap::{Subcommand, ValueEnum};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -32,6 +32,8 @@ pub enum Command {
 #[serde(deny_unknown_fields)]
 struct Settings {
     host: Option<String>,
+    #[serde(default, skip_serializing_if = "BTreeSet::is_empty")]
+    logins: BTreeSet<String>,
 }
 
 pub struct Config {
@@ -56,9 +58,9 @@ impl Config {
                 .join("config.toml"),
         };
         let path = std::path::absolute(path).context("resolve configuration path")?;
-        let settings = match std::fs::read_to_string(&path) {
+        let mut settings: Settings = match std::fs::read_to_string(&path) {
             Ok(text) => crate::document::parse(&text, "Collar configuration")
-                .context("expected only a host setting")?,
+                .context("expected host and nonsecret login metadata")?,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound && (!is_explicit || creating) =>
             {
@@ -72,6 +74,12 @@ impl Config {
         if let Some(host) = &settings.host {
             host_url(host).context("invalid configured host")?;
         }
+        settings.logins = settings
+            .logins
+            .iter()
+            .map(|host| host_url(host).map(|url| url.to_string()))
+            .collect::<Result<_>>()
+            .context("invalid saved login host")?;
         Ok(Self {
             path: Some(path),
             settings,
@@ -80,6 +88,36 @@ impl Config {
 
     pub fn host(&self) -> &str {
         self.settings.host.as_deref().unwrap_or(DEFAULT_HOST)
+    }
+
+    pub fn require_writable(&self) -> Result<()> {
+        ensure!(
+            self.path.is_some(),
+            "configuration disabled; remove --no-config to manage saved login"
+        );
+        Ok(())
+    }
+
+    pub fn has_login(&self, origin: &url::Url) -> bool {
+        self.settings.logins.contains(origin.as_str())
+    }
+
+    pub fn set_login(&mut self, origin: &url::Url, saved: bool) -> Result<()> {
+        let previous = self.has_login(origin);
+        if saved {
+            self.settings.logins.insert(origin.to_string());
+        } else {
+            self.settings.logins.remove(origin.as_str());
+        }
+        if let Err(error) = self.save() {
+            if previous {
+                self.settings.logins.insert(origin.to_string());
+            } else {
+                self.settings.logins.remove(origin.as_str());
+            }
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn repo(&self, explicit: Option<&str>, host: Option<&str>) -> Result<Repo> {
@@ -94,7 +132,7 @@ impl Config {
     pub fn run(mut self, command: Command) -> Result<()> {
         match command {
             Command::Get { output } => {
-                let value = serde_json::json!({"path": self.path, "host": self.settings.host});
+                let value = serde_json::json!({"path": self.path, "host": self.settings.host, "logins":self.settings.logins});
                 let human = serde_json::to_string_pretty(&value)?;
                 output.print(&value, || println!("{human}"))
             }
@@ -141,6 +179,7 @@ mod tests {
             path: None,
             settings: Settings {
                 host: Some("saved.example".into()),
+                ..Settings::default()
             },
         };
         assert_eq!(

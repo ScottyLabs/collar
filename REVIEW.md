@@ -2,6 +2,8 @@
 
 Status: In progress. The existing proof of concept does not satisfy the complete developer workflow below.
 
+Saved forge login now verifies a token before writing it to the OS credential store, records only canonical host metadata, and supports logout and host-bound environment precedence. Unregistered public reads skip store access; missing or inaccessible registered credentials fail explicitly. Tests cover input bounds, headless intent, authentication failure, metadata/credential rollback, and Linux store failure without plaintext fallback. A real isolated D-Bus/Secret Service smoke test verified login, status, logout, environment precedence, cross-host isolation, and value-free metadata with fixture tokens. macOS and Windows backends follow the maintained keyring API but have not been runtime-tested here.
+
 PR checkout now fetches the canonical pull ref through a verified configured remote, compares its full Git commit ID with the inspected PR head, and switches to a new or matching local branch. It refuses dirty worktrees, mismatched repositories, malformed branch names, differing existing branches, and fetched-head changes. Real temporary Git repositories verify success, same-commit reuse, failure without changing the current branch, and preservation of ignored local files. Submodule fetch/checkout recursion is disabled. Focused tests, strict Clippy, and applicable hooks passed.
 
 The Nix package through Changelog integration built successfully at `/nix/store/hdy2mfikiz2vpypmx2almr5jmws75bnv-collar-0.1.0`. Packaged version/help, integrated RFC/environment/terminal commands, and a canonical local announcement read passed smoke checks. Subsequent PR lifecycle changes still need a final package build.

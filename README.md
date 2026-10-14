@@ -24,9 +24,9 @@ collar config get --json
 collar config unset host
 ```
 
-Settings live in the platform's user configuration directory, such as `$XDG_CONFIG_HOME/collar/config.toml` on Linux. Use `--config PATH` or `COLLAR_CONFIG` for a different file, or `--no-config` to ignore saved settings. An explicitly selected missing file is an error except when creating it with `config set`. Invalid settings fail before running a command; they are never silently replaced. Writes replace the file atomically.
+Settings live in the platform's user configuration directory, such as `$XDG_CONFIG_HOME/collar/config.toml` on Linux. Use `--config PATH` or `COLLAR_CONFIG` for a different file, or `--no-config` to ignore saved settings and logins. An explicitly selected missing file is an error except when creating it with `config set` or `auth login`. Invalid settings fail before running a command; they are never silently replaced. Writes replace the file atomically.
 
-Only the default forge host is saved. Normal governance and infrastructure inspection always resolves the latest canonical default-branch revision, so no repository path or revision needs configuration. Explicit local checkout flags and environment variables support deliberate inspection of local changes. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
+Settings contain the default forge host and nonsecret saved-login host metadata. Normal governance and infrastructure inspection always resolves the latest canonical default-branch revision, so no repository path or revision needs configuration. Explicit local checkout flags and environment variables support deliberate inspection of local changes. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
 
 ## Diagnose setup
 
@@ -50,6 +50,16 @@ nix run git+https://git.cmu.dev/ScottyLabs/kennel#login
 
 Public reads work without login. Reviews and raw API writes require a personal access token from [Forgejo application settings](https://git.cmu.dev/user/settings/applications). Choose scopes appropriate to the operation; PR reviews require repository access.
 
+```bash
+collar auth login
+collar auth status
+collar auth logout
+```
+
+Login reads a hidden terminal prompt, verifies the token against the selected forge, then saves it in the OS credential store. `auth login --with-token` explicitly reads stdin, including input from a password manager; it never accepts a token argument. Input is bounded to 64 KiB. Linux requires an available Secret Service and session bus; macOS uses Keychain and Windows uses Credential Manager through the [keyring library](https://docs.rs/keyring/latest/keyring/v1/index.html). Only Linux has been exercised here with a real isolated store. Unlocking the OS store may require its own interaction. Store failures are explicit, with no plaintext fallback. Config-saving failures attempt to restore the previous credential and report any recovery failure.
+
+Each canonical forge origin has one saved credential, shared across configuration files. A configuration's nonsecret `logins` list identifies which origins to use; `--no-config` disables saved-login lookup. Public reads with no registered login do not open the OS store. A registered but missing or inaccessible credential is an error. `auth logout` removes the selected origin's stored credential and this configuration's marker; it does not revoke the server token or unset environment variables. Other configuration files using the same credential must log in again.
+
 Read a token into the environment without putting it in shell history:
 
 ```bash
@@ -59,7 +69,7 @@ export COLLAR_TOKEN
 collar auth status
 ```
 
-Collar does not save the token or accept it as a command-line argument. `COLLAR_TOKEN` belongs to `COLLAR_HOST`, or the saved default host, or git.cmu.dev in that order. To use a different authenticated forge, set both variables. `--host other.example` alone never sends the git.cmu.dev credential there. Connections require HTTPS, except loopback HTTP for local tests. Redirects are refused.
+`COLLAR_TOKEN` takes precedence over a saved credential only for its bound host: `COLLAR_HOST`, or the saved default host, or git.cmu.dev in that order. To use a different environment-authenticated forge, set both variables. `--host other.example` alone never sends the git.cmu.dev credential there; it can use that other origin's own registered saved credential. Tokens are never stored in Collar's config or accepted as command-line arguments. Connections require HTTPS, except loopback HTTP for local tests. Redirects are refused.
 
 This token is separate from OpenBao login and application OIDC credentials. Collar does not change your devenv secrets or Keycloak account links.
 

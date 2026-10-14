@@ -55,7 +55,7 @@ impl Api {
         if let Some(token) = &token {
             ensure!(
                 !token.trim().is_empty() && !token.contains(['\r', '\n']),
-                "COLLAR_TOKEN must be nonempty and contain no newlines"
+                "forge token must be nonempty and contain no newlines"
             );
         }
         Ok(Self {
@@ -79,7 +79,7 @@ impl Api {
     pub fn require_token(&self) -> Result<()> {
         ensure!(
             self.token.is_some(),
-            "this operation requires COLLAR_TOKEN; bind it to the forge with COLLAR_HOST"
+            "this operation requires collar auth login or COLLAR_TOKEN; bind environment tokens with COLLAR_HOST"
         );
         Ok(())
     }

@@ -136,6 +136,14 @@ enum ContextCommand {
 
 #[derive(Subcommand)]
 enum AuthCommand {
+    /// Verify and save a personal access token in the OS credential store.
+    Login {
+        /// Read the token from stdin instead of a hidden terminal prompt.
+        #[arg(long)]
+        with_token: bool,
+    },
+    /// Remove this host's saved credential without revoking it on the server.
+    Logout,
     /// Authenticate with ScottyLabs OpenBao.
     Bao {
         #[command(subcommand)]
@@ -423,15 +431,29 @@ pub fn run(cli: Cli) -> Result<()> {
         &cli.command,
         Command::Config {
             command: config::Command::Set { .. }
+        } | Command::Auth {
+            command: AuthCommand::Login { .. }
         }
     );
-    let config = Config::load(cli.config, cli.no_config, creating)?;
+    let mut config = Config::load(cli.config, cli.no_config, creating)?;
     let sources = Sources {
         config: &config,
         host: cli.host.as_deref(),
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Auth {
+            command: AuthCommand::Login { with_token },
+        } => {
+            let origin = host_url(cli.host.as_deref().unwrap_or(config.host()))?;
+            crate::auth::login(&mut config, origin, with_token)
+        }
+        Command::Auth {
+            command: AuthCommand::Logout,
+        } => {
+            let origin = host_url(cli.host.as_deref().unwrap_or(config.host()))?;
+            crate::auth::logout(&mut config, origin)
+        }
         Command::Changelog { command } => changelog::run(command, &sources),
         Command::Config { command } => config.run(command),
         Command::Secrets { command } => {

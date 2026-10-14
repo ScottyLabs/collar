@@ -27,7 +27,7 @@ The implementation follows the [link-shortener reference project](https://git.cm
 
 ## Non-Goals
 
-The POC does not implement every gh command, persist credentials, provision resources, apply infrastructure, mutate governance, or add Kennel server endpoints. These are later phases, not successful placeholder commands. GitHub-specific services require separate product and API decisions.
+The POC does not implement every gh command, provision resources, apply infrastructure, mutate governance, or add Kennel server endpoints. These are later phases, not successful placeholder commands. GitHub-specific services require separate product and API decisions.
 
 ## Detailed Design
 
@@ -55,9 +55,9 @@ PR creation uses an already-pushed head branch and the repository's default targ
 
 ### API and authentication
 
-Store only the host in the platform user configuration directory. Canonical source revisions are resolved automatically on every online read; local checkout overrides are explicit. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
+Store only the host and nonsecret saved-login origin metadata in the platform user configuration directory. Credentials belong in the OS credential store, one entry per canonical origin. Verify before saving, never fall back to plaintext, and restore the previous entry if metadata persistence fails. Canonical source revisions are resolved automatically on every online read; local checkout overrides are explicit. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
 
-Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; public reads work without credentials. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written to a file. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
+Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; it overrides only that host's saved credential. Public reads without registered login do not require a credential store. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written into Collar configuration. Login accepts hidden terminal input or explicit bounded stdin. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
 
 Raw api requests are relative to the selected host's /api/v1 namespace. Match gh's string -f/--raw-field and typed -F/--field conventions, infer POST when fields are supplied, and permit an explicit method. Do not accept arbitrary absolute URLs that could receive the selected host's credentials.
 
@@ -104,7 +104,7 @@ Use focused modules for argument parsing and orchestration, repository selection
 
 | Family | POC | Follow-up work |
 | --- | --- | --- |
-| auth | Token verification; credentials bound to one host | Keyring login, multi-account switching, refresh, Git credential helper, SSH/GPG keys. |
+| auth | Token verification; OS-store login/logout; credentials bound to their origin | Multi-account switching, refresh, Git credential helper, SSH/GPG keys. |
 | repo | View and Git remote discovery | Clone, create, fork, edit, archive, delete, sync, collaborators, deploy keys, mirrors. Governance-owned resources must use its PR workflow. |
 | pr | Create, checkout, edit, comment, close/reopen, merge, update branch, list, view/browse, diff, reported checks, commit-pinned review with inline comments | Ready, status, revert; required-check and approval evaluation. |
 | issue, label, release | Raw REST access | Typed lifecycle commands, search/filter parity, release assets, labels, milestones. |

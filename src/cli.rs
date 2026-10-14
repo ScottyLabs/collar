@@ -47,6 +47,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Read and search canonical ScottyLabs documentation.
+    Docs {
+        #[command(subcommand)]
+        command: crate::docs::Command,
+    },
     /// Generate shell completions.
     Completion {
         #[arg(value_enum)]
@@ -444,6 +449,11 @@ enum ProjectCommand {
 
 #[derive(Subcommand)]
 enum KennelCommand {
+    /// Read and search Kennel documentation.
+    Docs {
+        #[command(subcommand)]
+        command: crate::docs::Command,
+    },
     #[command(flatten)]
     Workflows(kennel::Command),
     /// Show build/deploy reports for a PR and historical preview comments.
@@ -503,6 +513,10 @@ pub fn run(cli: Cli) -> Result<()> {
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Docs { command } => crate::docs::run(command, &sources),
+        Command::Kennel {
+            command: KennelCommand::Docs { command },
+        } => crate::docs::run_kennel(command, &sources),
         Command::Completion { shell } => {
             clap_complete::generate(shell, &mut Cli::command(), "collar", &mut std::io::stdout());
             Ok(())

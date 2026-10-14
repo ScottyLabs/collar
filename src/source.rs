@@ -18,6 +18,8 @@ use crate::{auth, document};
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum Kind {
+    Documentation,
+    Kennel,
     Governance,
     Infrastructure,
     Changelog,
@@ -26,6 +28,8 @@ pub enum Kind {
 impl Kind {
     fn name(self) -> &'static str {
         match self {
+            Self::Documentation => "documentation",
+            Self::Kennel => "kennel",
             Self::Governance => "governance",
             Self::Infrastructure => "infrastructure",
             Self::Changelog => "changelog",
@@ -33,6 +37,14 @@ impl Kind {
     }
     fn includes(self, path: &str) -> bool {
         match self {
+            Self::Documentation => {
+                path.starts_with("org-docs/scottylabs/")
+                    && (path.ends_with(".md") || path.ends_with(".mdx"))
+            }
+            Self::Kennel => {
+                path == "README.md"
+                    || (path.starts_with("sites/docs/src/") && path.ends_with(".md"))
+            }
             Self::Changelog => {
                 matches!(path, "kennel.md" | "governance.md" | "infrastructure.md")
                     || path
@@ -40,13 +52,15 @@ impl Kind {
                         .is_some_and(|name| crate::changelog::update_number(name).is_some())
             }
             Self::Governance => {
-                path == "data/org.toml"
+                path == "README.md"
+                    || path == "data/org.toml"
                     || path
                         .strip_prefix("data/teams/")
                         .is_some_and(|name| !name.contains('/') && name.ends_with(".toml"))
             }
             Self::Infrastructure => {
                 path == "flake.nix"
+                    || (path.starts_with("docs/src/") && path.ends_with(".md"))
                     || (path.ends_with(".nix")
                         && (path.starts_with("modules/hosts/")
                             || path.starts_with("modules/roles/")))
@@ -123,7 +137,7 @@ impl Sources<'_> {
                 .cache_dir()
                 .to_owned(),
         };
-        let mut cache = cache.join("sources").join("v1");
+        let mut cache = cache.join("sources").join("v2");
         let encoded: String = origin
             .as_str()
             .bytes()
@@ -424,6 +438,18 @@ fn validate_snapshot(
         )?;
     }
     match kind {
+        Kind::Documentation => {
+            ensure!(
+                directory.join("org-docs/scottylabs/index.md").is_file(),
+                "ScottyLabs snapshot is missing its documentation index"
+            );
+        }
+        Kind::Kennel => {
+            ensure!(
+                directory.join("sites/docs/src/SUMMARY.md").is_file(),
+                "Kennel snapshot is missing its documentation index"
+            );
+        }
         Kind::Governance => {
             ensure!(
                 crate::project::organization_origin(directory)? == *origin,

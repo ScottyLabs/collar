@@ -46,6 +46,7 @@ The POC implements these workflows:
 | Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with canonical namespace/profile validation and original tool exit codes. |
 | Changelog | view, updates, update, new | Read latest canonical generated summaries and announcements; invoke the existing local authoring helper. Publication remains the canonical workflow. |
 | RFC | rfc | Complete Fetch search and draft creation within Collar. |
+| Documentation | docs list/view/search, kennel docs | Read and search latest canonical organization and service guides, with explicit offline snapshots. |
 
 Repository selection accepts -R [HOST/]OWNER/REPO and otherwise reads upstream then origin. Explicit host/repository disagreements are errors. PR selection accepts a positive number or a same-host PR URL; omitted selection resolves the current branch through the pull list and refuses ambiguity. JSON output projects explicit supported gh-style fields. Forgejo-native responses remain accessible through api.
 

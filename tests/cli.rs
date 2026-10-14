@@ -1519,6 +1519,9 @@ mod repository_admin;
 #[path = "cases/oauth.rs"]
 mod oauth;
 
+#[path = "cases/docs.rs"]
+mod docs;
+
 #[cfg(unix)]
 #[test]
 fn closed_output_pipe_terminates_without_a_panic() {

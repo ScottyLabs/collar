@@ -6,6 +6,7 @@ mod cli;
 mod client;
 mod config;
 mod diff;
+mod docs;
 mod doctor;
 mod document;
 mod environment;

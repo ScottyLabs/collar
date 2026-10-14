@@ -14,6 +14,25 @@ pub fn heading(title: &str) {
     println!("{}", style(Style::new().bold(), clean(title)));
 }
 
+pub fn markdown(body: &str) {
+    let body = body
+        .strip_prefix("---\n")
+        .and_then(|rest| rest.split_once("\n---\n").map(|(_, body)| body))
+        .unwrap_or(body);
+    let mut code = false;
+    for line in body.lines() {
+        let line = clean(line);
+        if line.starts_with("```") || line.starts_with("~~~") {
+            code = !code;
+            println!("{}", style(Style::new().dim(), line));
+        } else if !code && line.starts_with('#') {
+            heading(&line);
+        } else {
+            println!("{line}");
+        }
+    }
+}
+
 pub fn detail(label: &str, value: &str) {
     println!(
         "{}  {}",

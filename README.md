@@ -217,6 +217,19 @@ collar infra hosts --offline
 
 Use `--checkout PATH` or `COLLAR_INFRASTRUCTURE` only when inspecting local infrastructure changes. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
 
+## Documentation
+
+```bash
+collar docs list
+collar docs search secrets
+collar docs view onboarding/contributing
+collar kennel docs list
+collar kennel docs view guides/secrets
+collar kennel docs search preview --offline
+```
+
+Read current organization guides or project documentation without maintaining clones. See [documentation commands](DOCS.md) for source selection, offline snapshots, and JSON output.
+
 ## More development workflows
 
 - [Issues and labels](ISSUES.md): inspect, create, edit, comment, close/reopen, and maintain labels.
@@ -282,5 +295,7 @@ cargo clippy -p collar --all-targets -- -D warnings
 ```
 
 Tests use local HTTP fixtures and temporary checkouts. Review payloads are verified without remote writes.
+
+Source, tests, and documentation live in this crate. Its development manifest inherits workspace metadata and shared dependencies. For extraction, `cargo package -p collar --no-verify` produces an archive with a standalone normalized manifest and lockfile; use `--allow-dirty` while reviewing local changes. The extracted package builds without Terrier. Supply your own development shell and install `git-credential-oauth` for browser sign-in when moving it to another repository.
 
 The [draft design](RFC.md) lives alongside the implementation.

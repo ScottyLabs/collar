@@ -72,6 +72,61 @@ pub fn get(api: &Api, repo: &Repo, number: u64) -> Result<Pull> {
     api.json(Method::GET, &path, &[], None)
 }
 
+pub fn open_head(api: &Api, repo: &Repo, number: u64, expected: Option<&str>) -> Result<Pull> {
+    ensure!(
+        expected.is_none_or(|value| !value.trim().is_empty()),
+        "--match-head-commit must be nonempty"
+    );
+    let pull = get(api, repo, number)?;
+    ensure!(
+        pull.number == number,
+        "forge returned a different PR number"
+    );
+    ensure!(
+        pull.state == "open" && !pull.merged,
+        "PR must be open and unmerged"
+    );
+    ensure!(!pull.head.sha.is_empty(), "PR has no head commit");
+    if let Some(expected) = expected {
+        ensure!(
+            pull.head.sha == expected,
+            "PR head differs from --match-head-commit; inspect it before retrying"
+        );
+    }
+    Ok(pull)
+}
+
+pub fn merge(
+    api: &Api,
+    repo: &Repo,
+    pull: &Pull,
+    method: &str,
+    delete_branch: bool,
+    auto: bool,
+) -> Result<()> {
+    let number = pull.number.to_string();
+    let mut path = repo.path().to_vec();
+    path.extend(["pulls", &number, "merge"]);
+    api.text(
+        Method::POST,
+        &path,
+        &[],
+        Some(&json!({
+            "Do":method,"head_commit_id":pull.head.sha,"delete_branch_after_merge":delete_branch,
+            "force_merge":false,"merge_when_checks_succeed":auto
+        })),
+    )?;
+    Ok(())
+}
+
+pub fn update_branch(api: &Api, repo: &Repo, number: u64, style: &str) -> Result<()> {
+    let number = number.to_string();
+    let mut path = repo.path().to_vec();
+    path.extend(["pulls", &number, "update"]);
+    api.text(Method::POST, &path, &[("style".into(), style.into())], None)?;
+    Ok(())
+}
+
 pub fn create(
     api: &Api,
     repo: &Repo,

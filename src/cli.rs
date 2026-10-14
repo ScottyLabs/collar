@@ -156,6 +156,38 @@ enum RepoCommand {
 
 #[derive(Subcommand)]
 enum PrCommand {
+    /// Merge the inspected PR head using Forgejo protection checks.
+    #[command(group(ArgGroup::new("strategy").required(true).args(["merge", "squash", "rebase"])))]
+    Merge {
+        selector: Option<String>,
+        #[arg(long)]
+        merge: bool,
+        #[arg(long)]
+        squash: bool,
+        #[arg(long)]
+        rebase: bool,
+        /// Refuse if the current head differs from this commit.
+        #[arg(long)]
+        match_head_commit: Option<String>,
+        #[arg(long)]
+        delete_branch: bool,
+        /// Ask Forgejo to merge when its checks succeed.
+        #[arg(long, conflicts_with = "match_head_commit")]
+        auto: bool,
+        #[command(flatten)]
+        output: Output,
+    },
+    /// Merge or rebase the target branch into the PR branch.
+    UpdateBranch {
+        selector: Option<String>,
+        #[arg(long)]
+        rebase: bool,
+        /// Check the current head before submission; the update API has no atomic guard.
+        #[arg(long)]
+        match_head_commit: Option<String>,
+        #[command(flatten)]
+        output: Output,
+    },
     /// Create a PR from an already-pushed branch.
     Create {
         #[arg(short = 't', long)]
@@ -658,6 +690,61 @@ pub fn run(cli: Cli) -> Result<()> {
 
 fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
     match command {
+        PrCommand::Merge {
+            selector,
+            merge: _,
+            squash,
+            rebase,
+            match_head_commit,
+            delete_branch,
+            auto,
+            output,
+        } => {
+            let method = if squash {
+                "squash"
+            } else if rebase {
+                "rebase"
+            } else {
+                "merge"
+            };
+            output.validate_fields(&[
+                "number",
+                "headRefOid",
+                "method",
+                "autoMergeRequested",
+                "accepted",
+            ])?;
+            api.require_token()?;
+            let number = pr::select(api, repo, selector.as_deref())?;
+            let pull = pr::open_head(api, repo, number, match_head_commit.as_deref())?;
+            pr::merge(api, repo, &pull, method, delete_branch, auto)?;
+            let value = json!({"number":number,"headRefOid":pull.head.sha,"method":method,"autoMergeRequested":auto,"accepted":true});
+            output.print(&value, || {
+                println!(
+                    "Forgejo accepted the {method} request for PR #{number}; inspected head {}{}",
+                    pull.head.sha,
+                    if auto {
+                        "; automatic merge requested without a pinned head"
+                    } else {
+                        ""
+                    }
+                )
+            })
+        }
+        PrCommand::UpdateBranch {
+            selector,
+            rebase,
+            match_head_commit,
+            output,
+        } => {
+            output.validate_fields(&["number", "headRefOid", "method", "accepted"])?;
+            api.require_token()?;
+            let number = pr::select(api, repo, selector.as_deref())?;
+            let pull = pr::open_head(api, repo, number, match_head_commit.as_deref())?;
+            let style = if rebase { "rebase" } else { "merge" };
+            pr::update_branch(api, repo, number, style)?;
+            output.print(&json!({"number":number,"headRefOid":pull.head.sha,"method":style,"accepted":true}), || println!("Forgejo accepted the {style} branch update for PR #{number}; inspected head {}", pull.head.sha))
+        }
         PrCommand::Create {
             title,
             head,

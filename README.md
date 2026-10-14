@@ -110,9 +110,15 @@ collar pr edit 42 --title 'Check preview health' --body-file description.md
 collar pr comment 42 --body 'Ready for review.'
 collar pr close 42
 collar pr reopen 42
+collar pr merge 42 --squash --delete-branch
+collar pr update-branch 42 --rebase
 ```
 
 Creation uses an already-pushed branch; omitting `--head` reads the current Git branch, and omitting `--base` uses the forge repository's default branch. It does not push commits. Edit supports `--title`, `--base`, and body text/files; omitted fields remain unchanged, while `--body ''` clears the description. `--body-file -` reads stdin. Comments require nonempty text. Close/reopen refuse merged PRs and an already-requested state. These commands write immediately, require a host-bound token, support JSON output, and never retry a mutation automatically. The server enforces permissions and validates the current state.
+
+Merge requires exactly one of `--merge`, `--squash`, or `--rebase`. Immediate merge sends the inspected SHA as Forgejo's expected head, with force merging disabled. `--match-head-commit SHA` additionally requires that specific head before submission. `--delete-branch` asks Forgejo to delete the source branch after merging. `--auto` requests scheduled merging when server checks succeed; Forgejo's scheduled path does not enforce the expected SHA, so it cannot be combined with `--match-head-commit` and can merge a later head. Server permissions, required reviews, and branch protections remain authoritative; reported statuses alone do not prove readiness.
+
+`update-branch` merges the target branch into the PR head, or rebases with `--rebase`. Its optional `--match-head-commit` is a preflight check: Forgejo's update endpoint has no atomic expected-head guard. Both commands require an open, unmerged PR. JSON reports request acceptance and the inspected `headRefOid`; it does not claim that a scheduled merge completed or give the new branch-update SHA. Inspect the PR again for current state.
 
 `collar pr browse` provides an opt-in terminal picker and read-only details, diff, and commit-status navigation. `collar project select` picks a governed repository and prints its project context. Type to filter, use arrow keys to move, and Enter to select. Escape cancels with exit code 130. Both require terminal stdin and stderr; prompts use stderr so `--json` output can be redirected. With `pr browse --json`, selecting a PR emits its current metadata and exits. Reported commit statuses do not establish required-check coverage or merge readiness.
 

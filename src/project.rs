@@ -67,22 +67,29 @@ impl Project {
     ];
 
     pub fn print(&self) {
-        println!(
-            "{} ({})\nRepository: {}\nTeam: {}\nLeads: {}\nSecret namespace: {}",
-            self.name,
-            self.slug,
-            self.repository,
-            self.team,
-            self.leads.join(", "),
+        crate::ui::heading(&format!("{} ({})", self.name, self.slug));
+        crate::ui::detail("Repository", &self.repository);
+        crate::ui::detail("Team", &self.team);
+        crate::ui::detail("Leads", &self.leads.join(", "));
+        crate::ui::detail(
+            "Secret namespace",
             self.secret_namespace
                 .as_deref()
-                .unwrap_or("not defined by governance")
+                .unwrap_or("not defined by governance"),
         );
-        println!(
-            "Features: {}\nGovernance: {}\nLink accounts: {}\nDeclared configuration; applied access and deployment health are not verified.",
-            self.features.keys().cloned().collect::<Vec<_>>().join(", "),
-            self.governance_source.display(),
-            self.linked_accounts_url
+        crate::ui::table(
+            &["Feature", "Configuration"],
+            &self
+                .features
+                .iter()
+                .map(|(name, value)| vec![name.clone(), value.to_string()])
+                .collect::<Vec<_>>(),
+        );
+        crate::ui::detail("Governance", &self.governance_source.display().to_string());
+        crate::ui::detail("Link accounts", self.linked_accounts_url.as_str());
+        crate::ui::detail(
+            "Verification",
+            "Declared configuration; applied access and deployment health are not verified.",
         );
     }
 }

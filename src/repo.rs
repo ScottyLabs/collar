@@ -144,6 +144,64 @@ pub fn root() -> Result<std::path::PathBuf> {
         .into())
 }
 
+pub fn clone(
+    api: &crate::client::Api,
+    repo: &Repo,
+    directory: Option<&std::path::Path>,
+    https: bool,
+) -> Result<()> {
+    #[derive(serde::Deserialize)]
+    struct CloneUrls {
+        ssh_url: String,
+        clone_url: String,
+    }
+    let urls: CloneUrls = api.json(reqwest::Method::GET, &repo.path(), &[], None)?;
+    let remote = if https {
+        &urls.clone_url
+    } else {
+        &urls.ssh_url
+    };
+    let target = Repo::remote(remote, None).context("validate forge clone URL")?;
+    let same_host = if https {
+        target.origin == repo.origin
+    } else {
+        target.origin.host_str() == repo.origin.host_str()
+    };
+    ensure!(
+        same_host
+            && target.owner.eq_ignore_ascii_case(&repo.owner)
+            && target.name.eq_ignore_ascii_case(&repo.name),
+        "forge clone URL does not match the selected repository"
+    );
+    if remote.contains("://") {
+        let url = Url::parse(remote).context("parse clone URL")?;
+        ensure!(
+            url.password().is_none() && url.query().is_none() && url.fragment().is_none(),
+            "clone URL must not contain a password, query, or fragment"
+        );
+    }
+    if https {
+        let url = Url::parse(remote).context("parse HTTPS clone URL")?;
+        ensure!(
+            matches!(url.scheme(), "https" | "http")
+                && url.username().is_empty()
+                && url.password().is_none(),
+            "HTTPS clone URL must not contain credentials or use another transport"
+        );
+    } else {
+        ensure!(
+            !remote.contains("://") || remote.starts_with("ssh://"),
+            "forge did not provide an SSH clone URL"
+        );
+    }
+    let mut command = Command::new("git");
+    command.args(["clone", "--", remote]);
+    if let Some(directory) = directory {
+        command.arg(directory);
+    }
+    crate::process::run(&mut command)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use url::Url;
 
-use crate::{client::Api, repo::Repo};
+use crate::{client::Api, repo::Repo, ui};
 
 #[derive(Deserialize)]
 pub struct User {
@@ -62,6 +62,28 @@ impl Pull {
             "headRefOid": self.head.sha,
             "baseRefName": self.base.name,
         })
+    }
+
+    pub fn print(&self) {
+        ui::heading(&format!("PR #{} {}", self.number, self.title));
+        let state = if self.merged { "merged" } else { &self.state };
+        let color = if self.merged {
+            ui::Status::Success
+        } else if self.state == "closed" {
+            ui::Status::Error
+        } else {
+            ui::Status::Warning
+        };
+        ui::status("State", state, color);
+        ui::detail("Author", &self.user.login);
+        ui::detail(
+            "Branch",
+            &format!("{} -> {}", self.head.name, self.base.name),
+        );
+        ui::detail("URL", &self.html_url);
+        if let Some(body) = self.body.as_deref().filter(|body| !body.trim().is_empty()) {
+            println!("\n{}", body);
+        }
     }
 }
 

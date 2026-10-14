@@ -48,7 +48,7 @@ nix run git+https://git.cmu.dev/ScottyLabs/kennel#login
 
 ## Authentication
 
-Public reads work without login. Reviews and raw API writes require a personal access token from [Forgejo application settings](https://git.cmu.dev/user/settings/applications). Choose scopes appropriate to the operation; PR reviews require repository access.
+Public reads work without login. Sign in through the browser for reviews and API writes. For automation, create a scoped personal access token in [Forgejo application settings](https://git.cmu.dev/user/settings/applications); PR reviews require repository access.
 
 ```bash
 collar auth login
@@ -217,6 +217,20 @@ collar infra hosts --offline
 
 Use `--checkout PATH` or `COLLAR_INFRASTRUCTURE` only when inspecting local infrastructure changes. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
 
+## More development workflows
+
+- [Issues and labels](ISSUES.md): inspect, create, edit, comment, close/reopen, and maintain labels.
+- [Releases](RELEASES.md): list, inspect, create, edit, and delete release metadata.
+- [Actions](ACTIONS.md): inspect runs/jobs and workflow files, dispatch workflows, and delete completed runs.
+- [Repositories](REPOSITORIES.md): clone, create, fork, edit, archive/unarchive, delete with explicit confirmation, and synchronize mirrors.
+- [Governance](GOVERNANCE.md): validate a checkout, run the canonical provisioner, and discover declared feature access.
+- [Governance changes](GOVERNANCE_CHANGES.md): prepare validated membership and repository-feature changes for review.
+- [Infrastructure](INFRASTRUCTURE.md): check or build canonical Nix configuration and delegate host operations to Colmena.
+- [Kennel](KENNEL.md): inspect current-head previews and log links, or wait for reported deployment checks.
+- [Browser sign-in](SSO.md): authenticate through the forge's existing university sign-in.
+
+`collar completion bash` generates shell completions; other supported shells appear in `collar completion --help`.
+
 ## Canonical source snapshots
 
 Governance, project-context, and infrastructure inspection require no manually maintained clones. Online commands resolve the canonical repository's default branch, pin its full commit ID, and fetch the required source files through Forgejo REST endpoints, using host-bound credentials when available. Tree pages and file sizes are checked before publishing a complete snapshot. Subsequent calls check the branch again and reuse an intact snapshot when its revision is unchanged.
@@ -238,7 +252,7 @@ collar api repos/ScottyLabs/terrier/pulls --method GET -F limit=5
 
 `api` targets `/api/v1` on the selected forge. `-f/--raw-field` adds a string and `-F/--field` adds a typed JSON value; `-F key=@file` reads a string from a file. Fields or `--input FILE` imply POST unless `--method` is given. An explicit GET sends fields as query parameters. API writes take effect immediately and require a token.
 
-Absolute URLs, traversal, nested field names, duplicate fields, and arbitrary headers are not supported. The POC has no GraphQL, built-in jq, output templates, API pagination flag, keyring login, or extension manager. Typed list commands paginate with a 100-page bound and fail if completeness cannot be established within it. Responses are limited to 8 MiB.
+Absolute URLs, traversal, nested field names, duplicate fields, and arbitrary headers are not supported. The POC has no GraphQL, built-in jq, output templates, API pagination flag or extension manager. Typed list commands paginate with a 100-page bound and fail if completeness cannot be established within it. Responses are limited to 8 MiB.
 
 Success exits with code 0; runtime errors exit with code 1; delegated tool commands preserve their failure exit codes; argument errors use clap's code 2. These codes are not yet full gh compatibility. Unsupported commands fail through argument parsing rather than reporting placeholder success.
 
@@ -269,6 +283,4 @@ cargo clippy -p collar --all-targets -- -D warnings
 
 Tests use local HTTP fixtures and temporary checkouts. Review payloads are verified without remote writes.
 
-The [design and parity roadmap](RFC.md) live alongside the implementation.
-
-The [development review](REVIEW.md) defines the complete ScottyLabs workflows and tracks integration constraints and remaining work.
+The [draft design](RFC.md) lives alongside the implementation.

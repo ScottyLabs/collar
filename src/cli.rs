@@ -2,7 +2,7 @@ use std::io::Read;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
-use clap::{ArgGroup, Args, Parser, Subcommand, ValueEnum};
+use clap::{ArgGroup, Args, CommandFactory, Parser, Subcommand, ValueEnum};
 use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
@@ -14,7 +14,8 @@ use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Sources};
 use crate::{
-    changelog, checkout, config, doctor, environment, governance, infra, pr, project, rfc, tui,
+    changelog, checkout, config, doctor, environment, governance, governance_ops, infra, infra_ops,
+    kennel, pr, project, rfc, tui, ui,
 };
 
 #[derive(Parser)]
@@ -46,6 +47,36 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Generate shell completions.
+    Completion {
+        #[arg(value_enum)]
+        shell: clap_complete::Shell,
+    },
+    /// Work with Forgejo issues.
+    Issue {
+        #[command(subcommand)]
+        command: crate::issues::IssueCommand,
+    },
+    /// Manage repository labels.
+    Label {
+        #[command(subcommand)]
+        command: crate::issues::LabelCommand,
+    },
+    /// Inspect and manage repository releases.
+    Release {
+        #[command(subcommand)]
+        command: crate::releases::Command,
+    },
+    /// Inspect Forgejo Actions runs.
+    Actions {
+        #[command(subcommand)]
+        command: crate::actions::RunCommand,
+    },
+    /// Inspect or dispatch existing workflows.
+    Workflow {
+        #[command(subcommand)]
+        command: crate::actions::WorkflowCommand,
+    },
     /// Read ScottyLabs changelogs and prepare tech-lead announcements.
     Changelog {
         #[command(subcommand)]
@@ -161,6 +192,19 @@ enum AuthCommand {
 
 #[derive(Subcommand)]
 enum RepoCommand {
+    /// Administer repositories through Forgejo.
+    Admin {
+        #[command(subcommand)]
+        command: crate::repository_admin::Command,
+    },
+    /// Clone using the repository's SSH URL and your existing Git authentication.
+    Clone {
+        repository: String,
+        directory: Option<PathBuf>,
+        /// Use HTTPS instead of the default SSH transport.
+        #[arg(long)]
+        https: bool,
+    },
     /// View a repository.
     View {
         /// Repository as [HOST/]OWNER/REPO.
@@ -361,6 +405,13 @@ struct ApiArgs {
 
 #[derive(Subcommand)]
 enum GovernanceCommand {
+    /// Prepare validated local changes for review.
+    Changes {
+        #[command(subcommand)]
+        command: crate::governance_changes::Command,
+    },
+    #[command(flatten)]
+    Workflows(governance_ops::Command),
     Project {
         #[command(subcommand)]
         command: ProjectCommand,
@@ -393,12 +444,16 @@ enum ProjectCommand {
 
 #[derive(Subcommand)]
 enum KennelCommand {
+    #[command(flatten)]
+    Workflows(kennel::Command),
     /// Show build/deploy reports for a PR and historical preview comments.
     Status(Selection),
 }
 
 #[derive(Subcommand)]
 enum InfraCommand {
+    #[command(flatten)]
+    Workflows(infra_ops::CommandKind),
     Hosts {
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
         checkout: Option<PathBuf>,
@@ -448,6 +503,30 @@ pub fn run(cli: Cli) -> Result<()> {
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Completion { shell } => {
+            clap_complete::generate(shell, &mut Cli::command(), "collar", &mut std::io::stdout());
+            Ok(())
+        }
+        Command::Issue { command } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            crate::issues::run_issue(&api(repo.origin.clone(), &config)?, &repo, command)
+        }
+        Command::Label { command } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            crate::issues::run_label(&api(repo.origin.clone(), &config)?, &repo, command)
+        }
+        Command::Release { command } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            crate::releases::run(command, &api(repo.origin.clone(), &config)?, &repo)
+        }
+        Command::Actions { command } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            crate::actions::run_run(command, &api(repo.origin.clone(), &config)?, &repo)
+        }
+        Command::Workflow { command } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            crate::actions::run_workflow(command, &api(repo.origin.clone(), &config)?, &repo)
+        }
         Command::Auth {
             command:
                 AuthCommand::Login {
@@ -515,8 +594,8 @@ pub fn run(cli: Cli) -> Result<()> {
             }
             let project = project::resolve(&source.directory, &repo)?;
             output.print(&source.attach(&project)?, || {
-                println!("{}", source.describe());
                 project.print();
+                ui::detail("Source", &source.describe());
             })
         }
         Command::Project {
@@ -534,11 +613,21 @@ pub fn run(cli: Cli) -> Result<()> {
             let source = sources.load_at(Kind::Governance, checkout, offline, &repo.origin)?;
             let project = project::resolve(&source.directory, &repo)?;
             output.print(&source.attach(&project)?, || {
-                println!("{}", source.describe());
                 project.print();
+                ui::detail("Source", &source.describe());
             })
         }
 
+        Command::Governance {
+            command: GovernanceCommand::Workflows(command),
+        } => governance_ops::run(command, &sources, cli.repo.as_deref(), cli.host.as_deref()),
+        Command::Governance {
+            command: GovernanceCommand::Changes { command },
+        } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
+            crate::governance_changes::run(command, &api, &repo, &sources)
+        }
         Command::Governance {
             command: GovernanceCommand::Project { command },
         } => match command {
@@ -561,10 +650,20 @@ pub fn run(cli: Cli) -> Result<()> {
                 let source = sources.load(Kind::Governance, checkout, offline)?;
                 let projects = governance::projects(&source.directory)?;
                 output.print(&source.attach(&projects)?, || {
-                    println!("{}", source.describe());
-                    for project in &projects {
-                        println!("{}\t{}\t{}", project.slug, project.team, project.name);
-                    }
+                    ui::heading(&format!("Governance projects - {}", source.describe()));
+                    ui::table(
+                        &["Project", "Team", "Name"],
+                        &projects
+                            .iter()
+                            .map(|project| {
+                                vec![
+                                    project.slug.clone(),
+                                    project.team.clone(),
+                                    project.name.clone(),
+                                ]
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 })
             }
             ProjectCommand::View {
@@ -588,32 +687,41 @@ pub fn run(cli: Cli) -> Result<()> {
                 );
                 let project = matches[0];
                 output.print(&source.attach(project)?, || {
-                    println!("{}", source.describe());
-                    println!(
-                        "{} ({})\nTeam: {}\nLeads: {}\nSecret namespace: {}",
-                        project.name,
-                        project.slug,
-                        project.team,
-                        project.leads.join(", "),
+                    ui::heading(&format!("{} ({})", project.name, project.slug));
+                    ui::detail("Team", &project.team);
+                    ui::detail("Leads", &project.leads.join(", "));
+                    ui::detail(
+                        "Secret namespace",
                         project.secret_namespace.as_deref().unwrap_or(
-                            "not defined for team-owned repos alongside nested projects"
-                        )
+                            "not defined for team-owned repos alongside nested projects",
+                        ),
                     );
-                    for repo in &project.repos {
-                        println!(
-                            "{}: {}",
-                            repo.name,
-                            repo.features.keys().cloned().collect::<Vec<_>>().join(", ")
-                        );
-                    }
-                    println!(
-                        "Source: {}\nDeclared configuration; applied access is not verified.",
-                        project.source.display()
+                    ui::table(
+                        &["Repository", "Features"],
+                        &project
+                            .repos
+                            .iter()
+                            .map(|repo| {
+                                vec![
+                                    repo.name.clone(),
+                                    repo.features.keys().cloned().collect::<Vec<_>>().join(", "),
+                                ]
+                            })
+                            .collect::<Vec<_>>(),
+                    );
+                    ui::detail(
+                        "Source",
+                        &format!("{} - {}", project.source.display(), source.describe()),
+                    );
+                    ui::detail(
+                        "Verification",
+                        "Declared configuration; applied access is not verified.",
                     );
                 })
             }
         },
         Command::Infra { command } => match command {
+            InfraCommand::Workflows(command) => infra_ops::run(command, &sources),
             InfraCommand::Hosts {
                 checkout,
                 offline,
@@ -623,10 +731,16 @@ pub fn run(cli: Cli) -> Result<()> {
                 let source = sources.load(Kind::Infrastructure, checkout, offline)?;
                 let hosts = infra::hosts(&source.directory)?;
                 output.print(&source.attach(&hosts)?, || {
-                    println!("{}", source.describe());
-                    for host in &hosts {
-                        println!("{}\t{}", host.name, host.configuration.display());
-                    }
+                    ui::heading(&format!("Infrastructure hosts - {}", source.describe()));
+                    ui::table(
+                        &["Host", "Configuration"],
+                        &hosts
+                            .iter()
+                            .map(|host| {
+                                vec![host.name.clone(), host.configuration.display().to_string()]
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 })
             }
             InfraCommand::Service {
@@ -639,10 +753,16 @@ pub fn run(cli: Cli) -> Result<()> {
                 let source = sources.load(Kind::Infrastructure, checkout, offline)?;
                 let services = infra::service(&source.directory, &name)?;
                 output.print(&source.attach(&services)?, || {
-                    println!("{}", source.describe());
-                    for service in &services {
-                        println!("{}\t{}", service.host, service.source.display());
-                    }
+                    ui::heading(&format!("Infrastructure services - {}", source.describe()));
+                    ui::table(
+                        &["Host", "Service source"],
+                        &services
+                            .iter()
+                            .map(|service| {
+                                vec![service.host.clone(), service.source.display().to_string()]
+                            })
+                            .collect::<Vec<_>>(),
+                    );
                 })
             }
         },
@@ -657,6 +777,31 @@ pub fn run(cli: Cli) -> Result<()> {
             let user: pr::User = api.json(Method::GET, &["user"], &[], None)?;
             println!("Logged in to {} as {}", api.origin(), user.login);
             Ok(())
+        }
+        Command::Repo {
+            command:
+                RepoCommand::Clone {
+                    repository,
+                    directory,
+                    https,
+                },
+        } => {
+            let repo = config.repo(Some(&repository), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
+            crate::repo::clone(&api, &repo, directory.as_deref(), https)
+        }
+        Command::Repo {
+            command: RepoCommand::Admin { command },
+        } => {
+            let selected = match &command {
+                crate::repository_admin::Command::Create { owner, name, .. } => {
+                    Some(format!("{owner}/{name}"))
+                }
+                _ => cli.repo.clone(),
+            };
+            let repo = config.repo(selected.as_deref(), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
+            crate::repository_admin::run(command, &api, &repo)
         }
         Command::Repo {
             command: RepoCommand::View { repository, output },
@@ -693,6 +838,13 @@ pub fn run(cli: Cli) -> Result<()> {
             run_pr(command, &api, &repo)
         }
         Command::Kennel {
+            command: KennelCommand::Workflows(command),
+        } => {
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
+            kennel::run(command, &api, &repo)
+        }
+        Command::Kennel {
             command: KennelCommand::Status(selection),
         } => {
             let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
@@ -713,7 +865,7 @@ pub fn run(cli: Cli) -> Result<()> {
             let mut path = repo.path().to_vec();
             let number_string = number.to_string();
             path.extend(["issues", &number_string, "comments"]);
-            let comments: Vec<Comment> = api.list(&path, &[], usize::MAX)?;
+            let comments: Vec<Comment> = api.json(Method::GET, &path, &[], None)?;
             let comments: Vec<_> = comments
                 .into_iter()
                 .filter(|comment| comment.body.contains("<!-- kennel-deployment -->"))
@@ -724,10 +876,29 @@ pub fn run(cli: Cli) -> Result<()> {
             );
             let value = json!({ "number": number, "headRefOid": pull.head.sha, "statuses": statuses, "comments": comments, "liveHealthVerified": false });
             selection.output.print(&value, || {
-                println!("PR #{number}, commit {}", pull.head.sha);
-                for status in &statuses { println!("{}\t{}\t{}", status.context, status.state, status.target_url.as_deref().unwrap_or("")); }
-                for comment in &comments { println!("{}\n{}", comment.html_url, comment.body); }
-                println!("Forgejo reports only; preview comments may be historical. Live health is not verified.");
+                ui::heading(&format!("Kennel reports for PR #{number}"));
+                ui::detail("Commit", &pull.head.sha);
+                ui::table(
+                    &["Check", "State", "URL"],
+                    &statuses
+                        .iter()
+                        .map(|status| {
+                            vec![
+                                status.context.clone(),
+                                status.state.clone(),
+                                status.target_url.clone().unwrap_or_default(),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                );
+                for comment in &comments {
+                    ui::detail("Preview", &comment.html_url);
+                    println!("{}\n", comment.body);
+                }
+                ui::detail(
+                    "Health",
+                    "Forgejo reports only; live health is not verified.",
+                );
             })
         }
     }
@@ -871,28 +1042,31 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
             let pulls = pr::list(api, repo, state.as_str(), limit)?;
             let values: Vec<_> = pulls.iter().map(pr::Pull::output).collect();
             output.print(&values, || {
-                for pull in &pulls {
-                    println!(
-                        "#{}\t{}\t{}\t{}",
-                        pull.number, pull.state, pull.title, pull.user.login
-                    );
-                }
+                ui::heading("Pull requests");
+                ui::table(
+                    &["PR", "State", "Title", "Author"],
+                    &pulls
+                        .iter()
+                        .map(|pull| {
+                            vec![
+                                format!("#{}", pull.number),
+                                if pull.merged {
+                                    "merged".into()
+                                } else {
+                                    pull.state.clone()
+                                },
+                                pull.title.clone(),
+                                pull.user.login.clone(),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                );
             })
         }
         PrCommand::View(selection) => {
             let number = pr::select(api, repo, selection.selector.as_deref())?;
             let pull = pr::get(api, repo, number)?;
-            selection.output.print(&pull.output(), || {
-                println!(
-                    "#{} {}\n{} -> {}\n{}\n\n{}",
-                    pull.number,
-                    pull.title,
-                    pull.head.name,
-                    pull.base.name,
-                    pull.html_url,
-                    pull.body.as_deref().unwrap_or("")
-                )
-            })
+            selection.output.print(&pull.output(), || pull.print())
         }
         PrCommand::Diff { selector } => {
             let number = pr::select(api, repo, selector.as_deref())?;
@@ -908,14 +1082,21 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
             let statuses = pr::statuses(api, repo, &pull.head.sha)?;
             let values: Vec<_> = statuses.iter().map(|status| json!({ "name": status.context, "state": status.state, "description": status.description, "link": status.target_url })).collect();
             selection.output.print(&values, || {
-                for status in &statuses {
-                    println!(
-                        "{}\t{}\t{}",
-                        status.state,
-                        status.context,
-                        status.target_url.as_deref().unwrap_or("")
-                    );
-                }
+                ui::heading(&format!("Checks for PR #{}", pull.number));
+                ui::table(
+                    &["State", "Check", "Description", "URL"],
+                    &statuses
+                        .iter()
+                        .map(|status| {
+                            vec![
+                                status.state.clone(),
+                                status.context.clone(),
+                                status.description.clone().unwrap_or_default(),
+                                status.target_url.clone().unwrap_or_default(),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                );
             })?;
             ensure!(
                 !statuses.is_empty(),

@@ -1,3 +1,4 @@
+mod actions;
 mod auth;
 mod changelog;
 mod checkout;
@@ -9,21 +10,30 @@ mod doctor;
 mod document;
 mod environment;
 mod governance;
+mod governance_changes;
+mod governance_ops;
 mod infra;
+mod infra_ops;
+mod issues;
+mod kennel;
 mod oauth;
 mod output;
 mod pr;
 mod process;
 mod project;
+mod releases;
 mod repo;
+mod repository_admin;
 mod rfc;
 mod source;
 mod tui;
+mod ui;
 
 use clap::Parser;
 use std::process::ExitCode;
 
 fn main() -> ExitCode {
+    sigpipe::reset();
     match cli::run(cli::Cli::parse()) {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {

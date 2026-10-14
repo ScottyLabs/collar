@@ -1,7 +1,7 @@
 # RFC: Collar Developer CLI
 
 - **Status:** Draft
-- **Author(s):** Pending
+- **Author(s):** @kritdass
 - **Created:** 2026-10-14
 - **Updated:** 2026-10-14
 
@@ -19,15 +19,15 @@ The implementation follows the [link-shortener reference project](https://git.cm
 
 - Use gh command names, arguments, review flags, and selected JSON fields for supported forge workflows.
 - Review PRs with approval, requested changes, body text, and inline comments pinned to the inspected head commit.
-- Discover project ownership and enabled features from a governance checkout.
+- Discover project ownership and enabled features from latest canonical governance snapshots.
 - Discover deployment statuses and preview links from existing Forgejo data.
-- Inspect infrastructure hosts and configuration locations without deploying changes.
+- Inspect infrastructure configuration and delegate explicit operations to its existing tools.
 - Fail explicitly on unavailable capabilities, invalid configuration, and failed requests.
 - Keep the crate independent of Terrier server and domain types.
 
 ## Non-Goals
 
-The POC does not implement every gh command, provision resources, apply infrastructure, mutate governance, or add Kennel server endpoints. These are later phases, not successful placeholder commands. GitHub-specific services require separate product and API decisions.
+The POC does not implement every gh command or add Kennel server endpoints. Provisioning stays with governance and infrastructure tools. Governance edits prepare validated local changes for review; they do not bypass the canonical pull request workflow. GitHub-specific services remain outside this POC.
 
 ## Detailed Design
 
@@ -40,9 +40,9 @@ The POC implements these workflows:
 | Onboarding | doctor, project view/select | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode and optional terminal selection. |
 | Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
 | Forge | auth status, repo view, pr create/checkout/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
-| Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |
-| Kennel | status | Report kennel/build and kennel/deploy commit statuses and marked preview comments. |
-| Infrastructure | hosts, service | Read host directories and locate service configuration files in a checkout. |
+| Governance | project list/view, validate, run, service-access, changes join/leave/enable/disable | Inspect canonical data; prepare validated local changes; delegate provisioning to the canonical CLI. |
+| Kennel | status, preview, logs, wait | Inspect commit-bound checks and preview/log links; wait with bounded polling. |
+| Infrastructure | hosts, service, check, build, atlantis-config, colmena | Discover canonical configuration and delegate explicit Nix/Colmena operations. |
 | Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with canonical namespace/profile validation and original tool exit codes. |
 | Changelog | view, updates, update, new | Read latest canonical generated summaries and announcements; invoke the existing local authoring helper. Publication remains the canonical workflow. |
 | RFC | rfc | Complete Fetch search and draft creation within Collar. |
@@ -57,7 +57,7 @@ PR creation uses an already-pushed head branch and the repository's default targ
 
 Store only the host and nonsecret saved-login origin metadata in the platform user configuration directory. Credentials belong in the OS credential store, one entry per canonical origin. Verify before saving, never fall back to plaintext, and restore the previous entry if metadata persistence fails. Canonical source revisions are resolved automatically on every online read; local checkout overrides are explicit. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
 
-Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; it overrides only that host's saved credential. Public reads without registered login do not require a credential store. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written into Collar configuration. Login accepts hidden terminal input or explicit bounded stdin. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
+Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; it overrides only that host's saved credential. Public reads without registered login do not require a credential store. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written into Collar configuration. Login opens the existing Forgejo browser authorization flow, including university SSO, and stores refresh credentials securely. Hidden token input and explicit bounded stdin remain available. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
 
 Raw api requests are relative to the selected host's /api/v1 namespace. Match gh's string -f/--raw-field and typed -F/--field conventions, infer POST when fields are supplied, and permit an explicit method. Do not accept arbitrary absolute URLs that could receive the selected host's credentials.
 
@@ -81,43 +81,15 @@ Use focused modules for argument parsing and orchestration, repository selection
 - A gh fork carries GitHub REST/GraphQL assumptions and a Go implementation.
 - Direct infrastructure and identity mutations create competing sources of truth. Retain governance PRs, Atlantis, Colmena, Bao, and secretspec as the owners of those operations.
 
-## Open Questions
+## Compatibility and limits
 
-- Choose the minimum supported Forgejo version and capability contract for later phases.
-- Design keyring-backed login and multi-host credential storage.
-- Define authenticated Kennel list/log/redeploy APIs before adding those commands.
-- Decide the long-term repository home after validating the POC in Terrier's workspace.
-- Keep RFC search and creation inside Collar, with one implementation and no separate Fetch crate.
+This remains a Draft POC. The supported commands are documented in the [crate README](README.md) and each command family's guide. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
 
-## Implementation Phases
+Typed forge workflows include PR review and authoring, repository administration, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside the agreed POC scope.
 
-1. Record this design, inspect existing RFCs/issues, and create an isolated branch.
-1. Initialize the crate with cargo init and add dependencies with cargo add.
-1. Implement the HTTP/repository/output boundaries and meaningful error-path tests.
-1. Implement PR inspection, diff-anchored reviews, and mock-server payload tests.
-1. Implement governance, Kennel, and infrastructure discovery with representative fixtures.
-1. Document the supported command subset and add a development-shell entrypoint.
-1. Run focused tests, clippy, formatting, applicable hooks, and the Nix package build. Check crate documentation links and perform public read-only smoke checks; record blockers accurately.
-1. Review the POC before acceptance. Expand parity by command family with a tested compatibility inventory: issues/repositories/releases, Actions and secrets, scripting/extensions, then ScottyLabs mutations through existing review pipelines.
+Read-only ScottyLabs discovery uses latest canonical snapshots without user-maintained clones. Explicit local checkouts are required for edits and tools that need full source trees. Governance validation/provisioning, Atlantis, Colmena, Bao, and secretspec retain ownership of their workflows.
 
-### Parity roadmap
-
-| Family | POC | Follow-up work |
-| --- | --- | --- |
-| auth | Token verification; OS-store login/logout; credentials bound to their origin | Multi-account switching, refresh, Git credential helper, SSH/GPG keys. |
-| repo | View and Git remote discovery | Clone, create, fork, edit, archive, delete, sync, collaborators, deploy keys, mirrors. Governance-owned resources must use its PR workflow. |
-| pr | Create, checkout, edit, comment, close/reopen, merge, update branch, list, view/browse, diff, reported checks, commit-pinned review with inline comments | Ready, status, revert; required-check and approval evaluation. |
-| issue, label, release | Raw REST access | Typed lifecycle commands, search/filter parity, release assets, labels, milestones. |
-| run, workflow, secret, variable | Raw REST access | Typed commands and capability detection. Run deletion is supported by the server; Forgejo rerun and workflow state management need server API work. |
-| api and scripting | Simple typed/string fields, explicit methods, bounded typed lists, selected JSON fields | Nested fields, placeholders, API pagination, jq, templates, gh exit codes, completions, aliases, extensions. |
-| search, projects, discussions | Not implemented | Use available Forgejo search APIs. Code/commit search and project/discussion APIs need backend decisions. |
-| GitHub services | Not implemented | Codespaces, Copilot, attestations, and hosted agent tasks require separate services. |
-| governance | Project ownership, features, namespace discovery | Reuse the existing validator; generate reviewed membership/feature PRs; track Atlantis application. |
-| Kennel | Current-head commit statuses and historical preview comments | Authenticated project/build/deployment discovery and logs first; design redeploy/rollback semantics before mutations. |
-| infrastructure | Host and service source discovery | Evaluated Nix inventory and diagnostics; preserve Atlantis for resource changes and Colmena for host activation. |
-| RFCs | collar rfc search/list/create | Preserve search ranking, status metadata, source links, and draft creation; support explicit directories and Git-root discovery. |
-
-Add a command family's request, response, failure-path, flag, JSON, and exit-code tests before claiming compatibility. A command name alone is not parity. The POC's runtime exit code is 1 on failure; full gh exit-code compatibility remains follow-up work.
+The long-term repository home and minimum supported Forgejo version remain adoption decisions. This crate has no Terrier domain dependencies and keeps its design and user documentation locally.
 
 ### Expanded developer workflow
 

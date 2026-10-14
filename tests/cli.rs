@@ -573,7 +573,6 @@ fn kennel_reports_marked_comments_without_claiming_live_health() {
             { "body": "unrelated", "html_url": "https://example.com/1" },
             { "body": "<!-- kennel-deployment -->\nPreview: https://collie-pr-42.scottylabs.net", "html_url": "https://example.com/2" }
         ])),
-        Response::json(json!([])),
     ]);
     let output = server
         .command(false)
@@ -584,7 +583,11 @@ fn kennel_reports_marked_comments_without_claiming_live_health() {
     let report: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["liveHealthVerified"], false);
     assert_eq!(report["comments"].as_array().unwrap().len(), 1);
-    server.finish();
+    let requests = server.finish();
+    assert_eq!(requests.len(), 4);
+    assert!(
+        requests[3].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments HTTP/1.1")
+    );
 }
 
 #[test]
@@ -1394,6 +1397,29 @@ mod checkout;
 #[path = "cases/auth.rs"]
 mod auth;
 
+#[cfg(unix)]
+#[path = "cases/infra_ops.rs"]
+mod infra_ops;
+
+#[cfg(unix)]
+#[path = "cases/governance_ops.rs"]
+mod governance_ops;
+
+#[path = "cases/kennel.rs"]
+mod kennel;
+
+#[path = "cases/issues.rs"]
+mod issues;
+
+#[path = "cases/releases.rs"]
+mod releases;
+
+#[path = "cases/actions.rs"]
+mod actions;
+
+#[path = "cases/clone.rs"]
+mod clone;
+
 #[test]
 fn changelog_reads_numbered_announcements_and_rejects_ambiguity() {
     let temp = TempDir::new().unwrap();
@@ -1482,5 +1508,31 @@ fn changelog_authoring_delegates_literal_slug_and_preserves_failure() {
 }
 
 #[cfg(unix)]
+#[path = "cases/governance_changes.rs"]
+mod governance_changes;
+
+#[cfg(unix)]
+#[path = "cases/repository_admin.rs"]
+mod repository_admin;
+
+#[cfg(unix)]
 #[path = "cases/oauth.rs"]
 mod oauth;
+
+#[cfg(unix)]
+#[test]
+fn closed_output_pipe_terminates_without_a_panic() {
+    use std::os::unix::process::ExitStatusExt;
+    use std::process::Stdio;
+
+    let mut child = command()
+        .args(["completion", "bash"])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    drop(child.stdout.take());
+    let output = child.wait_with_output().unwrap();
+    assert_eq!(output.status.signal(), Some(13));
+    assert!(output.stderr.is_empty());
+}

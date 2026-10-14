@@ -161,3 +161,13 @@ pub fn organization_origin(checkout: &Path) -> Result<Url> {
     );
     host_url(&organization.org.forgejo.url)
 }
+
+pub fn repository(checkout: &Path, name: &str) -> Result<Repo> {
+    let text = std::fs::read_to_string(checkout.join("data/org.toml"))
+        .context("read governance organization")?;
+    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")?;
+    Repo::parse(
+        &format!("{}/{name}", organization.org.forgejo.org),
+        Some(&organization.org.forgejo.url),
+    )
+}

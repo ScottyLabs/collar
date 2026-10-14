@@ -15,6 +15,7 @@ mod project;
 mod repo;
 mod rfc;
 mod source;
+mod tui;
 
 use clap::Parser;
 use std::process::ExitCode;
@@ -24,9 +25,13 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("error: {error:#}");
-            error
-                .downcast_ref::<process::ToolExit>()
-                .map_or(ExitCode::FAILURE, |exit| ExitCode::from(exit.code()))
+            if error.is::<tui::Cancelled>() {
+                ExitCode::from(130)
+            } else {
+                error
+                    .downcast_ref::<process::ToolExit>()
+                    .map_or(ExitCode::FAILURE, |exit| ExitCode::from(exit.code()))
+            }
         }
     }
 }

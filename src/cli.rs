@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Sources};
-use crate::{config, doctor, environment, governance, infra, pr, project, rfc};
+use crate::{config, doctor, environment, governance, infra, pr, project, rfc, tui};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -106,6 +106,15 @@ enum Command {
 
 #[derive(Subcommand)]
 enum ContextCommand {
+    /// Pick a project repository interactively; emits its context.
+    Select {
+        #[arg(long, env = "COLLAR_GOVERNANCE")]
+        checkout: Option<PathBuf>,
+        #[arg(long)]
+        offline: bool,
+        #[command(flatten)]
+        output: Output,
+    },
     /// Show declared ownership, features, and the secret namespace.
     View {
         #[arg(long, env = "COLLAR_GOVERNANCE")]
@@ -142,6 +151,15 @@ enum RepoCommand {
 
 #[derive(Subcommand)]
 enum PrCommand {
+    /// Select a PR interactively, then inspect its details, diff, or checks.
+    Browse {
+        #[arg(short = 's', long, value_enum, default_value = "open")]
+        state: State,
+        #[arg(short = 'L', long, default_value_t = 30)]
+        limit: usize,
+        #[command(flatten)]
+        output: Output,
+    },
     /// List pull requests.
     List {
         #[arg(short = 's', long, value_enum, default_value = "open")]
@@ -324,6 +342,42 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Rfc(args) => rfc::run(args),
         Command::Doctor(args) => {
             doctor::run(args, &sources, cli.repo.as_deref(), cli.host.as_deref())
+        }
+        Command::Project {
+            command:
+                ContextCommand::Select {
+                    checkout,
+                    offline,
+                    output,
+                },
+        } => {
+            tui::require_terminal()?;
+            let mut fields = project::Project::FIELDS.to_vec();
+            fields.push("dataSource");
+            output.validate_fields(&fields)?;
+            let source = sources.load(Kind::Governance, checkout, offline)?;
+            let projects = governance::projects(&source.directory)?;
+            let choices: Vec<_> = projects
+                .iter()
+                .flat_map(|project| project.repos.iter().map(move |repo| (project, repo)))
+                .collect();
+            let labels: Vec<_> = choices
+                .iter()
+                .map(|(project, repo)| format!("{}/{} - {}", project.team, project.slug, repo.name))
+                .collect();
+            let (_, selected) = choices[tui::choose("Project", &labels)?];
+            let repo = project::repository(&source.directory, &selected.name)?;
+            if let Some(host) = cli.host.as_deref() {
+                ensure!(
+                    repo.origin == host_url(host)?,
+                    "governance repository host disagrees with --host"
+                );
+            }
+            let project = project::resolve(&source.directory, &repo)?;
+            output.print(&source.attach(&project)?, || {
+                println!("{}", source.describe());
+                project.print();
+            })
         }
         Command::Project {
             command:
@@ -541,6 +595,11 @@ pub fn run(cli: Cli) -> Result<()> {
 
 fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
     match command {
+        PrCommand::Browse {
+            state,
+            limit,
+            output,
+        } => tui::browse_pull_requests(api, repo, state.as_str(), limit, &output),
         PrCommand::List {
             state,
             limit,

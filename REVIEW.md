@@ -2,6 +2,10 @@
 
 Status: In progress. The existing proof of concept does not satisfy the complete developer workflow below.
 
+Terminal selection now includes `project select` and read-only `pr browse`, with fuzzy filtering, explicit cancellation, stderr prompts, and JSON selection output. Tests cover control-character removal and rejection of headless use before network access. A real terminal project-selection smoke test verified redirected JSON output. Focused tests, strict Clippy, and all applicable contribution hooks passed. Interactive review submission and mutation confirmations remain open.
+
+The [feature catalog](FEATURES.md) records all eight canonical governance feature families and their actual access contracts. Typed service operations and applied-permission checks remain open. Integration with `ScottyLabs/changelog` must expose its generated infrastructure/Kennel/governance summaries and numbered tech-lead announcements, and use its existing authoring conventions. Discord publication remains the canonical repository's workflow.
+
 ## Required workflows
 
 | Workflow | Required behavior | Verification |

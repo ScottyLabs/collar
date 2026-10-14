@@ -104,6 +104,10 @@ collar pr review 42 --comment --body-file review.md
 
 PR commands accept a number, a PR URL belonging to the selected repository, or a branch name. Omit the selection to find the open PR for your current branch. Ambiguous branch matches require a number.
 
+`collar pr browse` provides an opt-in terminal picker and read-only details, diff, and commit-status navigation. `collar project select` picks a governed repository and prints its project context. Type to filter, use arrow keys to move, and Enter to select. Escape cancels with exit code 130. Both require terminal stdin and stderr; prompts use stderr so `--json` output can be redirected. With `pr browse --json`, selecting a PR emits its current metadata and exits. Reported commit statuses do not establish required-check coverage or merge readiness.
+
+See the [governance feature catalog](FEATURES.md) for managed services, secret names, and access workflows.
+
 Exactly one of `--approve`, `--request-changes`, or `--comment` is required. `--body-file -` reads stdin. Comments and requested changes require text or inline comments.
 
 For inline comments, create a JSON file:

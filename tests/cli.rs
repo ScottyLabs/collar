@@ -25,6 +25,19 @@ fn command() -> Command {
     command
 }
 
+#[test]
+fn interactive_commands_reject_headless_use_before_network_access() {
+    for arguments in [vec!["project", "select"], vec!["pr", "browse"]] {
+        let output = command()
+            .args(["--host", "http://127.0.0.1:1", "-R", "ScottyLabs/terrier"])
+            .args(arguments)
+            .output()
+            .unwrap();
+        failure(&output, "requires terminal stdin and stderr");
+        assert!(output.stdout.is_empty());
+    }
+}
+
 struct Response {
     status: u16,
     body: String,

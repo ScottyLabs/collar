@@ -82,7 +82,7 @@ Use focused modules for argument parsing and orchestration, repository selection
 - Design keyring-backed login and multi-host credential storage.
 - Define authenticated Kennel list/log/redeploy APIs before adding those commands.
 - Decide the long-term repository home after validating the POC in Terrier's workspace.
-- Move Fetch into collar rfc in a later change, retaining the fetch executable during migration.
+- Keep RFC search and creation inside Collar, with one implementation and no separate Fetch crate.
 
 ## Implementation Phases
 
@@ -110,6 +110,14 @@ Use focused modules for argument parsing and orchestration, repository selection
 | governance | Project ownership, features, namespace discovery | Reuse the existing validator; generate reviewed membership/feature PRs; track Atlantis application. |
 | Kennel | Current-head commit statuses and historical preview comments | Authenticated project/build/deployment discovery and logs first; design redeploy/rollback semantics before mutations. |
 | infrastructure | Host and service source discovery | Evaluated Nix inventory and diagnostics; preserve Atlantis for resource changes and Colmena for host activation. |
-| RFCs | Existing fetch command retained | Incorporate Fetch as collar rfc with a compatibility entrypoint. |
+| RFCs | collar rfc search/list/create | Preserve search ranking, status metadata, source links, and draft creation; support explicit directories and Git-root discovery. |
 
 Add a command family's request, response, failure-path, flag, JSON, and exit-code tests before claiming compatibility. A command name alone is not parity. The POC's runtime exit code is 1 on failure; full gh exit-code compatibility remains follow-up work.
+
+### Expanded developer workflow
+
+Fold Fetch's complete search and creation implementation into `collar rfc`, including its regression tests. Remove the separate crate and development-shell command. Resolve RFC directories from an explicit `--directory`, the active devenv root, or the current Git checkout rather than a compiled-in Terrier source path. Crate-local `RFC.md` files are searchable when their directory is selected.
+
+Read-only governance and infrastructure discovery should not require user-maintained clones. Prefer versioned canonical API snapshots cached under Collar's user cache directory, with explicit refresh/offline behavior and source revision in output. Keep optional checkout overrides for editing, validation, Nix evaluation, and reviewed changes. Never silently substitute cached data for a failed refresh. Changes still use canonical review pipelines.
+
+Terminal interaction should help selection and inspection: an opt-in project picker and PR review navigator, with keyboard help and explicit write confirmation. Preserve noninteractive commands and JSON output; reject TUI mode without a terminal. Feature access must cover the current governance feature schema and link each feature to its supported inspection, configuration, and operational workflow.

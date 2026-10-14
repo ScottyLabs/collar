@@ -157,7 +157,21 @@ Absolute URLs, traversal, nested field names, duplicate fields, and arbitrary he
 
 Success exits with code 0; runtime errors exit with code 1; argument errors use clap's code 2. These codes are not yet full gh compatibility. Unsupported commands fail through argument parsing rather than reporting placeholder success.
 
-Fetch remains available for RFC search. A future `collar rfc` command can incorporate it without removing the existing executable in this POC.
+## RFC search and creation
+
+```bash
+collar rfc session redis
+collar rfc --status draft saml
+collar rfc --status all
+collar rfc --new "Rate Limiting"
+collar rfc --directory crates/collar --status all
+```
+
+Fetch is fully incorporated into Collar. The separate crate and `fetch` shell command are removed. Search defaults to accepted RFCs, ignores case, and requires all query words in a section or its title. Title matches rank first, followed by the number of matching sections and then filename order. Results include excerpts, source lines, heading anchors, updated dates, and declared RFC relationships. Missing status metadata produces a warning. Piped output is plain text.
+
+Without a query, list matching RFCs. `--new` creates a numbered Draft with the RFC template and UTC dates, refuses invalid titles, and never overwrites an existing file. Search and creation cannot be combined.
+
+Use `--directory PATH` to select the document directory. Otherwise Collar uses `DEVENV_ROOT/rfcs` or the current Git checkout's `rfcs` directory. Numbered RFCs and standalone `RFC.md` files are searchable; ordinary README files are excluded. There is no compiled-in Terrier path or search index. Outside the development shell, use `devenv shell -- collar rfc ...`; tests run with `cargo test -p collar --test rfc`.
 
 ## Development
 

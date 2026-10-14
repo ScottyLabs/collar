@@ -12,6 +12,7 @@ mod pr;
 mod process;
 mod project;
 mod repo;
+mod rfc;
 
 use clap::Parser;
 use std::process::ExitCode;

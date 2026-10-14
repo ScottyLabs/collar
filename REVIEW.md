@@ -15,9 +15,10 @@ Status: In progress. The existing proof of concept does not satisfy the complete
 | Environment | Guide Bao login; invoke secretspec checks and secret management with explicit profiles; use devenv for project tasks. | Exact subprocess arguments, exit propagation, no captured or printed secret values. |
 | Infrastructure | Discover and evaluate hosts/services, locate dashboards/docs, check/build Nix configurations, prepare Atlantis plans and invoke Colmena through established workflows. | Canonical flake/Atlantis contracts, Nix output fixtures, platform/bastion handling, failed tool execution. |
 | Project context | Relate the current repository to its governance owner, secret namespace, features, preview, and infrastructure/configuration links without repeated flags. | Mixed repository/project slugs, ambiguous ownership, stale or unavailable checkout signals. |
+| RFC workflows | Complete Fetch migration into collar rfc; preserve search, metadata, ranking, source links, and draft creation; remove the independent crate. | Migrated parser/CLI tests, packaged Git-root discovery, explicit directories, invalid creation and numbering bounds. |
 | Documentation and packaging | All usage/design/review documentation stays in this crate; supported commands are discoverable; Nix/devenv entrypoints work. | Link/format checks, help snapshots where useful, package build and runtime smoke checks. |
 
-The existing Fetch executable remains supported. Integrating its RFC commands is a follow-up to the core developer workflows rather than a reason to duplicate its implementation.
+Fetch must be folded completely into Collar, including search, draft creation, and regression tests. Governance and infrastructure inspection must work without manually maintained checkouts, while keeping overrides for editing and evaluation. Tasteful opt-in terminal interaction and access to every governance-defined ScottyLabs feature are required.
 
 ## Integration contracts
 
@@ -91,3 +92,5 @@ These checks establish the current implementation and packaging boundary. They d
 - Devenv's `--profile` selects a Nix development profile. `--secretspec-profile` selects a secret profile. A wrapper must use the latter explicitly and preserve the user's access reason rather than inventing one.
 
 The command contracts above were checked against the installed CLI help alongside Kennel's canonical documentation. They are requirements for the remaining environment commands, not claims that those commands are implemented.
+
+RFC search and draft creation now live in `src/rfc.rs`, with the migrated Fetch tests in `tests/rfc.rs`. The separate Fetch crate and shell command are removed. Directory discovery uses explicit input, devenv, or the current Git checkout, and standalone crate-local RFC.md documents are searchable. Regression tests also cover multiline-title rejection, conflicting search/create arguments, and four-digit numbering exhaustion. Checkout-free snapshots, feature access, and terminal interaction remain required by the expanded goal.

@@ -104,6 +104,16 @@ collar pr review 42 --comment --body-file review.md
 
 PR commands accept a number, a PR URL belonging to the selected repository, or a branch name. Omit the selection to find the open PR for your current branch. Ambiguous branch matches require a number.
 
+```sh
+collar pr create --title 'Add preview health check' --head feature/health --body-file description.md
+collar pr edit 42 --title 'Check preview health' --body-file description.md
+collar pr comment 42 --body 'Ready for review.'
+collar pr close 42
+collar pr reopen 42
+```
+
+Creation uses an already-pushed branch; omitting `--head` reads the current Git branch, and omitting `--base` uses the forge repository's default branch. It does not push commits. Edit supports `--title`, `--base`, and body text/files; omitted fields remain unchanged, while `--body ''` clears the description. `--body-file -` reads stdin. Comments require nonempty text. Close/reopen refuse merged PRs and an already-requested state. These commands write immediately, require a host-bound token, support JSON output, and never retry a mutation automatically. The server enforces permissions and validates the current state.
+
 `collar pr browse` provides an opt-in terminal picker and read-only details, diff, and commit-status navigation. `collar project select` picks a governed repository and prints its project context. Type to filter, use arrow keys to move, and Enter to select. Escape cancels with exit code 130. Both require terminal stdin and stderr; prompts use stderr so `--json` output can be redirected. With `pr browse --json`, selecting a PR emits its current metadata and exits. Reported commit statuses do not establish required-check coverage or merge readiness.
 
 See the [governance feature catalog](FEATURES.md) for managed services, secret names, and access workflows.

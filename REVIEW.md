@@ -2,6 +2,8 @@
 
 Status: In progress. The existing proof of concept does not satisfy the complete developer workflow below.
 
+PR authoring now includes create, edit, comment, close, and reopen. Fixture verification covers the canonical default branch, implicit local Git branch, exact file/stdin Markdown, supplied-only edits, empty description clearing, PR identity before discussion comments, state transitions, merged/already-closed refusal, authentication and input failures before requests, and redacted non-retried permission failures. Native payloads were checked against the deployed Forgejo schema. No live PR mutation was performed. Checkout, branch updates, merge, and the broader lifecycle requirements remain open.
+
 Terminal selection now includes `project select` and read-only `pr browse`, with fuzzy filtering, explicit cancellation, stderr prompts, and JSON selection output. Tests cover control-character removal and rejection of headless use before network access. A real terminal project-selection smoke test verified redirected JSON output. Focused tests, strict Clippy, and all applicable contribution hooks passed. Interactive review submission and mutation confirmations remain open.
 
 The [feature catalog](FEATURES.md) records all eight canonical governance feature families and their actual access contracts. Typed service operations and applied-permission checks remain open.

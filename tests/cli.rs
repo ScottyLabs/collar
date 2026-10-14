@@ -1382,6 +1382,9 @@ fn failed_snapshot_download_does_not_publish_an_offline_source() {
 #[path = "cases/environment.rs"]
 mod environment;
 
+#[path = "cases/authoring.rs"]
+mod authoring;
+
 #[test]
 fn changelog_reads_numbered_announcements_and_rejects_ambiguity() {
     let temp = TempDir::new().unwrap();

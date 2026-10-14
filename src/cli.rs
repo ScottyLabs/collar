@@ -156,6 +156,45 @@ enum RepoCommand {
 
 #[derive(Subcommand)]
 enum PrCommand {
+    /// Create a PR from an already-pushed branch.
+    Create {
+        #[arg(short = 't', long)]
+        title: String,
+        /// Branch or fork-owner:branch; defaults to the current Git branch.
+        #[arg(short = 'H', long)]
+        head: Option<String>,
+        /// Target branch; defaults to the forge repository's default branch.
+        #[arg(short = 'B', long)]
+        base: Option<String>,
+        #[command(flatten)]
+        text: PullText,
+        #[command(flatten)]
+        output: Output,
+    },
+    /// Edit a PR's title, body, or target branch.
+    Edit {
+        selector: Option<String>,
+        #[arg(short = 't', long)]
+        title: Option<String>,
+        #[arg(short = 'B', long)]
+        base: Option<String>,
+        #[command(flatten)]
+        text: PullText,
+        #[command(flatten)]
+        output: Output,
+    },
+    /// Add a discussion comment to a PR.
+    Comment {
+        selector: Option<String>,
+        #[command(flatten)]
+        text: PullText,
+        #[command(flatten)]
+        output: Output,
+    },
+    /// Close a PR without merging it.
+    Close(Selection),
+    /// Reopen a closed, unmerged PR.
+    Reopen(Selection),
     /// Select a PR interactively, then inspect its details, diff, or checks.
     Browse {
         #[arg(short = 's', long, value_enum, default_value = "open")]
@@ -206,6 +245,24 @@ struct Selection {
     selector: Option<String>,
     #[command(flatten)]
     output: Output,
+}
+
+#[derive(Args)]
+struct PullText {
+    #[arg(short = 'b', long, conflicts_with = "body_file")]
+    body: Option<String>,
+    /// Read Markdown from a file, or - for stdin.
+    #[arg(short = 'F', long)]
+    body_file: Option<PathBuf>,
+}
+
+impl PullText {
+    fn read(self) -> Result<Option<String>> {
+        self.body_file
+            .map(|path| read_file(&path))
+            .transpose()
+            .map(|file| file.or(self.body))
+    }
 }
 
 #[derive(Args)]
@@ -601,6 +658,62 @@ pub fn run(cli: Cli) -> Result<()> {
 
 fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
     match command {
+        PrCommand::Create {
+            title,
+            head,
+            base,
+            text,
+            output,
+        } => {
+            output.validate_fields(pr::Pull::FIELDS)?;
+            api.require_token()?;
+            let body = text.read()?.unwrap_or_default();
+            let head = head.map(Ok).unwrap_or_else(crate::repo::branch)?;
+            let pull = pr::create(api, repo, &title, &head, base.as_deref(), &body)?;
+            output.print(&pull.output(), || println!("{}", pull.html_url))
+        }
+        PrCommand::Edit {
+            selector,
+            title,
+            base,
+            text,
+            output,
+        } => {
+            output.validate_fields(pr::Pull::FIELDS)?;
+            api.require_token()?;
+            let body = text.read()?;
+            let mut change = Map::new();
+            for (key, value) in [("title", title), ("base", base), ("body", body)] {
+                if let Some(value) = value {
+                    if key != "body" {
+                        ensure!(!value.trim().is_empty(), "{key} must be nonempty");
+                    }
+                    change.insert(key.into(), value.into());
+                }
+            }
+            ensure!(
+                !change.is_empty(),
+                "provide --title, --base, --body, or --body-file"
+            );
+            let number = pr::select(api, repo, selector.as_deref())?;
+            let pull = pr::edit(api, repo, number, &Value::Object(change))?;
+            output.print(&pull.output(), || println!("{}", pull.html_url))
+        }
+        PrCommand::Comment {
+            selector,
+            text,
+            output,
+        } => {
+            output.validate_fields(&["id", "body", "url", "author"])?;
+            api.require_token()?;
+            let body = text.read()?.context("provide --body or --body-file")?;
+            ensure!(!body.trim().is_empty(), "comment body must be nonempty");
+            let number = pr::select(api, repo, selector.as_deref())?;
+            let comment = pr::comment(api, repo, number, &body)?;
+            output.print(&comment.output(), || println!("{}", comment.html_url))
+        }
+        PrCommand::Close(selection) => set_pull_state(api, repo, selection, "closed"),
+        PrCommand::Reopen(selection) => set_pull_state(api, repo, selection, "open"),
         PrCommand::Browse {
             state,
             limit,
@@ -707,6 +820,19 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
             Ok(())
         }
     }
+}
+
+fn set_pull_state(api: &Api, repo: &Repo, selection: Selection, state: &str) -> Result<()> {
+    selection.output.validate_fields(pr::Pull::FIELDS)?;
+    api.require_token()?;
+    let number = pr::select(api, repo, selection.selector.as_deref())?;
+    let current = pr::get(api, repo, number)?;
+    ensure!(!current.merged, "a merged PR cannot be closed or reopened");
+    ensure!(current.state != state, "PR is already {state}");
+    let pull = pr::edit(api, repo, number, &json!({"state":state}))?;
+    selection
+        .output
+        .print(&pull.output(), || println!("{}", pull.html_url))
 }
 
 fn raw_api(args: ApiArgs, host: Option<&str>, config: &Config) -> Result<()> {

@@ -37,16 +37,21 @@ The POC implements these workflows:
 
 | Group | Commands | Behavior |
 | --- | --- | --- |
-| Onboarding | doctor, project view | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode. |
+| Onboarding | doctor, project view/select | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode and optional terminal selection. |
 | Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
-| Forge | auth status, repo view, pr list/view/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. |
+| Forge | auth status, repo view, pr create/edit/comment/close/reopen/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
 | Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |
 | Kennel | status | Report kennel/build and kennel/deploy commit statuses and marked preview comments. |
 | Infrastructure | hosts, service | Read host directories and locate service configuration files in a checkout. |
+| Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with canonical namespace/profile validation and original tool exit codes. |
+| Changelog | view, updates, update, new | Read latest canonical generated summaries and announcements; invoke the existing local authoring helper. Publication remains the canonical workflow. |
+| RFC | rfc | Complete Fetch search and draft creation within Collar. |
 
 Repository selection accepts -R [HOST/]OWNER/REPO and otherwise reads upstream then origin. Explicit host/repository disagreements are errors. PR selection accepts a positive number or a same-host PR URL; omitted selection resolves the current branch through the pull list and refuses ambiguity. JSON output projects explicit supported gh-style fields. Forgejo-native responses remain accessible through api.
 
 Review submission supports --approve, --request-changes, --comment, --body, and --body-file, including stdin. Exactly one review verdict is required. An optional JSON comments file carries path, line, side, and body. Validate line anchors against the inspected diff, then submit one review with that head SHA as commit_id. Do not retry mutations or silently retarget a changed head. The POC never submits reviews as part of its own live verification.
+
+PR creation uses an already-pushed head branch and the repository's default target branch unless explicitly selected. Authoring commands accept literal text or Markdown files/stdin; edits send only supplied fields and support explicitly clearing the body. Comments verify that the numeric target is a PR before using Forgejo's shared issue-comment endpoint. Close/reopen refuse merged PRs and already-requested states. These metadata/state endpoints do not provide atomic expected-head guards; server permissions and current state remain authoritative. Remote mutations are verified only against fixtures during development.
 
 ### API and authentication
 
@@ -101,7 +106,7 @@ Use focused modules for argument parsing and orchestration, repository selection
 | --- | --- | --- |
 | auth | Token verification; credentials bound to one host | Keyring login, multi-account switching, refresh, Git credential helper, SSH/GPG keys. |
 | repo | View and Git remote discovery | Clone, create, fork, edit, archive, delete, sync, collaborators, deploy keys, mirrors. Governance-owned resources must use its PR workflow. |
-| pr | List, view, diff, reported checks, commit-pinned review with inline comments | Create, checkout, edit, comment, ready, update branch, merge, close, reopen, status, revert; required-check and approval evaluation. |
+| pr | Create, edit, comment, close/reopen, list, view/browse, diff, reported checks, commit-pinned review with inline comments | Checkout, ready, update branch, merge, status, revert; required-check and approval evaluation. |
 | issue, label, release | Raw REST access | Typed lifecycle commands, search/filter parity, release assets, labels, milestones. |
 | run, workflow, secret, variable | Raw REST access | Typed commands and capability detection. Run deletion is supported by the server; Forgejo rerun and workflow state management need server API work. |
 | api and scripting | Simple typed/string fields, explicit methods, bounded typed lists, selected JSON fields | Nested fields, placeholders, API pagination, jq, templates, gh exit codes, completions, aliases, extensions. |

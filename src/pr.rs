@@ -72,6 +72,70 @@ pub fn get(api: &Api, repo: &Repo, number: u64) -> Result<Pull> {
     api.json(Method::GET, &path, &[], None)
 }
 
+pub fn create(
+    api: &Api,
+    repo: &Repo,
+    title: &str,
+    head: &str,
+    base: Option<&str>,
+    body: &str,
+) -> Result<Pull> {
+    ensure!(!title.trim().is_empty(), "title must be nonempty");
+    ensure!(!head.trim().is_empty(), "head must be nonempty");
+    if let Some(base) = base {
+        ensure!(!base.trim().is_empty(), "base must be nonempty");
+    }
+    let base = match base {
+        Some(base) => base.to_owned(),
+        None => {
+            #[derive(Deserialize)]
+            struct Repository {
+                default_branch: String,
+            }
+            api.json::<Repository>(Method::GET, &repo.path(), &[], None)?
+                .default_branch
+        }
+    };
+    ensure!(!base.trim().is_empty(), "base must be nonempty");
+    let mut path = repo.path().to_vec();
+    path.push("pulls");
+    api.json(
+        Method::POST,
+        &path,
+        &[],
+        Some(&json!({"title":title,"head":head,"base":base,"body":body})),
+    )
+}
+
+pub fn edit(api: &Api, repo: &Repo, number: u64, change: &Value) -> Result<Pull> {
+    let number = number.to_string();
+    let mut path = repo.path().to_vec();
+    path.extend(["pulls", &number]);
+    api.json(Method::PATCH, &path, &[], Some(change))
+}
+
+#[derive(Deserialize)]
+pub struct Comment {
+    id: u64,
+    body: String,
+    pub html_url: String,
+    user: User,
+}
+
+impl Comment {
+    pub fn output(&self) -> Value {
+        json!({"id":self.id,"body":self.body,"url":self.html_url,"author":{"login":self.user.login}})
+    }
+}
+
+pub fn comment(api: &Api, repo: &Repo, number: u64, body: &str) -> Result<Comment> {
+    get(api, repo, number)?;
+    let number = number.to_string();
+    let mut path = repo.path().to_vec();
+    path.extend(["issues", &number, "comments"]);
+    api.json(Method::POST, &path, &[], Some(&json!({"body":body})))
+}
+
 pub fn list(api: &Api, repo: &Repo, state: &str, limit: usize) -> Result<Vec<Pull>> {
     let mut path = repo.path().to_vec();
     path.push("pulls");

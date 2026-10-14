@@ -13,7 +13,7 @@ use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Sources};
-use crate::{config, doctor, governance, infra, pr, project, rfc};
+use crate::{config, doctor, environment, governance, infra, pr, project, rfc};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -44,6 +44,18 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Check or update project secrets through secretspec.
+    Secrets {
+        #[command(subcommand)]
+        command: environment::SecretCommand,
+    },
+    /// Run project shells, processes, and tasks through devenv.
+    Dev {
+        #[command(subcommand)]
+        command: environment::DevCommand,
+    },
+    /// Run repository hooks inside the project's development shell.
+    Check(environment::CheckArgs),
     /// Search RFCs or create a draft.
     Rfc(rfc::Args),
     /// Diagnose local setup and ScottyLabs login readiness.
@@ -108,6 +120,11 @@ enum ContextCommand {
 
 #[derive(Subcommand)]
 enum AuthCommand {
+    /// Authenticate with ScottyLabs OpenBao.
+    Bao {
+        #[command(subcommand)]
+        command: environment::BaoCommand,
+    },
     /// Verify the configured token against the forge.
     Status,
 }
@@ -292,6 +309,18 @@ pub fn run(cli: Cli) -> Result<()> {
     };
     match cli.command {
         Command::Config { command } => config.run(command),
+        Command::Secrets { command } => {
+            environment::secrets(command, &sources, cli.repo.as_deref(), cli.host.as_deref())
+        }
+        Command::Dev { command } => {
+            environment::dev(command, &sources, cli.repo.as_deref(), cli.host.as_deref())
+        }
+        Command::Check(args) => {
+            environment::checks(args, &sources, cli.repo.as_deref(), cli.host.as_deref())
+        }
+        Command::Auth {
+            command: AuthCommand::Bao { command },
+        } => environment::bao(command),
         Command::Rfc(args) => rfc::run(args),
         Command::Doctor(args) => {
             doctor::run(args, &sources, cli.repo.as_deref(), cli.host.as_deref())

@@ -1314,3 +1314,7 @@ fn failed_snapshot_download_does_not_publish_an_offline_source() {
     failure(&output, "no readable cached governance snapshot");
     assert_eq!(server.finish().len(), 4);
 }
+
+#[cfg(unix)]
+#[path = "cases/environment.rs"]
+mod environment;

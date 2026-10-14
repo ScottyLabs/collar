@@ -1,4 +1,3 @@
-use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -116,38 +115,11 @@ fn checkout_revision(checkout: &Path) -> Result<String> {
     ))
 }
 
-#[derive(Deserialize)]
-struct Secretspec {
-    project: SecretProject,
-    profiles: BTreeMap<String, toml::Value>,
-}
-
-#[derive(Deserialize)]
-struct SecretProject {
-    name: String,
-    revision: String,
-}
-
 fn secretspec(root: &Path, namespace: Option<&str>, profile: &str) -> Result<String> {
-    let text =
-        std::fs::read_to_string(root.join("secretspec.toml")).context("read secretspec.toml")?;
-    let spec: Secretspec = crate::document::parse(&text, "secretspec.toml")?;
-    ensure!(
-        spec.project.revision == "1.0",
-        "secretspec project revision must be 1.0"
-    );
-    let namespace =
-        namespace.context("governance does not define a secret namespace for this repository")?;
-    ensure!(
-        spec.project.name == namespace,
-        "secretspec project name differs from the governance secret namespace; update [project].name"
-    );
-    ensure!(
-        spec.profiles.contains_key(profile),
-        "secretspec does not declare profile {profile}"
-    );
+    crate::environment::validate(root, namespace, profile)?;
     Ok(format!(
-        "namespace {namespace}, profile {profile}; secret values and provider access were not checked"
+        "namespace {}, profile {profile}; secret values and provider access were not checked",
+        namespace.context("project has no namespace")?
     ))
 }
 

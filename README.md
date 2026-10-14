@@ -63,6 +63,34 @@ Collar does not save the token or accept it as a command-line argument. `COLLAR_
 
 This token is separate from OpenBao login and application OIDC credentials. Collar does not change your devenv secrets or Keycloak account links.
 
+## Environment and repository checks
+
+```bash
+collar auth bao login
+collar auth bao status
+collar secrets check --profile dev --json --reason 'Check local setup'
+collar secrets check --profile prod --scope build --reason 'Check build requirements'
+collar secrets set JWT_SECRET --profile dev
+collar secrets set JWT_SECRET --profile dev --from-file ./private-secret-file
+collar dev shell
+collar dev run -- cargo test --workspace
+collar dev up --detach
+collar dev task security:
+collar dev down
+collar check --all
+collar check treefmt --files crates/collar/src/main.rs
+```
+
+Bao login works before a project shell is available: Nix supplies OpenBao, then OIDC login stores the token in Bao's configured helper with token printing disabled. `auth bao status` suppresses token metadata and checks token acceptance against ScottyLabs OpenBao; it does not establish project permissions.
+
+Secret and development commands resolve the selected repository's latest canonical governance project, then validate the local `secretspec.toml` namespace and selected profile before starting a tool. `--provider` must name a provider declared in that file. Use `--governance PATH` or `COLLAR_GOVERNANCE` for deliberate local inspection. `--offline-source` uses the last verified governance snapshot; it controls source discovery only, and the invoked tools can still access the network.
+
+Secret checks never prompt to set missing values. They emit secretspec's value-free explanation or native JSON report and propagate failure codes. Set accepts declared keys from the chosen profile or its default profile. Without `--from-file`, a terminal prompt is required; `--from-file -` explicitly accepts exact secret bytes from stdin. Collar never accepts a secret value argument or saves secret values. Secretspec owns provider access and updates. These commands require secretspec 0.21 or newer.
+
+Use `--reason` or `SECRETSPEC_REASON` to supply an access reason. Collar forwards it unchanged and supplies its caller metadata; it never invents a reason or bypasses the provider's access policy. `--profile` selects the secret profile and honors `SECRETSPEC_PROFILE`, defaulting to `dev`. Devenv receives `--secretspec-profile`, not its separate Nix development-profile flag, and runs from the project root. `dev run -- COMMAND ...` preserves literal argument boundaries. `dev down` stops processes without requiring governance or secrets preflight.
+
+`check` runs `prek run` inside the project development shell, using staged files by default. Supply a hook identifier, `--all`, or `--files` for existing files inside the checkout. File paths are relative to the calling directory or absolute. Tool execution inherits normal terminal output and preserves failure exit codes. Installed tools and project configuration remain authoritative for their own workflows.
+
 ## Review pull requests
 
 ```bash
@@ -165,7 +193,7 @@ collar api repos/ScottyLabs/terrier/pulls --method GET -F limit=5
 
 Absolute URLs, traversal, nested field names, duplicate fields, and arbitrary headers are not supported. The POC has no GraphQL, built-in jq, output templates, API pagination flag, keyring login, or extension manager. Typed list commands paginate with a 100-page bound and fail if completeness cannot be established within it. Responses are limited to 8 MiB.
 
-Success exits with code 0; runtime errors exit with code 1; argument errors use clap's code 2. These codes are not yet full gh compatibility. Unsupported commands fail through argument parsing rather than reporting placeholder success.
+Success exits with code 0; runtime errors exit with code 1; delegated tool commands preserve their failure exit codes; argument errors use clap's code 2. These codes are not yet full gh compatibility. Unsupported commands fail through argument parsing rather than reporting placeholder success.
 
 ## RFC search and creation
 

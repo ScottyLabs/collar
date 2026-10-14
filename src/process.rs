@@ -27,6 +27,49 @@ pub fn check(command: &mut Command, timeout: Duration) -> Result<()> {
     }
 }
 
+pub fn run(command: &mut Command) -> Result<()> {
+    let program = command.get_program().to_string_lossy().into_owned();
+    let status = command
+        .status()
+        .with_context(|| format!("start {program}"))?;
+    if !status.success() {
+        return Err(ToolExit { program, status }.into());
+    }
+    Ok(())
+}
+
+pub struct ToolExit {
+    program: String,
+    status: std::process::ExitStatus,
+}
+
+impl ToolExit {
+    pub fn code(&self) -> u8 {
+        #[cfg(unix)]
+        {
+            use std::os::unix::process::ExitStatusExt;
+            if let Some(signal) = self.status.signal() {
+                return u8::try_from(128 + signal).unwrap_or(1);
+            }
+        }
+        self.status
+            .code()
+            .and_then(|code| u8::try_from(code).ok())
+            .unwrap_or(1)
+    }
+}
+impl std::fmt::Display for ToolExit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} exited with {}", self.program, self.status)
+    }
+}
+impl std::fmt::Debug for ToolExit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+impl std::error::Error for ToolExit {}
+
 #[cfg(all(test, unix))]
 mod tests {
     use super::*;

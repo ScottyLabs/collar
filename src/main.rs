@@ -5,6 +5,7 @@ mod config;
 mod diff;
 mod doctor;
 mod document;
+mod environment;
 mod governance;
 mod infra;
 mod output;
@@ -23,7 +24,9 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("error: {error:#}");
-            ExitCode::FAILURE
+            error
+                .downcast_ref::<process::ToolExit>()
+                .map_or(ExitCode::FAILURE, |exit| ExitCode::from(exit.code()))
         }
     }
 }

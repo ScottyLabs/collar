@@ -1388,6 +1388,9 @@ mod authoring;
 #[path = "cases/merging.rs"]
 mod merging;
 
+#[path = "cases/checkout.rs"]
+mod checkout;
+
 #[test]
 fn changelog_reads_numbered_announcements_and_rejects_ambiguity() {
     let temp = TempDir::new().unwrap();

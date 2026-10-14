@@ -13,7 +13,9 @@ use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Sources};
-use crate::{changelog, config, doctor, environment, governance, infra, pr, project, rfc, tui};
+use crate::{
+    changelog, checkout, config, doctor, environment, governance, infra, pr, project, rfc, tui,
+};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -156,6 +158,16 @@ enum RepoCommand {
 
 #[derive(Subcommand)]
 enum PrCommand {
+    /// Fetch a verified PR head and switch to a local branch.
+    Checkout {
+        selector: Option<String>,
+        /// Local branch name; defaults to pr/NUMBER.
+        #[arg(short = 'b', long)]
+        branch: Option<String>,
+        /// Configured Git remote; defaults to upstream, then origin.
+        #[arg(long)]
+        remote: Option<String>,
+    },
     /// Merge the inspected PR head using Forgejo protection checks.
     #[command(group(ArgGroup::new("strategy").required(true).args(["merge", "squash", "rebase"])))]
     Merge {
@@ -690,6 +702,17 @@ pub fn run(cli: Cli) -> Result<()> {
 
 fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
     match command {
+        PrCommand::Checkout {
+            selector,
+            branch,
+            remote,
+        } => checkout::run(
+            api,
+            repo,
+            selector.as_deref(),
+            branch.as_deref(),
+            remote.as_deref(),
+        ),
         PrCommand::Merge {
             selector,
             merge: _,

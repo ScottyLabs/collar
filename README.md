@@ -110,11 +110,14 @@ collar pr edit 42 --title 'Check preview health' --body-file description.md
 collar pr comment 42 --body 'Ready for review.'
 collar pr close 42
 collar pr reopen 42
+collar pr checkout 42
 collar pr merge 42 --squash --delete-branch
 collar pr update-branch 42 --rebase
 ```
 
 Creation uses an already-pushed branch; omitting `--head` reads the current Git branch, and omitting `--base` uses the forge repository's default branch. It does not push commits. Edit supports `--title`, `--base`, and body text/files; omitted fields remain unchanged, while `--body ''` clears the description. `--body-file -` reads stdin. Comments require nonempty text. Close/reopen refuse merged PRs and an already-requested state. These commands write immediately, require a host-bound token, support JSON output, and never retry a mutation automatically. The server enforces permissions and validates the current state.
+
+`checkout` fetches `refs/pull/NUMBER/head` through the configured `upstream` remote, then `origin`, or an explicit `--remote NAME`. Its configured URL must match the selected forge repository. Git handles transport authentication and configured URL rewrites; Collar does not pass its API token to Git. The worktree must be clean, including untracked files and submodule changes. Collar verifies the fetched commit against the inspected PR head before switching to `pr/NUMBER`, or `--branch NAME`. An existing branch is reused only at that same commit; it is never reset. Ignored files are protected from overwrite. Fetches update only Collar's private `refs/collar/pulls/NUMBER` reference, without fetching tags or writing FETCH_HEAD. A failed verification can leave fetched objects and that private reference, but does not switch branches. Closed PRs can also be inspected this way if Forgejo retains their pull ref.
 
 Merge requires exactly one of `--merge`, `--squash`, or `--rebase`. Immediate merge sends the inspected SHA as Forgejo's expected head, with force merging disabled. `--match-head-commit SHA` additionally requires that specific head before submission. `--delete-branch` asks Forgejo to delete the source branch after merging. `--auto` requests scheduled merging when server checks succeed; Forgejo's scheduled path does not enforce the expected SHA, so it cannot be combined with `--match-head-commit` and can merge a later head. Server permissions, required reviews, and branch protections remain authoritative; reported statuses alone do not prove readiness.
 

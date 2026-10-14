@@ -1,5 +1,6 @@
 mod auth;
 mod changelog;
+mod checkout;
 mod cli;
 mod client;
 mod config;

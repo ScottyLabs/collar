@@ -39,7 +39,7 @@ The POC implements these workflows:
 | --- | --- | --- |
 | Onboarding | doctor, project view/select | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode and optional terminal selection. |
 | Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
-| Forge | auth status, repo view, pr create/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
+| Forge | auth status, repo view, pr create/checkout/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
 | Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |
 | Kennel | status | Report kennel/build and kennel/deploy commit statuses and marked preview comments. |
 | Infrastructure | hosts, service | Read host directories and locate service configuration files in a checkout. |
@@ -106,7 +106,7 @@ Use focused modules for argument parsing and orchestration, repository selection
 | --- | --- | --- |
 | auth | Token verification; credentials bound to one host | Keyring login, multi-account switching, refresh, Git credential helper, SSH/GPG keys. |
 | repo | View and Git remote discovery | Clone, create, fork, edit, archive, delete, sync, collaborators, deploy keys, mirrors. Governance-owned resources must use its PR workflow. |
-| pr | Create, edit, comment, close/reopen, merge, update branch, list, view/browse, diff, reported checks, commit-pinned review with inline comments | Checkout, ready, status, revert; required-check and approval evaluation. |
+| pr | Create, checkout, edit, comment, close/reopen, merge, update branch, list, view/browse, diff, reported checks, commit-pinned review with inline comments | Ready, status, revert; required-check and approval evaluation. |
 | issue, label, release | Raw REST access | Typed lifecycle commands, search/filter parity, release assets, labels, milestones. |
 | run, workflow, secret, variable | Raw REST access | Typed commands and capability detection. Run deletion is supported by the server; Forgejo rerun and workflow state management need server API work. |
 | api and scripting | Simple typed/string fields, explicit methods, bounded typed lists, selected JSON fields | Nested fields, placeholders, API pagination, jq, templates, gh exit codes, completions, aliases, extensions. |

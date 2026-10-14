@@ -97,6 +97,38 @@ fn saved_token_skips_unregistered_hosts_and_errors_for_missing_credentials() {
 }
 
 #[test]
+fn oauth_bundle_round_trips_refresh_token_and_rejects_expired_access() {
+    let temp = tempfile::tempdir().unwrap();
+    let origin = origin("forge.example");
+    let mut config = config(temp.path().join("config.toml"));
+    let store = FakeStore::default();
+    let bundle = OAuthBundle {
+        access_token: "access-secret".to_owned(),
+        refresh_token: Some("refresh-secret".to_owned()),
+        expires_at: Some(1),
+    };
+    let encoded = encode_oauth(&bundle).unwrap();
+    store
+        .credentials
+        .borrow_mut()
+        .insert(origin.to_string(), encoded);
+    config.set_login(&origin, true).unwrap();
+
+    assert_eq!(
+        saved_refresh_token(&origin, &config, &store)
+            .unwrap()
+            .as_deref(),
+        Some("refresh-secret")
+    );
+    let error = saved_token(&origin, &config, &store)
+        .expect_err("expired access token is rejected")
+        .to_string();
+    assert!(error.contains("run collar auth login"));
+    assert!(!error.contains("access-secret"));
+    assert!(!error.contains("refresh-secret"));
+}
+
+#[test]
 fn credential_set_failure_does_not_register_login() {
     let temp = tempfile::tempdir().unwrap();
     let origin = origin("forge.example");

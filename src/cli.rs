@@ -141,6 +141,12 @@ enum AuthCommand {
         /// Read the token from stdin instead of a hidden terminal prompt.
         #[arg(long)]
         with_token: bool,
+        /// Use a hidden personal-access-token prompt instead of browser SSO.
+        #[arg(long, conflicts_with_all = ["with_token", "web"])]
+        token: bool,
+        /// Explicitly launch browser SSO from this caller.
+        #[arg(long, conflicts_with_all = ["with_token", "token"])]
+        web: bool,
     },
     /// Remove this host's saved credential without revoking it on the server.
     Logout,
@@ -443,10 +449,15 @@ pub fn run(cli: Cli) -> Result<()> {
     };
     match cli.command {
         Command::Auth {
-            command: AuthCommand::Login { with_token },
+            command:
+                AuthCommand::Login {
+                    with_token,
+                    token,
+                    web,
+                },
         } => {
             let origin = host_url(cli.host.as_deref().unwrap_or(config.host()))?;
-            crate::auth::login(&mut config, origin, with_token)
+            crate::auth::login(&mut config, origin, with_token, token, web)
         }
         Command::Auth {
             command: AuthCommand::Logout,

@@ -1480,3 +1480,7 @@ fn changelog_authoring_delegates_literal_slug_and_preserves_failure() {
         "updates/018-kennel-sqlite.md\n"
     );
 }
+
+#[cfg(unix)]
+#[path = "cases/oauth.rs"]
+mod oauth;

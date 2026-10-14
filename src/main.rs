@@ -10,6 +10,7 @@ mod document;
 mod environment;
 mod governance;
 mod infra;
+mod oauth;
 mod output;
 mod pr;
 mod process;

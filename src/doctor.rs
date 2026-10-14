@@ -8,8 +8,8 @@ use clap::Args as ClapArgs;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
-use crate::config::{Config, Key};
 use crate::output::Output;
+use crate::source::{Kind, Sources};
 use crate::{auth, infra, pr, process, project, repo};
 
 const LOGIN: &str = "nix run git+https://git.cmu.dev/ScottyLabs/kennel#login";
@@ -151,7 +151,13 @@ fn secretspec(root: &Path, namespace: Option<&str>, profile: &str) -> Result<Str
     ))
 }
 
-pub fn run(args: Args, config: &Config, selection: Option<&str>, host: Option<&str>) -> Result<()> {
+pub fn run(
+    args: Args,
+    sources: &Sources<'_>,
+    selection: Option<&str>,
+    host: Option<&str>,
+) -> Result<()> {
+    let config = sources.config;
     args.output
         .validate_fields(&["name", "status", "detail", "action"])?;
     let mut checks = Vec::new();
@@ -220,12 +226,13 @@ pub fn run(args: Args, config: &Config, selection: Option<&str>, host: Option<&s
             .map_err(|error| anyhow::anyhow!("{error:#}")),
         "Configure upstream/origin or select the canonical repository with -R.",
     );
-    let governance = config.checkout(args.governance, Key::Governance);
+    let governance = sources.load(Kind::Governance, args.governance, args.offline);
     let context = (|| {
         project::resolve(
-            governance
+            &governance
                 .as_ref()
-                .map_err(|error| anyhow::anyhow!("{error:#}"))?,
+                .map_err(|error| anyhow::anyhow!("{error:#}"))?
+                .directory,
             selected
                 .as_ref()
                 .map_err(|error| anyhow::anyhow!("{error:#}"))?,
@@ -238,13 +245,16 @@ pub fn run(args: Args, config: &Config, selection: Option<&str>, host: Option<&s
             .as_ref()
             .map(|project| format!("project {}, team {}", project.slug, project.team))
             .map_err(|error| anyhow::anyhow!("{error:#}")),
-        "Configure a current canonical governance checkout with collar config set governance PATH.",
+        "Refresh the canonical governance snapshot online or provide --governance PATH.",
     );
     if let Ok(checkout) = governance {
         record(
             &mut checks,
             "governance-revision",
-            checkout_revision(&checkout),
+            match &checkout.revision {
+                Some(_) => Ok(checkout.describe()),
+                None => checkout_revision(&checkout.directory),
+            },
             "Inspect local changes and fetch/rebase the governance checkout; doctor never updates it.",
         );
     }
@@ -253,7 +263,7 @@ pub fn run(args: Args, config: &Config, selection: Option<&str>, host: Option<&s
             &mut checks,
             "secretspec",
             secretspec(root, project.secret_namespace.as_deref(), &args.profile),
-            "Align secretspec.toml with governance, declare the selected profile, then run secretspec check explicitly.",
+            "Align secretspec.toml with governance, declare the selected profile, then run secretspec check --no-prompt explicitly.",
         );
     } else {
         skipped(
@@ -262,27 +272,30 @@ pub fn run(args: Args, config: &Config, selection: Option<&str>, host: Option<&s
             "requires a local project checkout and resolved governance namespace",
         );
     }
-    let infrastructure = config.checkout(args.infrastructure, Key::Infrastructure);
+    let infrastructure = sources.load(Kind::Infrastructure, args.infrastructure, args.offline);
     record(
         &mut checks,
         "infrastructure",
         infrastructure
             .as_ref()
             .map_err(|error| anyhow::anyhow!("{error:#}"))
-            .and_then(|path| infra::hosts(path))
+            .and_then(|source| infra::hosts(&source.directory))
             .map(|hosts| {
                 format!(
                     "{} host source configurations; evaluation and health are not verified",
                     hosts.len()
                 )
             }),
-        "Configure infrastructure with collar config set infrastructure PATH.",
+        "Refresh the canonical infrastructure snapshot online or provide --infrastructure PATH.",
     );
     if let Ok(checkout) = infrastructure {
         record(
             &mut checks,
             "infrastructure-revision",
-            checkout_revision(&checkout),
+            match &checkout.revision {
+                Some(_) => Ok(checkout.describe()),
+                None => checkout_revision(&checkout.directory),
+            },
             "Inspect local changes and fetch/rebase the infrastructure checkout; doctor never updates it.",
         );
     }

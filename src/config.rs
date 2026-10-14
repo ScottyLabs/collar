@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use anyhow::{Context, Result, bail, ensure};
+use anyhow::{Context, Result};
 use clap::{Subcommand, ValueEnum};
 use directories::ProjectDirs;
 use serde::{Deserialize, Serialize};
@@ -13,8 +13,6 @@ use crate::repo::Repo;
 #[derive(Clone, Copy, ValueEnum)]
 pub enum Key {
     Host,
-    Governance,
-    Infrastructure,
 }
 
 #[derive(Subcommand)]
@@ -24,7 +22,7 @@ pub enum Command {
         #[command(flatten)]
         output: Output,
     },
-    /// Save a default host or canonical checkout path.
+    /// Save the default forge host.
     Set { key: Key, value: String },
     /// Remove a saved default.
     Unset { key: Key },
@@ -34,8 +32,6 @@ pub enum Command {
 #[serde(deny_unknown_fields)]
 struct Settings {
     host: Option<String>,
-    governance: Option<PathBuf>,
-    infrastructure: Option<PathBuf>,
 }
 
 pub struct Config {
@@ -62,7 +58,7 @@ impl Config {
         let path = std::path::absolute(path).context("resolve configuration path")?;
         let settings = match std::fs::read_to_string(&path) {
             Ok(text) => crate::document::parse(&text, "Collar configuration")
-                .context("expected only host, governance, and infrastructure settings")?,
+                .context("expected only a host setting")?,
             Err(error)
                 if error.kind() == std::io::ErrorKind::NotFound && (!is_explicit || creating) =>
             {
@@ -95,63 +91,22 @@ impl Config {
         }
     }
 
-    pub fn checkout(&self, explicit: Option<PathBuf>, key: Key) -> Result<PathBuf> {
-        if let Some(path) = explicit {
-            return Ok(path);
-        }
-        let (name, saved) = match key {
-            Key::Governance => ("governance", &self.settings.governance),
-            Key::Infrastructure => ("infrastructure", &self.settings.infrastructure),
-            Key::Host => bail!("host is not a checkout"),
-        };
-        let saved = saved.as_ref().with_context(|| {
-            format!("no {name} checkout; use --checkout PATH or collar config set {name} PATH")
-        })?;
-        Ok(if saved.is_absolute() {
-            saved.clone()
-        } else {
-            self.path
-                .as_ref()
-                .context("configuration disabled")?
-                .parent()
-                .context("configuration has no parent")?
-                .join(saved)
-        })
-    }
-
     pub fn run(mut self, command: Command) -> Result<()> {
         match command {
             Command::Get { output } => {
-                let value = serde_json::json!({"path": self.path, "host": self.settings.host, "governance": self.settings.governance, "infrastructure": self.settings.infrastructure});
+                let value = serde_json::json!({"path": self.path, "host": self.settings.host});
                 let human = serde_json::to_string_pretty(&value)?;
                 output.print(&value, || println!("{human}"))
             }
             Command::Set { key, value } => {
                 match key {
                     Key::Host => self.settings.host = Some(host_url(&value)?.to_string()),
-                    Key::Governance | Key::Infrastructure => {
-                        let path =
-                            std::fs::canonicalize(&value).context("resolve checkout directory")?;
-                        let required: &[&str] = match key {
-                            Key::Governance => &["data/org.toml", "data/teams"],
-                            _ => &["flake.nix", "modules/hosts"],
-                        };
-                        for entry in required {
-                            ensure!(path.join(entry).exists(), "checkout is missing {entry}");
-                        }
-                        match key {
-                            Key::Governance => self.settings.governance = Some(path),
-                            _ => self.settings.infrastructure = Some(path),
-                        }
-                    }
                 }
                 self.save()
             }
             Command::Unset { key } => {
                 match key {
                     Key::Host => self.settings.host = None,
-                    Key::Governance => self.settings.governance = None,
-                    Key::Infrastructure => self.settings.infrastructure = None,
                 }
                 self.save()
             }
@@ -186,7 +141,6 @@ mod tests {
             path: None,
             settings: Settings {
                 host: Some("saved.example".into()),
-                ..Settings::default()
             },
         };
         assert_eq!(
@@ -217,12 +171,6 @@ mod tests {
             config
                 .repo(Some("other.example/owner/repo"), Some("flag.example"))
                 .is_err()
-        );
-        assert_eq!(
-            config
-                .checkout(Some("flag-path".into()), Key::Governance)
-                .unwrap(),
-            PathBuf::from("flag-path")
         );
     }
 }

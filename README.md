@@ -19,8 +19,6 @@ Outside the shell, prefix commands with `devenv shell --`. You can also build wi
 ## Save defaults
 
 ```bash
-collar config set governance ../governance
-collar config set infrastructure ../infrastructure
 collar config set host git.cmu.dev
 collar config get --json
 collar config unset host
@@ -28,7 +26,7 @@ collar config unset host
 
 Settings live in the platform's user configuration directory, such as `$XDG_CONFIG_HOME/collar/config.toml` on Linux. Use `--config PATH` or `COLLAR_CONFIG` for a different file, or `--no-config` to ignore saved settings. An explicitly selected missing file is an error except when creating it with `config set`. Invalid settings fail before running a command; they are never silently replaced. Writes replace the file atomically.
 
-Only the default host and governance/infrastructure checkout paths are saved. Checkout flags and environment variables override saved paths. `config set` checks the checkout layout and saves an absolute path; manually entered relative paths resolve from the configuration file's directory. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
+Only the default forge host is saved. Normal governance and infrastructure inspection always resolves the latest canonical default-branch revision, so no repository path or revision needs configuration. Explicit local checkout flags and environment variables support deliberate inspection of local changes. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
 
 ## Diagnose setup
 
@@ -38,9 +36,9 @@ collar doctor --offline --json
 collar doctor --profile preview
 ```
 
-Run inside a project checkout after saving governance and infrastructure paths, or provide `--governance PATH` and `--infrastructure PATH`. Diagnostics check runnable tools, Git identity and SSH-agent keys, devenv files, canonical project ownership, and secretspec namespace/profile declarations. They also check whether governance and infrastructure are clean Git roots matching their last-fetched upstreams. Doctor does not fetch or update checkouts; matching a local tracking branch does not establish remote freshness.
+Run inside a project checkout. Governance and infrastructure inspection uses canonical API snapshots by default; `--governance PATH` and `--infrastructure PATH` override them with local working trees. Diagnostics check runnable tools, Git identity and SSH-agent keys, devenv files, canonical project ownership, and secretspec namespace/profile declarations. Snapshot diagnostics report their pinned revisions. Local checkout diagnostics check for clean Git roots matching their last-fetched upstreams. Doctor does not fetch or update checkouts; matching a local tracking branch does not establish remote freshness.
 
-Online mode checks forge reachability and your host-bound token, then verifies your Bao token against ScottyLabs OpenBao. Tool output is suppressed, tool and Bao probes have time limits, and secrets are never resolved. `--offline` skips forge and Bao requests. Checks report `pass`, `fail`, `manual`, or `skipped`; failures produce exit code 1 after printing the full report. Account linking remains a manual check even when all automated checks pass. An SSH-agent key does not prove forge SSH access; a Bao token does not prove access to a project's secrets. Doctor checks configuration presence, without evaluating devenv or infrastructure or asserting deployment health.
+Online mode checks forge reachability and your host-bound token, then verifies your Bao token against ScottyLabs OpenBao. Tool output is suppressed, tool and Bao probes have time limits, and secrets are never resolved. `--offline` skips all network requests and uses existing source snapshots, or explicit local checkouts. Checks report `pass`, `fail`, `manual`, or `skipped`; failures produce exit code 1 after printing the full report. Account linking remains a manual check even when all automated checks pass. An SSH-agent key does not prove forge SSH access; a Bao token does not prove access to a project's secrets. Doctor checks configuration presence, without evaluating devenv or infrastructure or asserting deployment health.
 
 If a new machine cannot enter the shell because Bao login is missing, use the standalone login from [Kennel's local development guide](https://docs.kennel.scottylabs.org/guides/secrets.html#local-development):
 
@@ -108,20 +106,21 @@ collar project view
 collar project view -R ScottyLabs/terrier --json
 ```
 
-Save a governance checkout first, or supply `--checkout PATH` or `COLLAR_GOVERNANCE`. Collar matches the selected repository against the forge and organization in `data/org.toml`, then reports the owning project, inherited leads and members, repository-specific features, secret namespace, and source files. For a fork, select the canonical upstream with `-R`.
+No governance checkout is required. Use `--checkout PATH`, `COLLAR_GOVERNANCE`, to inspect local changes instead. Collar matches the selected repository against the forge and organization in `data/org.toml`, then reports the owning project, inherited leads and members, repository-specific features, secret namespace, and source files. For a fork, select the canonical upstream with `-R`.
 
-The secret namespace is the governance slug, which can differ from the repository name. Use it as `[project].name` in `secretspec.toml`. The account-linking URL comes from the organization's Keycloak configuration. These are local declarations; neither applied access nor deployment health is verified, and the checkout is not automatically refreshed.
+The secret namespace is the governance slug, which can differ from the repository name. Use it as `[project].name` in `secretspec.toml`. The account-linking URL comes from the organization's Keycloak configuration. These are declared settings; neither applied access nor deployment health is verified. Local checkout overrides are never automatically refreshed.
 
 ## Inspect ScottyLabs projects
 
-Clone the canonical [governance repository](https://git.cmu.dev/ScottyLabs/governance). Its GitHub mirror may lag behind.
+Collar reads the canonical [governance repository](https://git.cmu.dev/ScottyLabs/governance) through Forgejo. Its GitHub mirror may lag behind.
 
 ```bash
-collar governance project list --checkout ../governance
-collar governance project view terrier --checkout ../governance --json
+collar governance project list
+collar governance project view terrier --json
+collar governance project list --offline
 ```
 
-Save a governance default with `config set governance PATH`, or set `COLLAR_GOVERNANCE`, to avoid repeating `--checkout`. Discovery includes nested projects, inherited leads and members, enabled feature settings, and the secret namespace. The namespace is the project or team slug, which can differ from the repository name. Team-owned repositories alongside nested projects have no namespace in the current governance loader; Collar reports `null` for that case.
+Use `--checkout PATH` or `COLLAR_GOVERNANCE` only when inspecting local governance changes. Discovery includes nested projects, inherited leads and members, enabled feature settings, and the secret namespace. The namespace is the project or team slug, which can differ from the repository name. Team-owned repositories alongside nested projects have no namespace in the current governance loader; Collar reports `null` for that case.
 
 These commands inspect declared configuration. They do not validate the entire governance schema, verify applied access, change memberships, or run OpenTofu. Use the governance repository's existing validator and PR/Atlantis workflow for changes.
 
@@ -133,14 +132,25 @@ collar kennel status 42 -R ScottyLabs/terrier --json
 
 The report includes the head SHA, latest `kennel/build` and `kennel/deploy` commit statuses, and comments containing Kennel's deployment marker. Comments may describe earlier revisions or teardown. Neither comments nor commit statuses prove live service health. No reports is an explicit error.
 
-Inspect an [infrastructure checkout](https://git.cmu.dev/ScottyLabs/infrastructure):
+Inspect canonical [infrastructure configuration](https://git.cmu.dev/ScottyLabs/infrastructure):
 
 ```bash
-collar infra hosts --checkout ../infrastructure
-collar infra service kennel --checkout ../infrastructure --json
+collar infra hosts
+collar infra service kennel --json
+collar infra hosts --offline
 ```
 
-Save an infrastructure default with `config set infrastructure PATH`, or set `COLLAR_INFRASTRUCTURE`, to avoid repeating `--checkout`. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
+Use `--checkout PATH` or `COLLAR_INFRASTRUCTURE` only when inspecting local infrastructure changes. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
+
+## Canonical source snapshots
+
+Governance, project-context, and infrastructure inspection require no manually maintained clones. Online commands resolve the canonical repository's default branch, pin its full commit ID, and fetch the required source files through Forgejo REST endpoints, using host-bound credentials when available. Tree pages and file sizes are checked before publishing a complete snapshot. Subsequent calls check the branch again and reuse an intact snapshot when its revision is unchanged.
+
+Snapshots live under the platform user cache directory. `--cache-dir PATH` or `COLLAR_CACHE_DIR` selects a different location. `--offline` explicitly reads the last complete snapshot without network requests; missing or corrupt snapshots fail. A failed online refresh never silently falls back to cached data. Each result's `dataSource` identifies the kind, host/repository, revision, download time, and offline mode. Human output prints the source before its results.
+
+Explicit checkout flags and environment variables select deliberate local inspection instead of snapshots. Repository paths are not saved in Collar settings. Checkout results identify their working-tree path and use a null revision because local edits may differ from HEAD. Snapshots contain the governance organization/team files or infrastructure flake/host/role Nix sources needed for inspection. Editing, canonical validation, and Nix evaluation use full working checkouts. Cached files are not deployment health or proof that declared access has been applied.
+
+Refreshes are bounded to 100 tree pages, 500 selected files, 8 MiB per file, and 32 MiB per snapshot. Traversal, symlinks, duplicate paths, partial tree pages, and inconsistent file sizes are refused. Immutable revisions remain cached; remove unwanted revision directories from the user cache when needed. File sizes and Git blob hashes are verified on download and on every cached read. Modified content fails validation.
 
 ## Scripting and API requests
 

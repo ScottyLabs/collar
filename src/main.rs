@@ -13,6 +13,7 @@ mod process;
 mod project;
 mod repo;
 mod rfc;
+mod source;
 
 use clap::Parser;
 use std::process::ExitCode;

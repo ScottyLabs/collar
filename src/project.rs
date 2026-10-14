@@ -150,3 +150,14 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
         declared_only: true,
     })
 }
+
+pub fn organization_origin(checkout: &Path) -> Result<Url> {
+    let text = std::fs::read_to_string(checkout.join("data/org.toml"))
+        .context("read governance organization")?;
+    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")?;
+    ensure!(
+        !organization.org.forgejo.org.trim().is_empty(),
+        "governance organization must be nonempty"
+    );
+    host_url(&organization.org.forgejo.url)
+}

@@ -38,7 +38,7 @@ The POC implements these workflows:
 | Group | Commands | Behavior |
 | --- | --- | --- |
 | Onboarding | doctor, project view | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode. |
-| Configuration | config get/set/unset | Atomic nonsecret user defaults; explicit flags/environment override saved paths and host. |
+| Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
 | Forge | auth status, repo view, pr list/view/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. |
 | Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |
 | Kennel | status | Report kennel/build and kennel/deploy commit statuses and marked preview comments. |
@@ -50,7 +50,7 @@ Review submission supports --approve, --request-changes, --comment, --body, and 
 
 ### API and authentication
 
-Store only host and canonical checkout paths in the platform user configuration directory. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
+Store only the host in the platform user configuration directory. Canonical source revisions are resolved automatically on every online read; local checkout overrides are explicit. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
 
 Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; public reads work without credentials. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written to a file. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
 
@@ -60,9 +60,9 @@ Raw api requests are relative to the selected host's /api/v1 namespace. Match gh
 
 Project context validates the selected repository against the governance organization and forge origin before matching ownership. Expose the repository-specific features, inherited ownership, namespace, and source paths together. Local diagnostics aggregate actionable failures without asserting that declarations establish live access or that account linking has been verified. Offline diagnostics must make no network requests or resolve secrets.
 
-Governance inspection reads an explicitly selected checkout and traverses team and nested project entries. It reports declared ownership rather than asserting that remote access has been applied. It does not replace governance-core validation or Terraform generation. Parse the subset needed for discovery while preserving feature names and settings as data; reject malformed required identity fields and ambiguous repository ownership.
+Governance inspection defaults to versioned canonical API snapshots and traverses team and nested project entries. Explicit checkout overrides support local edits. It reports declared ownership rather than asserting that remote access has been applied. It does not replace governance-core validation or Terraform generation. Parse the subset needed for discovery while preserving feature names and settings as data; reject malformed required identity fields and ambiguous repository ownership.
 
-Infrastructure discovery reads modules/hosts and resolves service filenames beneath those host directories. Results are configuration locations, not live service health. Do not parse Nix with regular expressions or claim filesystem discovery is evaluated flake output.
+Infrastructure discovery reads modules/hosts and resolves service filenames beneath those host directories, from a canonical snapshot or explicit checkout. Results are configuration locations, not live service health. Do not parse Nix with regular expressions or claim filesystem discovery is evaluated flake output.
 
 Kennel status combines commit statuses and Kennel-marked PR comments. Include the source commit and links; historical comments do not prove current service health. There is no deployment discovery API today. Do not read remote SQLite or require SSH administrator access.
 

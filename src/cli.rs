@@ -9,9 +9,10 @@ use serde_json::{Map, Value, json};
 
 use crate::auth::api;
 use crate::client::{Api, host_url};
-use crate::config::{Config, Key};
+use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
+use crate::source::{Kind, Sources};
 use crate::{config, doctor, governance, infra, pr, project, rfc};
 
 #[derive(Parser)]
@@ -31,6 +32,9 @@ pub struct Cli {
         conflicts_with = "no_config"
     )]
     config: Option<PathBuf>,
+    /// Override the user cache directory for canonical source snapshots.
+    #[arg(long, global = true, env = "COLLAR_CACHE_DIR")]
+    cache_dir: Option<PathBuf>,
     /// Ignore saved settings for reproducible automation.
     #[arg(long, global = true)]
     no_config: bool,
@@ -94,6 +98,9 @@ enum ContextCommand {
     View {
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
         #[command(flatten)]
         output: Output,
     },
@@ -210,6 +217,9 @@ enum ProjectCommand {
     List {
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
         #[command(flatten)]
         output: Output,
     },
@@ -218,6 +228,9 @@ enum ProjectCommand {
         name: String,
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
         #[command(flatten)]
         output: Output,
     },
@@ -234,6 +247,9 @@ enum InfraCommand {
     Hosts {
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
         checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
         #[command(flatten)]
         output: Output,
     },
@@ -241,6 +257,9 @@ enum InfraCommand {
         name: String,
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
         checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
         #[command(flatten)]
         output: Output,
     },
@@ -266,26 +285,45 @@ pub fn run(cli: Cli) -> Result<()> {
         }
     );
     let config = Config::load(cli.config, cli.no_config, creating)?;
+    let sources = Sources {
+        config: &config,
+        host: cli.host.as_deref(),
+        cache: cli.cache_dir.as_deref(),
+    };
     match cli.command {
         Command::Config { command } => config.run(command),
         Command::Rfc(args) => rfc::run(args),
         Command::Doctor(args) => {
-            doctor::run(args, &config, cli.repo.as_deref(), cli.host.as_deref())
+            doctor::run(args, &sources, cli.repo.as_deref(), cli.host.as_deref())
         }
         Command::Project {
-            command: ContextCommand::View { checkout, output },
+            command:
+                ContextCommand::View {
+                    checkout,
+                    offline,
+                    output,
+                },
         } => {
-            output.validate_fields(project::Project::FIELDS)?;
+            let mut fields = project::Project::FIELDS.to_vec();
+            fields.push("dataSource");
+            output.validate_fields(&fields)?;
             let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
-            let checkout = config.checkout(checkout, Key::Governance)?;
-            let project = project::resolve(&checkout, &repo)?;
-            output.print(&project, || project.print())
+            let source = sources.load_at(Kind::Governance, checkout, offline, &repo.origin)?;
+            let project = project::resolve(&source.directory, &repo)?;
+            output.print(&source.attach(&project)?, || {
+                println!("{}", source.describe());
+                project.print();
+            })
         }
 
         Command::Governance {
             command: GovernanceCommand::Project { command },
         } => match command {
-            ProjectCommand::List { checkout, output } => {
+            ProjectCommand::List {
+                checkout,
+                offline,
+                output,
+            } => {
                 output.validate_fields(&[
                     "slug",
                     "name",
@@ -295,10 +333,12 @@ pub fn run(cli: Cli) -> Result<()> {
                     "repos",
                     "secretNamespace",
                     "source",
+                    "dataSource",
                 ])?;
-                let checkout = config.checkout(checkout, Key::Governance)?;
-                let projects = governance::projects(&checkout)?;
-                output.print(&projects, || {
+                let source = sources.load(Kind::Governance, checkout, offline)?;
+                let projects = governance::projects(&source.directory)?;
+                output.print(&source.attach(&projects)?, || {
+                    println!("{}", source.describe());
                     for project in &projects {
                         println!("{}\t{}\t{}", project.slug, project.team, project.name);
                     }
@@ -307,10 +347,11 @@ pub fn run(cli: Cli) -> Result<()> {
             ProjectCommand::View {
                 name,
                 checkout,
+                offline,
                 output,
             } => {
-                let checkout = config.checkout(checkout, Key::Governance)?;
-                let projects = governance::projects(&checkout)?;
+                let source = sources.load(Kind::Governance, checkout, offline)?;
+                let projects = governance::projects(&source.directory)?;
                 let matches: Vec<_> = projects
                     .iter()
                     .filter(|project| {
@@ -323,7 +364,8 @@ pub fn run(cli: Cli) -> Result<()> {
                     matches.len()
                 );
                 let project = matches[0];
-                output.print(project, || {
+                output.print(&source.attach(project)?, || {
+                    println!("{}", source.describe());
                     println!(
                         "{} ({})\nTeam: {}\nLeads: {}\nSecret namespace: {}",
                         project.name,
@@ -349,11 +391,16 @@ pub fn run(cli: Cli) -> Result<()> {
             }
         },
         Command::Infra { command } => match command {
-            InfraCommand::Hosts { checkout, output } => {
-                output.validate_fields(&["name", "configuration", "role"])?;
-                let checkout = config.checkout(checkout, Key::Infrastructure)?;
-                let hosts = infra::hosts(&checkout)?;
-                output.print(&hosts, || {
+            InfraCommand::Hosts {
+                checkout,
+                offline,
+                output,
+            } => {
+                output.validate_fields(&["name", "configuration", "role", "dataSource"])?;
+                let source = sources.load(Kind::Infrastructure, checkout, offline)?;
+                let hosts = infra::hosts(&source.directory)?;
+                output.print(&source.attach(&hosts)?, || {
+                    println!("{}", source.describe());
                     for host in &hosts {
                         println!("{}\t{}", host.name, host.configuration.display());
                     }
@@ -362,12 +409,14 @@ pub fn run(cli: Cli) -> Result<()> {
             InfraCommand::Service {
                 name,
                 checkout,
+                offline,
                 output,
             } => {
-                output.validate_fields(&["host", "source"])?;
-                let checkout = config.checkout(checkout, Key::Infrastructure)?;
-                let services = infra::service(&checkout, &name)?;
-                output.print(&services, || {
+                output.validate_fields(&["host", "source", "dataSource"])?;
+                let source = sources.load(Kind::Infrastructure, checkout, offline)?;
+                let services = infra::service(&source.directory, &name)?;
+                output.print(&source.attach(&services)?, || {
+                    println!("{}", source.describe());
                     for service in &services {
                         println!("{}\t{}", service.host, service.source.display());
                     }

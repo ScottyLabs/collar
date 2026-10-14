@@ -16,6 +16,20 @@ Outside the shell, prefix commands with `devenv shell --`. You can also build wi
 
 `-R [HOST/]OWNER/REPO` selects a repository. Without it, Collar reads the `upstream` remote, then `origin`. `--host` or `COLLAR_HOST` selects a forge; the default is git.cmu.dev. A remote or repository that disagrees with the selected host is an error.
 
+## Save defaults
+
+```bash
+collar config set governance ../governance
+collar config set infrastructure ../infrastructure
+collar config set host git.cmu.dev
+collar config get --json
+collar config unset host
+```
+
+Settings live in the platform's user configuration directory, such as `$XDG_CONFIG_HOME/collar/config.toml` on Linux. Use `--config PATH` or `COLLAR_CONFIG` for a different file, or `--no-config` to ignore saved settings. An explicitly selected missing file is an error except when creating it with `config set`. Invalid settings fail before running a command; they are never silently replaced. Writes replace the file atomically.
+
+Only the default host and governance/infrastructure checkout paths are saved. Checkout flags and environment variables override saved paths. `config set` checks the checkout layout and saves an absolute path; manually entered relative paths resolve from the configuration file's directory. A saved host supplies the default for API requests and `OWNER/REPO` selections. An explicit repository host or inferred Git remote takes precedence; an explicit `--host` still checks for disagreements.
+
 ## Authentication
 
 Public reads work without login. Reviews and raw API writes require a personal access token from [Forgejo application settings](https://git.cmu.dev/user/settings/applications). Choose scopes appropriate to the operation; PR reviews require repository access.
@@ -29,7 +43,7 @@ export COLLAR_TOKEN
 collar auth status
 ```
 
-Collar does not save the token or accept it as a command-line argument. `COLLAR_TOKEN` belongs to `COLLAR_HOST`, which defaults to git.cmu.dev. To use a different authenticated forge, set both variables. `--host other.example` alone never sends the git.cmu.dev credential there. Connections require HTTPS, except loopback HTTP for local tests. Redirects are refused.
+Collar does not save the token or accept it as a command-line argument. `COLLAR_TOKEN` belongs to `COLLAR_HOST`, or the saved default host, or git.cmu.dev in that order. To use a different authenticated forge, set both variables. `--host other.example` alone never sends the git.cmu.dev credential there. Connections require HTTPS, except loopback HTTP for local tests. Redirects are refused.
 
 This token is separate from OpenBao login and application OIDC credentials. Collar does not change your devenv secrets or Keycloak account links.
 
@@ -78,7 +92,7 @@ collar governance project list --checkout ../governance
 collar governance project view terrier --checkout ../governance --json
 ```
 
-Set `COLLAR_GOVERNANCE` to avoid repeating `--checkout`. Discovery includes nested projects, inherited leads and members, enabled feature settings, and the secret namespace. The namespace is the project or team slug, which can differ from the repository name. Team-owned repositories alongside nested projects have no namespace in the current governance loader; Collar reports `null` for that case.
+Save a governance default with `config set governance PATH`, or set `COLLAR_GOVERNANCE`, to avoid repeating `--checkout`. Discovery includes nested projects, inherited leads and members, enabled feature settings, and the secret namespace. The namespace is the project or team slug, which can differ from the repository name. Team-owned repositories alongside nested projects have no namespace in the current governance loader; Collar reports `null` for that case.
 
 These commands inspect declared configuration. They do not validate the entire governance schema, verify applied access, change memberships, or run OpenTofu. Use the governance repository's existing validator and PR/Atlantis workflow for changes.
 
@@ -97,7 +111,7 @@ collar infra hosts --checkout ../infrastructure
 collar infra service kennel --checkout ../infrastructure --json
 ```
 
-Set `COLLAR_INFRASTRUCTURE` to avoid repeating `--checkout`. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
+Save an infrastructure default with `config set infrastructure PATH`, or set `COLLAR_INFRASTRUCTURE`, to avoid repeating `--checkout`. Host discovery reads `modules/hosts` and checks each configuration and role file. Service discovery finds `<service>.nix` and `<service>/default.nix` under host directories. These are source locations, not evaluated Nix configuration or live health. Collar does not deploy hosts or apply Atlantis plans.
 
 ## Scripting and API requests
 

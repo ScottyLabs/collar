@@ -1,5 +1,6 @@
 mod cli;
 mod client;
+mod config;
 mod diff;
 mod governance;
 mod infra;

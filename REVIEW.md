@@ -61,3 +61,5 @@ The goal remains open until the requirements have implementation and verificatio
 The correctness foundation is covered by [diff parser tests](src/diff.rs), [PR review validation](src/pr.rs), and [CLI integration tests](tests/cli.rs). These exercise canonical status response fields, short-page pagination, empty-list field validation, malformed and quoted diffs, deleted files, changing/closed PRs, host credential isolation, redacted JSON failures, and broken Git remotes. A public Terrier commit-status response independently confirmed the deployed field names.
 
 The workflow requirements above still need implementation and end-to-end verification. Public read checks do not establish authenticated write permissions or successful provisioning.
+
+Nonsecret configuration now supports saved host and canonical checkout defaults, explicit file selection, environment/flag precedence, atomic writes, and reproducible no-config operation. Tests cover missing/corrupt files, redacted TOML errors, checkout discovery, relative paths, and credential isolation when overriding the saved host. Diagnostics, project context, and the remaining workflows above are still required.

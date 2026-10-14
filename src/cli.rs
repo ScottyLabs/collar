@@ -8,10 +8,11 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use url::Url;
 
-use crate::client::{Api, DEFAULT_HOST, host_url};
+use crate::client::{Api, host_url};
+use crate::config::{Config, Key};
 use crate::output::Output;
 use crate::repo::Repo;
-use crate::{governance, infra, pr};
+use crate::{config, governance, infra, pr};
 
 #[derive(Parser)]
 #[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
@@ -22,12 +23,28 @@ pub struct Cli {
     /// Select [HOST/]OWNER/REPO instead of the Git remote.
     #[arg(short = 'R', long, global = true)]
     repo: Option<String>,
+    /// Use a specific nonsecret settings file.
+    #[arg(
+        long,
+        global = true,
+        env = "COLLAR_CONFIG",
+        conflicts_with = "no_config"
+    )]
+    config: Option<PathBuf>,
+    /// Ignore saved settings for reproducible automation.
+    #[arg(long, global = true)]
+    no_config: bool,
     #[command(subcommand)]
     command: Command,
 }
 
 #[derive(Subcommand)]
 enum Command {
+    /// Manage nonsecret user defaults.
+    Config {
+        #[command(subcommand)]
+        command: config::Command,
+    },
     /// Inspect authentication.
     Auth {
         #[command(subcommand)]
@@ -172,7 +189,7 @@ enum GovernanceCommand {
 enum ProjectCommand {
     List {
         #[arg(long, env = "COLLAR_GOVERNANCE")]
-        checkout: PathBuf,
+        checkout: Option<PathBuf>,
         #[command(flatten)]
         output: Output,
     },
@@ -180,7 +197,7 @@ enum ProjectCommand {
         /// Project slug or repository name.
         name: String,
         #[arg(long, env = "COLLAR_GOVERNANCE")]
-        checkout: PathBuf,
+        checkout: Option<PathBuf>,
         #[command(flatten)]
         output: Output,
     },
@@ -196,23 +213,23 @@ enum KennelCommand {
 enum InfraCommand {
     Hosts {
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
-        checkout: PathBuf,
+        checkout: Option<PathBuf>,
         #[command(flatten)]
         output: Output,
     },
     Service {
         name: String,
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
-        checkout: PathBuf,
+        checkout: Option<PathBuf>,
         #[command(flatten)]
         output: Output,
     },
 }
 
-fn api(origin: Url) -> Result<Api> {
+fn api(origin: Url, config: &Config) -> Result<Api> {
     let configured = match std::env::var("COLLAR_HOST") {
         Ok(host) => host,
-        Err(std::env::VarError::NotPresent) => DEFAULT_HOST.into(),
+        Err(std::env::VarError::NotPresent) => config.host().into(),
         Err(error) => return Err(error).context("read COLLAR_HOST"),
     };
     let token = if origin == host_url(&configured)? {
@@ -240,7 +257,15 @@ fn read_file(path: &Path) -> Result<String> {
 }
 
 pub fn run(cli: Cli) -> Result<()> {
+    let creating = matches!(
+        &cli.command,
+        Command::Config {
+            command: config::Command::Set { .. }
+        }
+    );
+    let config = Config::load(cli.config, cli.no_config, creating)?;
     match cli.command {
+        Command::Config { command } => config.run(command),
         Command::Governance {
             command: GovernanceCommand::Project { command },
         } => match command {
@@ -255,6 +280,7 @@ pub fn run(cli: Cli) -> Result<()> {
                     "secretNamespace",
                     "source",
                 ])?;
+                let checkout = config.checkout(checkout, Key::Governance)?;
                 let projects = governance::projects(&checkout)?;
                 output.print(&projects, || {
                     for project in &projects {
@@ -267,6 +293,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 checkout,
                 output,
             } => {
+                let checkout = config.checkout(checkout, Key::Governance)?;
                 let projects = governance::projects(&checkout)?;
                 let matches: Vec<_> = projects
                     .iter()
@@ -308,6 +335,7 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Infra { command } => match command {
             InfraCommand::Hosts { checkout, output } => {
                 output.validate_fields(&["name", "configuration", "role"])?;
+                let checkout = config.checkout(checkout, Key::Infrastructure)?;
                 let hosts = infra::hosts(&checkout)?;
                 output.print(&hosts, || {
                     for host in &hosts {
@@ -321,6 +349,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 output,
             } => {
                 output.validate_fields(&["host", "source"])?;
+                let checkout = config.checkout(checkout, Key::Infrastructure)?;
                 let services = infra::service(&checkout, &name)?;
                 output.print(&services, || {
                     for service in &services {
@@ -332,7 +361,10 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Auth {
             command: AuthCommand::Status,
         } => {
-            let api = api(host_url(cli.host.as_deref().unwrap_or(DEFAULT_HOST))?)?;
+            let api = api(
+                host_url(cli.host.as_deref().unwrap_or(config.host()))?,
+                &config,
+            )?;
             api.require_token()?;
             let user: pr::User = api.json(Method::GET, &["user"], &[], None)?;
             println!("Logged in to {} as {}", api.origin(), user.login);
@@ -341,11 +373,11 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Repo {
             command: RepoCommand::View { repository, output },
         } => {
-            let repo = Repo::resolve(
+            let repo = config.repo(
                 repository.as_deref().or(cli.repo.as_deref()),
                 cli.host.as_deref(),
             )?;
-            let api = api(repo.origin.clone())?;
+            let api = api(repo.origin.clone(), &config)?;
             #[derive(Deserialize)]
             struct Repository {
                 full_name: String,
@@ -366,17 +398,17 @@ pub fn run(cli: Cli) -> Result<()> {
                 )
             })
         }
-        Command::Api(args) => raw_api(args, cli.host.as_deref()),
+        Command::Api(args) => raw_api(args, cli.host.as_deref(), &config),
         Command::Pr { command } => {
-            let repo = Repo::resolve(cli.repo.as_deref(), cli.host.as_deref())?;
-            let api = api(repo.origin.clone())?;
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
             run_pr(command, &api, &repo)
         }
         Command::Kennel {
             command: KennelCommand::Status(selection),
         } => {
-            let repo = Repo::resolve(cli.repo.as_deref(), cli.host.as_deref())?;
-            let api = api(repo.origin.clone())?;
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
+            let api = api(repo.origin.clone(), &config)?;
             let number = pr::select(&api, &repo, selection.selector.as_deref())?;
             let pull = pr::get(&api, &repo, number)?;
             let statuses: Vec<_> = pr::statuses(&api, &repo, &pull.head.sha)?
@@ -518,8 +550,8 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
     }
 }
 
-fn raw_api(args: ApiArgs, host: Option<&str>) -> Result<()> {
-    let api = api(host_url(host.unwrap_or(DEFAULT_HOST))?)?;
+fn raw_api(args: ApiArgs, host: Option<&str>, config: &Config) -> Result<()> {
+    let api = api(host_url(host.unwrap_or(config.host()))?, config)?;
     ensure!(
         !args.endpoint.contains([':', '?', '#', '%']),
         "API endpoint must be a relative path without a query or URL escapes; use -f/-F for fields"

@@ -37,6 +37,7 @@ The POC implements these workflows:
 
 | Group | Commands | Behavior |
 | --- | --- | --- |
+| Configuration | config get/set/unset | Atomic nonsecret user defaults; explicit flags/environment override saved paths and host. |
 | Forge | auth status, repo view, pr list/view/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. |
 | Governance | project list/view | Read team and project ownership, repositories, features, and secret namespace from TOML. |
 | Kennel | status | Report kennel/build and kennel/deploy commit statuses and marked preview comments. |
@@ -48,7 +49,9 @@ Review submission supports --approve, --request-changes, --comment, --body, and 
 
 ### API and authentication
 
-Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST (default git.cmu.dev); public reads work without credentials. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written to a file. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
+Store only host and canonical checkout paths in the platform user configuration directory. Support explicit configuration files and a no-config mode for automation. Reject malformed or unknown settings and write atomically. Keep inferred Git remote hosts independent from the saved host default.
+
+Default to git.cmu.dev. Accept COLLAR_TOKEN from the environment for authenticated operations, bound to COLLAR_HOST, the saved default host, or git.cmu.dev in that order; public reads work without credentials. An explicit alternate --host does not receive the default host's credential. No token is accepted on a command line or written to a file. Reject non-HTTPS hosts except loopback test servers, URL credentials, and redirects. Bound connect/request timeouts and pagination. Error messages include the operation and HTTP status without response bodies that may echo credentials. Typed response decoding must fail on malformed data.
 
 Raw api requests are relative to the selected host's /api/v1 namespace. Match gh's string -f/--raw-field and typed -F/--field conventions, infer POST when fields are supplied, and permit an explicit method. Do not accept arbitrary absolute URLs that could receive the selected host's credentials.
 

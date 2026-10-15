@@ -1,8 +1,6 @@
-use std::ffi::OsString;
 use std::path::PathBuf;
-use std::process::Command as ProcessCommand;
 
-use anyhow::{Context, Result, ensure};
+use anyhow::Result;
 use clap::{Args, Subcommand};
 use serde::Serialize;
 
@@ -12,29 +10,8 @@ use crate::source::{Kind, Sources};
 
 #[derive(Subcommand)]
 pub enum Command {
-    /// Run the governance repository's canonical validator in a working checkout.
-    Validate(ValidateArgs),
-    /// Run a governance CLI command in the governance development shell.
-    Run(RunArgs),
     /// Show declared service access and the platform entry points.
     ServiceAccess(ServiceAccessArgs),
-}
-
-#[derive(Args)]
-pub struct RunArgs {
-    /// Governance working checkout.
-    #[arg(long, env = "COLLAR_GOVERNANCE", required = true)]
-    checkout: PathBuf,
-    /// Arguments passed literally to the canonical governance CLI.
-    #[arg(required = true, allow_hyphen_values = true, last = true)]
-    arguments: Vec<OsString>,
-}
-
-#[derive(Args)]
-pub struct ValidateArgs {
-    /// Governance working checkout; required because source snapshots are read-only.
-    #[arg(long, env = "COLLAR_GOVERNANCE", required = true)]
-    checkout: PathBuf,
 }
 
 #[derive(Args)]
@@ -117,8 +94,6 @@ pub fn run(
     host: Option<&str>,
 ) -> Result<()> {
     match command {
-        Command::Validate(args) => validate(&args.checkout),
-        Command::Run(args) => run_canonical(&args.checkout, &args.arguments),
         Command::ServiceAccess(args) => {
             let mut fields = project::Project::FIELDS.to_vec();
             fields.push("dataSource");
@@ -170,37 +145,4 @@ pub fn run(
             })
         }
     }
-}
-
-fn validate(checkout: &std::path::Path) -> Result<()> {
-    let checkout = governance_checkout(checkout)?;
-    let mut command = ProcessCommand::new("cargo");
-    command
-        .args(["run", "-p", "governance", "--", "validate"])
-        .current_dir(&checkout);
-    crate::process::run(&mut command).context("run canonical governance validator")
-}
-
-fn run_canonical(checkout: &std::path::Path, arguments: &[OsString]) -> Result<()> {
-    let checkout = governance_checkout(checkout)?;
-    let mut command = ProcessCommand::new("devenv");
-    command
-        .args(["shell", "--", "cargo", "run", "-p", "governance", "--"])
-        .args(arguments)
-        .current_dir(checkout);
-    crate::process::run(&mut command).context("run canonical governance CLI in devenv shell")
-}
-
-fn governance_checkout(checkout: &std::path::Path) -> Result<PathBuf> {
-    let checkout = checkout
-        .canonicalize()
-        .with_context(|| format!("resolve governance checkout {}", checkout.display()))?;
-    ensure!(
-        checkout.join("Cargo.toml").is_file()
-            && checkout.join("crates/governance-cli/Cargo.toml").is_file()
-            && checkout.join("data/org.toml").is_file(),
-        "{} is not a governance working checkout (expected workspace Cargo.toml, crates/governance-cli, and data/org.toml)",
-        checkout.display()
-    );
-    Ok(checkout)
 }

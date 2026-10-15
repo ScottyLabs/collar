@@ -1,4 +1,7 @@
+use crate::{client::Api, ui};
 use anyhow::{Context, Result, bail, ensure};
+use reqwest::Method;
+use serde_json::Value;
 use std::process::Command;
 use url::Url;
 
@@ -200,6 +203,73 @@ pub fn clone(
         command.arg(directory);
     }
     crate::process::run(&mut command)
+}
+
+pub fn fork(
+    api: &Api,
+    repo: &Repo,
+    organization: Option<String>,
+    name: Option<String>,
+) -> Result<()> {
+    api.require_token()?;
+    if let Some(org) = &organization {
+        ensure!(valid_part(org), "invalid organization name");
+    }
+    if let Some(name) = &name {
+        ensure!(valid_part(name), "invalid repository name");
+    }
+    let mut body = serde_json::Map::new();
+    if let Some(organization) = organization {
+        body.insert("organization".into(), organization.into());
+    }
+    if let Some(name) = name {
+        body.insert("name".into(), name.into());
+    }
+    let result: Value = api.json(
+        Method::POST,
+        &["repos", &repo.owner, &repo.name, "forks"],
+        &[],
+        Some(&Value::Object(body)),
+    )?;
+    print_repository(&result, "Forked")
+}
+
+fn valid_part(value: &str) -> bool {
+    !value.is_empty()
+        && value != "."
+        && value != ".."
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+}
+
+fn print_repository(value: &Value, action: &str) -> Result<()> {
+    let full_name = value
+        .get("full_name")
+        .and_then(Value::as_str)
+        .filter(|name| !name.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Forgejo response omitted repository full_name; the operation may have succeeded, inspect the repository before retrying"))?;
+    let url = value
+        .get("html_url")
+        .and_then(Value::as_str)
+        .filter(|url| !url.trim().is_empty())
+        .ok_or_else(|| anyhow::anyhow!("Forgejo response omitted repository html_url; the operation may have succeeded, inspect the repository before retrying"))?;
+    ui::heading(&format!("{action} repository {full_name}"));
+    ui::detail("URL", url);
+    if let Some(description) = value
+        .get("description")
+        .and_then(Value::as_str)
+        .filter(|value| !value.is_empty())
+    {
+        ui::detail("Description", description);
+    }
+    if let Some(private) = value.get("private").and_then(Value::as_bool) {
+        ui::detail("Visibility", if private { "private" } else { "public" });
+    }
+    if let Some(archived) = value.get("archived").and_then(Value::as_bool) {
+        ui::detail("Archived", if archived { "yes" } else { "no" });
+    }
+    Ok(())
 }
 
 #[cfg(test)]

@@ -27,7 +27,7 @@ The implementation follows the [link-shortener reference project](https://git.cm
 
 ## Non-Goals
 
-The POC does not implement every gh command or add Kennel server endpoints. Provisioning stays with governance and infrastructure tools. Governance edits prepare validated local changes for review; they do not bypass the canonical pull request workflow. GitHub-specific services remain outside this POC.
+The POC does not implement every gh command or add Kennel server endpoints. Provisioning stays with governance and infrastructure tools. Repository provisioning, membership, and feature changes remain in the canonical governance workflow. GitHub-specific services remain outside this POC.
 
 ## Detailed Design
 
@@ -39,18 +39,18 @@ The POC implements these workflows:
 | --- | --- | --- |
 | Onboarding | doctor, project view/select | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode and optional terminal selection. |
 | Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
-| Forge | auth status, repo view, pr create/checkout/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
-| Governance | project list/view, validate, run, service-access, changes join/leave/enable/disable | Inspect canonical data; prepare validated local changes; delegate provisioning to the canonical CLI. |
+| Forge | auth status, repo view/fork, pr create/checkout/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |
+| Governance | project list/view, service-access | Inspect canonical ownership and declared service access without a clone. |
 | Kennel | status, preview, logs, wait | Inspect commit-bound checks and preview/log links; wait with bounded polling. |
-| Infrastructure | hosts, service, check, build, atlantis-config, colmena | Discover canonical configuration and delegate explicit Nix/Colmena operations. |
-| Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with canonical namespace/profile validation and original tool exit codes. |
-| Changelog | view, updates, update, new | Read latest canonical generated summaries and announcements; invoke the existing local authoring helper. Publication remains the canonical workflow. |
+| Infrastructure | hosts, service, check, build, atlantis-config | Discover canonical configuration and delegate explicit Nix builds. |
+| Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with native tool validation and original exit codes. |
+| Changelog | view, updates, update | Read latest canonical generated summaries and announcements without a clone. |
 | RFC | rfc | Complete Fetch search and draft creation within Collar. |
-| Documentation | docs list/view/search, kennel docs | Read and search latest canonical organization and service guides, with explicit offline snapshots. |
+| Documentation | docs list/view/search | Read and search latest canonical organization and service guides, with explicit offline snapshots. |
 
 Repository selection accepts -R [HOST/]OWNER/REPO and otherwise reads upstream then origin. Explicit host/repository disagreements are errors. PR selection accepts a positive number or a same-host PR URL; omitted selection resolves the current branch through the pull list and refuses ambiguity. JSON output projects explicit supported gh-style fields. Forgejo-native responses remain accessible through api.
 
-Review submission supports --approve, --request-changes, --comment, --body, and --body-file, including stdin. Exactly one review verdict is required. An optional JSON comments file carries path, line, side, and body. Validate line anchors against the inspected diff, then submit one review with that head SHA as commit_id. Do not retry mutations or silently retarget a changed head. The POC never submits reviews as part of its own live verification.
+Review submission supports --approve, --request-changes, --comment, --body, and --body-file, including stdin. Exactly one review verdict is required. Repeatable --inline-comment flags carry path, line, side, and body directly. Validate line anchors against the inspected diff, then submit one review with that head SHA as commit_id. Do not retry mutations or silently retarget a changed head. The POC never submits reviews as part of its own live verification.
 
 PR creation uses an already-pushed head branch and the repository's default target branch unless explicitly selected. Authoring commands accept literal text or Markdown files/stdin; edits send only supplied fields and support explicitly clearing the body. Comments verify that the numeric target is a PR before using Forgejo's shared issue-comment endpoint. Close/reopen refuse merged PRs and already-requested states. These metadata/state endpoints do not provide atomic expected-head guards; server permissions and current state remain authoritative. Remote mutations are verified only against fixtures during development.
 
@@ -86,9 +86,9 @@ Use focused modules for argument parsing and orchestration, repository selection
 
 This remains a Draft POC. The supported commands are documented in the [crate README](README.md) and each command family's guide. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
 
-Typed forge workflows include PR review and authoring, repository administration, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside the agreed POC scope.
+Typed forge workflows include PR review and authoring, repository inspection, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside the agreed POC scope.
 
-Read-only ScottyLabs discovery uses latest canonical snapshots without user-maintained clones. Explicit local checkouts are required for edits and tools that need full source trees. Governance validation/provisioning, Atlantis, Colmena, Bao, and secretspec retain ownership of their workflows.
+Read-only ScottyLabs discovery uses latest canonical snapshots without user-maintained clones. Explicit local checkouts are required for edits and tools that need full source trees. Governance provisioning, Atlantis, Colmena, Bao, and secretspec retain ownership of their workflows.
 
 The long-term repository home and minimum supported Forgejo version remain adoption decisions. This crate has no Terrier domain dependencies and keeps its design and user documentation locally.
 
@@ -96,10 +96,10 @@ The long-term repository home and minimum supported Forgejo version remain adopt
 
 Fold Fetch's complete search and creation implementation into `collar rfc`, including its regression tests. Remove the separate crate and development-shell command. Resolve RFC directories from an explicit `--directory`, the active devenv root, or the current Git checkout rather than a compiled-in Terrier source path. Crate-local `RFC.md` files are searchable when their directory is selected.
 
-Read-only governance and infrastructure discovery should not require user-maintained clones. Prefer versioned canonical API snapshots cached under Collar's user cache directory, with explicit refresh/offline behavior and source revision in output. Keep optional checkout overrides for editing, validation, Nix evaluation, and reviewed changes. Never silently substitute cached data for a failed refresh. Changes still use canonical review pipelines.
+Read-only governance and infrastructure discovery should not require user-maintained clones. Prefer versioned canonical API snapshots cached under Collar's user cache directory, with explicit refresh/offline behavior and source revision in output. Keep optional checkout overrides for local inspection, validation, and Nix evaluation. Never silently substitute cached data for a failed refresh. Changes still use canonical review pipelines.
 
 Terminal interaction should help selection and inspection: an opt-in project picker and PR review navigator, with keyboard help and explicit write confirmation. Preserve noninteractive commands and JSON output; reject TUI mode without a terminal. Feature access must cover the current governance feature schema and link each feature to its supported inspection, configuration, and operational workflow.
 
 ### Environment tools
 
-Expose Bao login/status, secretspec check/set, devenv shell/run/up/down/tasks, and repository hooks as typed commands. Validate the selected canonical project namespace and explicit secret profile before resolving secrets. Delegate validation and provisioning to the existing tools, preserve the user's access reason, inherit interactive I/O only for intentional interactive operations, and propagate tool exit codes. Secret checks use no-prompt/value-free reporting; secret updates accept a prompt or file/stdin input, never a secret value argument. Bootstrap Bao through Nix with `login -method=oidc -no-print` so a new machine can authenticate before entering the development shell without displaying its token. Stopping local processes must remain possible without governance or secret preflight.
+Expose Bao login/status, secretspec check/set, devenv shell/run/up/down/tasks, and repository hooks as typed commands. Let devenv and secretspec validate their own configuration; development commands must not require governance or secretspec preflight. Delegate validation and provisioning to the existing tools, preserve the user's access reason, inherit interactive I/O only for intentional interactive operations, and propagate tool exit codes. Secret checks use no-prompt/value-free reporting; secret updates accept a prompt or file/stdin input, never a secret value argument. Bootstrap Bao through Nix with `login -method=oidc -no-print` so a new machine can authenticate before entering the development shell without displaying its token. Stopping local processes must remain possible without governance or secret preflight.

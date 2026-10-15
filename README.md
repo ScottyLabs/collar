@@ -93,11 +93,11 @@ collar check treefmt --files crates/collar/src/main.rs
 
 Bao login works before a project shell is available: Nix supplies OpenBao, then OIDC login stores the token in Bao's configured helper with token printing disabled. `auth bao status` suppresses token metadata and checks token acceptance against ScottyLabs OpenBao; it does not establish project permissions.
 
-Secret and development commands resolve the selected repository's latest canonical governance project, then validate the local `secretspec.toml` namespace and selected profile before starting a tool. `--provider` must name a provider declared in that file. Use `--governance PATH` or `COLLAR_GOVERNANCE` for deliberate local inspection. `--offline-source` uses the last verified governance snapshot; it controls source discovery only, and the invoked tools can still access the network.
+Development and secret wrappers run from the current project root without governance discovery. Devenv and secretspec own their configuration and validation. Development commands and hooks work in projects without secretspec configuration.
 
-Secret checks never prompt to set missing values. They emit secretspec's value-free explanation or native JSON report and propagate failure codes. Set accepts declared keys from the chosen profile or its default profile. Without `--from-file`, a terminal prompt is required; `--from-file -` explicitly accepts exact secret bytes from stdin. Collar never accepts a secret value argument or saves secret values. Secretspec owns provider access and updates. These commands require secretspec 0.21 or newer.
+Secret checks never prompt to set missing values. They emit secretspec's value-free explanation or native JSON report and propagate failure codes. Secretspec validates the selected profile, provider, scope, and secret names. Without `--from-file`, a terminal prompt is required; `--from-file -` explicitly accepts exact secret bytes from stdin. Collar never accepts a secret value argument or saves secret values. Secretspec owns provider access and updates. These commands require secretspec 0.21 or newer.
 
-Use `--reason` or `SECRETSPEC_REASON` to supply an access reason. Collar forwards it unchanged and supplies its caller metadata; it never invents a reason or bypasses the provider's access policy. `--profile` selects the secret profile and honors `SECRETSPEC_PROFILE`, defaulting to `dev`. Devenv receives `--secretspec-profile`, not its separate Nix development-profile flag, and runs from the project root. `dev run -- COMMAND ...` preserves literal argument boundaries. `dev down` stops processes without requiring governance or secrets preflight.
+Use `--reason` or `SECRETSPEC_REASON` to supply an access reason. Collar forwards it unchanged and supplies its caller metadata; it never invents a reason or bypasses the provider's access policy. `--profile` selects the secret profile and honors `SECRETSPEC_PROFILE`; otherwise the underlying tool selects its configured default. Devenv receives `--secretspec-profile`, not its separate Nix development-profile flag, and runs from the project root. `dev run -- COMMAND ...` preserves literal argument boundaries. `dev down` stops processes without requiring governance or secrets preflight.
 
 `check` runs `prek run` inside the project development shell, using staged files by default. Supply a hook identifier, `--all`, or `--files` for existing files inside the checkout. File paths are relative to the calling directory or absolute. Tool execution inherits normal terminal output and preserves failure exit codes. Installed tools and project configuration remain authoritative for their own workflows.
 
@@ -144,33 +144,22 @@ collar changelog view kennel
 collar changelog view infrastructure --json
 collar changelog updates
 collar changelog update 17
-collar changelog new kennel-sqlite --checkout /path/to/changelog
 ```
 
 Read commands resolve the latest default-branch revision of `ScottyLabs/changelog` and use the same verified snapshots and explicit `--offline` behavior as governance and infrastructure inspection. `view` reads the repository's generated Kennel, infrastructure, or governance summary; `updates` lists numbered tech-lead announcements newest first, and `update` reads one by number. JSON fields are `path`, `number`, `title`, `body`, and `dataSource`. `--checkout PATH` allows deliberate local inspection.
 
-`new` requires an explicit working checkout and invokes its existing `new-update.sh` with a validated lowercase slug. The helper creates the numbered announcement template and prints its path. Fill in the title, affected users, change instructions, verification, and references following that repository's `AGENTS.md`. Review the entry before publishing: new announcements pushed to its main branch notify tech leads on Discord. Collar does not commit or publish the entry. Generated summaries remain owned by the repository's hourly git-cliff workflow.
+Generated summaries and tech-lead announcements remain owned by the changelog repository's publishing workflow.
 
 Exactly one of `--approve`, `--request-changes`, or `--comment` is required. `--body-file -` reads stdin. Comments and requested changes require text or inline comments.
 
-For inline comments, create a JSON file:
-
-```json
-[
-  {
-    "path": "src/main.rs",
-    "line": 12,
-    "side": "new",
-    "body": "Could this error include the operation that failed?"
-  }
-]
-```
+Add inline comments directly; repeat `--inline-comment` for multiple comments:
 
 ```bash
-collar pr review 42 --request-changes --comments-file comments.json
+collar pr review 42 --request-changes \
+  --inline-comment src/main.rs 12 new 'Could this error include the operation that failed?'
 ```
 
-`side` is `new` for the PR's file or `old` for the base version. Lines must occur in a complete, valid diff hunk. Quoted UTF-8 Git filenames and old-side comments on fully deleted files are supported. For renamed files, use the new path on either side. Collar validates anchors, rechecks the PR's head and open state, and submits all comments in one review pinned to that commit. It never retries a write automatically. If a connection fails during submission, inspect the PR before retrying.
+The side is `new` for the PR's file or `old` for the base version. Lines must occur in a complete, valid diff hunk. Quoted UTF-8 Git filenames and old-side comments on fully deleted files are supported. For renamed files, use the new path on either side. Collar validates anchors, rechecks the PR's head and open state, and submits all comments in one review pinned to that commit. It never retries a write automatically. If a connection fails during submission, inspect the PR before retrying.
 
 `pr checks` reports the latest commit status for each context. It exits unsuccessfully when no statuses exist or any reported status is not successful. It does not verify required branch protection or prove that every required check has reported.
 
@@ -223,9 +212,9 @@ Use `--checkout PATH` or `COLLAR_INFRASTRUCTURE` only when inspecting local infr
 collar docs list
 collar docs search secrets
 collar docs view onboarding/contributing
-collar kennel docs list
-collar kennel docs view guides/secrets
-collar kennel docs search preview --offline
+collar docs list --service kennel
+collar docs view guides/secrets --service kennel
+collar docs search preview --service kennel --offline
 ```
 
 Read current organization guides or project documentation without maintaining clones. See [documentation commands](DOCS.md) for source selection, offline snapshots, and JSON output.
@@ -235,10 +224,9 @@ Read current organization guides or project documentation without maintaining cl
 - [Issues and labels](ISSUES.md): inspect, create, edit, comment, close/reopen, and maintain labels.
 - [Releases](RELEASES.md): list, inspect, create, edit, and delete release metadata.
 - [Actions](ACTIONS.md): inspect runs/jobs and workflow files, dispatch workflows, and delete completed runs.
-- [Repositories](REPOSITORIES.md): clone, create, fork, edit, archive/unarchive, delete with explicit confirmation, and synchronize mirrors.
-- [Governance](GOVERNANCE.md): validate a checkout, run the canonical provisioner, and discover declared feature access.
-- [Governance changes](GOVERNANCE_CHANGES.md): prepare validated membership and repository-feature changes for review.
-- [Infrastructure](INFRASTRUCTURE.md): check or build canonical Nix configuration and delegate host operations to Colmena.
+- [Repositories](REPOSITORIES.md): clone, inspect, and fork repositories.
+- [Governance](GOVERNANCE.md): inspect declared project ownership and feature access.
+- [Infrastructure](INFRASTRUCTURE.md): check or build canonical Nix configuration and inspect infrastructure without maintaining a checkout.
 - [Kennel](KENNEL.md): inspect current-head previews and log links, or wait for reported deployment checks.
 - [Browser sign-in](SSO.md): authenticate through the forge's existing university sign-in.
 
@@ -250,7 +238,7 @@ Governance, project-context, and infrastructure inspection require no manually m
 
 Snapshots live under the platform user cache directory. `--cache-dir PATH` or `COLLAR_CACHE_DIR` selects a different location. `--offline` explicitly reads the last complete snapshot without network requests; missing or corrupt snapshots fail. A failed online refresh never silently falls back to cached data. Each result's `dataSource` identifies the kind, host/repository, revision, download time, and offline mode. Human output prints the source before its results.
 
-Explicit checkout flags and environment variables select deliberate local inspection instead of snapshots. Repository paths are not saved in Collar settings. Checkout results identify their working-tree path and use a null revision because local edits may differ from HEAD. Snapshots contain the governance organization/team files or infrastructure flake/host/role Nix sources needed for inspection. Editing, canonical validation, and Nix evaluation use full working checkouts. Cached files are not deployment health or proof that declared access has been applied.
+Explicit checkout flags and environment variables select deliberate local inspection instead of snapshots. Repository paths are not saved in Collar settings. Checkout results identify their working-tree path and use a null revision because local edits may differ from HEAD. Snapshots contain the governance organization/team files or infrastructure flake/host/role Nix sources needed for inspection. Infrastructure builds evaluate the full source through a pinned remote Nix flake; optional local overrides evaluate working changes. Cached files are not deployment health or proof that declared access has been applied.
 
 Refreshes are bounded to 100 tree pages, 500 selected files, 8 MiB per file, and 32 MiB per snapshot. Traversal, symlinks, duplicate paths, partial tree pages, and inconsistent file sizes are refused. Immutable revisions remain cached; remove unwanted revision directories from the user cache when needed. File sizes and Git blob hashes are verified on download and on every cached read. Modified content fails validation.
 

@@ -1,5 +1,4 @@
 use super::*;
-use std::os::unix::fs::PermissionsExt;
 
 #[test]
 fn service_access_resolves_selected_repository_and_declared_feature_families() {
@@ -81,90 +80,4 @@ fn service_access_rejects_wrong_forge_and_organization_for_selected_repository()
         failure(&output, expected);
         assert!(output.stdout.is_empty());
     }
-}
-
-#[test]
-fn governance_validator_uses_canonical_command_and_preserves_tool_exit_code() {
-    let temp = TempDir::new().unwrap();
-    let checkout = temp.path().join("governance");
-    std::fs::create_dir_all(checkout.join("crates/governance-cli")).unwrap();
-    std::fs::create_dir_all(checkout.join("data")).unwrap();
-    for file in [
-        checkout.join("Cargo.toml"),
-        checkout.join("crates/governance-cli/Cargo.toml"),
-        checkout.join("data/org.toml"),
-    ] {
-        std::fs::write(file, "fixture\n").unwrap();
-    }
-    let bin = temp.path().join("bin");
-    std::fs::create_dir(&bin).unwrap();
-    let cargo = bin.join("cargo");
-    std::fs::write(
-        &cargo,
-        "#!/bin/sh\nprintf 'cwd:%s\\n' \"$PWD\" > \"$COLLAR_CARGO_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_CARGO_LOG\"; done\nexit 7\n",
-    )
-    .unwrap();
-    std::fs::set_permissions(cargo, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths([bin.clone()]).unwrap();
-    let output = command()
-        .env("PATH", path)
-        .env("COLLAR_CARGO_LOG", temp.path().join("cargo.log"))
-        .args(["governance", "validate", "--checkout"])
-        .arg(&checkout)
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(7));
-    assert!(String::from_utf8_lossy(&output.stderr).contains("cargo exited with exit status: 7"));
-    let log = std::fs::read_to_string(temp.path().join("cargo.log")).unwrap();
-    assert!(log.contains(&format!("cwd:{}\n", checkout.display())));
-    assert!(log.contains("arg:run\narg:-p\narg:governance\narg:--\narg:validate\n"));
-}
-
-#[test]
-fn governance_run_delegates_literal_arguments_through_devenv_and_propagates_failure() {
-    let temp = TempDir::new().unwrap();
-    let checkout = temp.path().join("governance");
-    std::fs::create_dir_all(checkout.join("crates/governance-cli")).unwrap();
-    std::fs::create_dir_all(checkout.join("data")).unwrap();
-    for file in [
-        checkout.join("Cargo.toml"),
-        checkout.join("crates/governance-cli/Cargo.toml"),
-        checkout.join("data/org.toml"),
-    ] {
-        std::fs::write(file, "fixture\n").unwrap();
-    }
-    let bin = temp.path().join("bin");
-    std::fs::create_dir(&bin).unwrap();
-    let devenv = bin.join("devenv");
-    std::fs::write(
-        &devenv,
-        "#!/bin/sh\nprintf 'cwd:%s\\n' \"$PWD\" > \"$COLLAR_DEVENV_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_DEVENV_LOG\"; done\nexit 9\n",
-    )
-    .unwrap();
-    std::fs::set_permissions(devenv, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let path = std::env::join_paths([bin]).unwrap();
-    let output = command()
-        .env("PATH", path)
-        .env("COLLAR_DEVENV_LOG", temp.path().join("devenv.log"))
-        .args(["governance", "run", "--checkout"])
-        .arg(&checkout)
-        .args([
-            "--",
-            "schema",
-            "--output-dir",
-            "-schema output",
-            "$(literal argument)",
-        ])
-        .output()
-        .unwrap();
-    assert_eq!(
-        output.status.code(),
-        Some(9),
-        "{}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert!(String::from_utf8_lossy(&output.stderr).contains("devenv exited with exit status: 9"));
-    let log = std::fs::read_to_string(temp.path().join("devenv.log")).unwrap();
-    assert!(log.contains(&format!("cwd:{}\n", checkout.display())));
-    assert!(log.contains("arg:shell\narg:--\narg:cargo\narg:run\narg:-p\narg:governance\narg:--\narg:schema\narg:--output-dir\narg:-schema output\narg:$(literal argument)\n"));
 }

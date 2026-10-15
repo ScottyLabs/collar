@@ -85,53 +85,6 @@ fn rejects_unknown_host_before_invoking_nix() {
 }
 
 #[test]
-fn colmena_runs_from_the_local_devenv_and_preserves_literal_arguments_and_status() {
-    let temp = TempDir::new().unwrap();
-    let checkout = local_flake(temp.path());
-    let bin = nix_fixture(temp.path());
-    let devenv = bin.join("devenv");
-    std::fs::write(
-        &devenv,
-        "#!/bin/sh\nprintf 'cwd:%s\\n' \"$PWD\" >> \"$COLLAR_TEST_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_TEST_LOG\"; done\nexit \"${COLLAR_TEST_EXIT:-0}\"\n",
-    )
-    .unwrap();
-    std::fs::set_permissions(devenv, std::fs::Permissions::from_mode(0o755)).unwrap();
-    let output = local_command(temp.path(), &checkout, &bin)
-        .args([
-            "infra",
-            "colmena",
-            "--checkout",
-            checkout.to_str().unwrap(),
-            "--",
-            "apply",
-            "--on",
-            "infra-01",
-        ])
-        .output()
-        .unwrap();
-    success(&output);
-    let args = log(temp.path());
-    assert!(args.contains(&format!("cwd:{}\n", checkout.display())));
-    assert!(args.contains("arg:shell\narg:--\narg:colmena\narg:apply\narg:--on\narg:infra-01\n"));
-
-    let output = local_command(temp.path(), &checkout, &bin)
-        .env("COLLAR_TEST_EXIT", "7")
-        .args([
-            "infra",
-            "colmena",
-            "--checkout",
-            checkout.to_str().unwrap(),
-            "--",
-            "apply",
-            "--on",
-            "infra-01",
-        ])
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(7));
-}
-
-#[test]
 fn pins_remote_flake_to_latest_snapshot_and_propagates_offline_to_nix() {
     let temp = TempDir::new().unwrap();
     let bin = nix_fixture(temp.path());

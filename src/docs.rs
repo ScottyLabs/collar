@@ -97,24 +97,12 @@ struct Match {
 }
 
 pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
-    run_inner(command, sources, None)
-}
-
-pub fn run_kennel(command: Command, sources: &Sources<'_>) -> Result<()> {
-    run_inner(command, sources, Some(Service::Kennel))
-}
-
-fn run_inner(
-    command: Command,
-    sources: &Sources<'_>,
-    forced_service: Option<Service>,
-) -> Result<()> {
     let (args, action) = match command {
         Command::List(args) => (args, Action::List),
         Command::View { topic, source } => (source, Action::View(topic)),
         Command::Search { query, source } => (source, Action::Search(query)),
     };
-    let service = forced_service.unwrap_or(args.service);
+    let service = args.service;
     match &action {
         Action::List => args
             .output

@@ -463,7 +463,6 @@ dependencies = [
  "sigpipe",
  "tempfile",
  "toml",
- "toml_edit",
  "url",
 ]
 
@@ -2232,7 +2231,6 @@ dependencies = [
  "indexmap",
  "toml_datetime",
  "toml_parser",
- "toml_writer",
  "winnow",
 ]
 

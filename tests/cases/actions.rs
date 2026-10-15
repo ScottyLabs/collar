@@ -125,9 +125,6 @@ fn deleting_a_run_requires_authentication_before_network_access() {
 
 #[test]
 fn dispatch_uses_forgejo_payload_names_and_reports_empty_success() {
-    let temp = TempDir::new().unwrap();
-    let inputs = temp.path().join("inputs.json");
-    std::fs::write(&inputs, r#"{"mode":"fast","enabled":"yes"}"#).unwrap();
     let server = Server::new(vec![Response {
         status: 204,
         body: String::new(),
@@ -136,9 +133,16 @@ fn dispatch_uses_forgejo_payload_names_and_reports_empty_success() {
     let output = server
         .command(true)
         .args([
-            "workflow", "dispatch", "ci.yml", "--ref", "main", "--inputs",
+            "workflow",
+            "dispatch",
+            "ci.yml",
+            "--ref",
+            "main",
+            "--field",
+            "mode=fast",
+            "--field",
+            "enabled=yes",
         ])
-        .arg(inputs)
         .args(["--json"])
         .output()
         .unwrap();
@@ -160,9 +164,6 @@ fn dispatch_uses_forgejo_payload_names_and_reports_empty_success() {
 
 #[test]
 fn workflow_inputs_are_validated_before_network_access() {
-    let temp = TempDir::new().unwrap();
-    let inputs = temp.path().join("inputs.json");
-    std::fs::write(&inputs, r#"{"count":3}"#).unwrap();
     let mut command = command();
     command
         .env("COLLAR_TOKEN", "test-secret")
@@ -178,16 +179,16 @@ fn workflow_inputs_are_validated_before_network_access() {
             "ci.yml",
             "--ref",
             "main",
-            "--inputs",
+            "--field",
+            "invalid",
         ])
-        .arg(inputs)
         .output()
         .unwrap();
-    failure(&output, "workflow input values must be strings");
+    failure(&output, "workflow input must use NAME=VALUE");
 }
 
 #[test]
-fn workflow_dispatch_requires_token_before_reading_input_file() {
+fn workflow_dispatch_requires_token() {
     let output = command()
         .args([
             "--host",
@@ -199,8 +200,8 @@ fn workflow_dispatch_requires_token_before_reading_input_file() {
             "ci.yml",
             "--ref",
             "main",
-            "--inputs",
-            "/path/that/does/not/exist",
+            "--field",
+            "invalid",
         ])
         .output()
         .unwrap();

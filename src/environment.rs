@@ -9,8 +9,7 @@ use anyhow::{Context, Result, ensure};
 use clap::{Args, Subcommand};
 use serde::Deserialize;
 
-use crate::source::{Kind, Sources};
-use crate::{process, project, repo};
+use crate::{process, repo};
 
 pub const BAO_ADDR: &str = "https://secrets.scottylabs.org";
 
@@ -24,19 +23,14 @@ pub enum BaoCommand {
 
 #[derive(Args)]
 pub struct ContextArgs {
-    #[arg(long, default_value = "dev", env = "SECRETSPEC_PROFILE")]
-    profile: String,
+    #[arg(long, env = "SECRETSPEC_PROFILE")]
+    profile: Option<String>,
     /// Audit reason, forwarded unchanged to secretspec and devenv.
     #[arg(long, env = "SECRETSPEC_REASON")]
     reason: Option<String>,
     /// Select a provider alias declared in secretspec.toml.
     #[arg(long, env = "SECRETSPEC_PROVIDER")]
     provider: Option<String>,
-    #[arg(long, env = "COLLAR_GOVERNANCE")]
-    governance: Option<PathBuf>,
-    /// Use the last verified canonical source snapshot.
-    #[arg(long = "offline-source")]
-    offline: bool,
 }
 
 #[derive(Subcommand)]
@@ -110,10 +104,6 @@ pub struct CheckArgs {
 pub struct Secretspec {
     project: SecretProject,
     profiles: BTreeMap<String, BTreeMap<String, toml::Value>>,
-    #[serde(default)]
-    providers: BTreeMap<String, toml::Value>,
-    #[serde(default)]
-    scopes: BTreeMap<String, toml::Value>,
 }
 
 #[derive(Deserialize)]
@@ -143,52 +133,12 @@ pub fn validate(root: &Path, namespace: Option<&str>, profile: &str) -> Result<S
     Ok(spec)
 }
 
-struct ProjectEnv {
-    root: PathBuf,
-    spec: Secretspec,
-    namespace: String,
-}
-
-fn context(
-    sources: &Sources<'_>,
-    selection: Option<&str>,
-    host: Option<&str>,
-    args: &ContextArgs,
-) -> Result<ProjectEnv> {
-    if let Some(reason) = &args.reason {
-        ensure!(!reason.trim().is_empty(), "access reason must be nonempty");
-    }
-    let root = repo::root()?;
-    let repo = sources.config.repo(selection, host)?;
-    let source = sources.load_at(
-        Kind::Governance,
-        args.governance.clone(),
-        args.offline,
-        &repo.origin,
-    )?;
-    let project = project::resolve(&source.directory, &repo)?;
-    let spec = validate(&root, project.secret_namespace.as_deref(), &args.profile)?;
-    if let Some(provider) = &args.provider {
-        ensure!(
-            spec.providers.contains_key(provider),
-            "provider must be an alias declared in secretspec.toml"
-        );
-    }
-    Ok(ProjectEnv {
-        root,
-        spec,
-        namespace: project
-            .secret_namespace
-            .context("project has no secret namespace")?,
-    })
-}
-
 fn devenv(root: &Path, args: &ContextArgs) -> Command {
     let mut command = Command::new("devenv");
-    command
-        .current_dir(root)
-        .args(["--secretspec-profile", &args.profile]);
-    command.env("SECRETSPEC_FILE", root.join("secretspec.toml"));
+    command.current_dir(root);
+    if let Some(profile) = &args.profile {
+        command.args(["--secretspec-profile", profile]);
+    }
     if let Some(provider) = &args.provider {
         command.args(["--secretspec-provider", provider]);
     }
@@ -226,12 +176,7 @@ pub fn bao(command: BaoCommand) -> Result<()> {
     }
 }
 
-pub fn secrets(
-    command: SecretCommand,
-    sources: &Sources<'_>,
-    selection: Option<&str>,
-    host: Option<&str>,
-) -> Result<()> {
+pub fn secrets(command: SecretCommand) -> Result<()> {
     let args = match &command {
         SecretCommand::Check { context, .. } | SecretCommand::Set { context, .. } => context,
     };
@@ -244,29 +189,31 @@ pub fn secrets(
             "secret updates require a terminal prompt or explicit --from-file PATH (use - for stdin)"
         );
     }
-    let project = context(sources, selection, host, args)?;
+    let root = repo::root()?;
     let operation = match command {
         SecretCommand::Check { .. } => "check",
         SecretCommand::Set { .. } => "set",
     };
     let mut child = Command::new("secretspec");
     child
-        .current_dir(&project.root)
+        .current_dir(&root)
         .arg(operation)
         .arg("--file")
-        .arg(project.root.join("secretspec.toml"))
+        .arg(root.join("secretspec.toml"))
         .args([
-            "--profile",
-            &args.profile,
             "--caller",
             "collar",
             "--caller-version",
             env!("CARGO_PKG_VERSION"),
             "--caller-operation",
             operation,
-            "--caller-resource",
-            &project.namespace,
         ]);
+    child
+        .arg("--caller-resource")
+        .arg(root.join("secretspec.toml"));
+    if let Some(profile) = &args.profile {
+        child.args(["--profile", profile]);
+    }
     if let Some(reason) = &args.reason {
         child.arg(format!("--reason={reason}"));
     }
@@ -282,31 +229,12 @@ pub fn secrets(
                 child.arg("--explain");
             }
             if let Some(scope) = scope {
-                ensure!(
-                    project.spec.scopes.contains_key(scope),
-                    "scope is not declared in secretspec.toml"
-                );
                 child.args(["--scope", scope]);
             }
         }
         SecretCommand::Set {
             name, from_file, ..
         } => {
-            ensure!(
-                name != "defaults"
-                    && project
-                        .spec
-                        .profiles
-                        .get(&args.profile)
-                        .is_some_and(|entries| entries.contains_key(name))
-                    || name != "defaults"
-                        && project
-                            .spec
-                            .profiles
-                            .get("default")
-                            .is_some_and(|entries| entries.contains_key(name)),
-                "secret is not declared in the selected profile or its defaults"
-            );
             if let Some(path) = from_file {
                 let path = if path == Path::new("-") {
                     path.clone()
@@ -321,12 +249,7 @@ pub fn secrets(
     process::run(&mut child)
 }
 
-pub fn dev(
-    command: DevCommand,
-    sources: &Sources<'_>,
-    selection: Option<&str>,
-    host: Option<&str>,
-) -> Result<()> {
+pub fn dev(command: DevCommand) -> Result<()> {
     if let DevCommand::Down { reason } = command {
         let mut child = Command::new("devenv");
         child.current_dir(repo::root()?).args(["processes", "down"]);
@@ -348,8 +271,8 @@ pub fn dev(
             "interactive shell requires a terminal; use collar dev run -- COMMAND for scripts"
         );
     }
-    let project = context(sources, selection, host, args)?;
-    let mut child = devenv(&project.root, args);
+    let root = repo::root()?;
+    let mut child = devenv(&root, args);
     match &command {
         DevCommand::Shell(_) => {
             child.arg("shell");
@@ -372,14 +295,9 @@ pub fn dev(
     process::run(&mut child)
 }
 
-pub fn checks(
-    args: CheckArgs,
-    sources: &Sources<'_>,
-    selection: Option<&str>,
-    host: Option<&str>,
-) -> Result<()> {
-    let project = context(sources, selection, host, &args.context)?;
-    let mut child = devenv(&project.root, &args.context);
+pub fn checks(args: CheckArgs) -> Result<()> {
+    let root = repo::root()?;
+    let mut child = devenv(&root, &args.context);
     child.args(["shell", "--", "prek", "run"]);
     if let Some(hook) = args.hook {
         ensure!(
@@ -393,7 +311,7 @@ pub fn checks(
     }
     if !args.files.is_empty() {
         child.arg("--files");
-        let root = std::fs::canonicalize(&project.root)?;
+        let root = std::fs::canonicalize(&root)?;
         for path in args.files {
             let path = std::fs::canonicalize(path).context("resolve hook input file")?;
             let relative = path

@@ -65,11 +65,14 @@ fn secret_checks_are_value_free_noninteractive_and_profile_bound() {
         "arg:--scope\narg:build\n",
         "arg:--reason=inspect development setup\n",
         "arg:--caller\narg:collar\n",
-        "arg:--caller-resource\narg:collie\n",
     ] {
         assert!(args.contains(expected), "missing {expected}: {args}");
     }
     assert!(!args.contains("arg:--explain\n"));
+    assert!(args.contains(&format!(
+        "arg:--caller-resource\narg:{}\n",
+        project.join("secretspec.toml").display()
+    )));
     assert!(args.contains(&format!("cwd:{}\n", project.display())));
     assert!(args.contains(&format!(
         "arg:{}\n",
@@ -120,25 +123,45 @@ fn secret_updates_accept_explicit_stdin_without_value_arguments_or_logging() {
 }
 
 #[test]
-fn invalid_secret_context_and_headless_prompts_fail_before_provider_execution() {
+fn secret_validation_is_delegated_to_secretspec_without_governance() {
+    let (temp, project, bin) = fixture();
+    std::fs::write(
+        project.join("secretspec.toml"),
+        "native tool owns this configuration",
+    )
+    .unwrap();
+    for args in [
+        vec![
+            "secrets",
+            "check",
+            "--profile",
+            "prod",
+            "--scope",
+            "custom",
+            "--provider",
+            "custom",
+        ],
+        vec!["secrets", "set", "CUSTOM", "--from-file", "-"],
+    ] {
+        let output = cli(temp.path(), &project, &bin)
+            .env("COLLAR_GOVERNANCE", "/missing")
+            .env("COLLAR_TEST_EXIT", "7")
+            .args(args)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(7));
+    }
+    let args = log(temp.path());
+    assert!(args.contains("arg:--profile\narg:prod\n"));
+    assert!(args.contains("arg:--scope\narg:custom\n"));
+    assert!(args.contains("arg:--provider\narg:custom\n"));
+    assert!(args.contains("arg:--\narg:CUSTOM\n"));
+}
+
+#[test]
+fn headless_prompts_fail_before_tool_execution() {
     let (temp, project, bin) = fixture();
     for (args, expected) in [
-        (
-            vec!["secrets", "check", "--profile", "prod"],
-            "profile prod",
-        ),
-        (
-            vec!["secrets", "check", "--scope", "unknown"],
-            "scope is not declared",
-        ),
-        (
-            vec!["secrets", "check", "--provider", "unknown"],
-            "provider must be an alias",
-        ),
-        (
-            vec!["secrets", "set", "UNDECLARED", "--from-file", "-"],
-            "secret is not declared",
-        ),
         (
             vec!["secrets", "set", "SHARED"],
             "terminal prompt or explicit --from-file",
@@ -155,20 +178,29 @@ fn invalid_secret_context_and_headless_prompts_fail_before_provider_execution() 
         failure(&output, expected);
         assert!(!temp.path().join("commands.log").exists());
     }
-    let spec = project.join("secretspec.toml");
-    std::fs::write(
-        &spec,
-        std::fs::read_to_string(&spec)
-            .unwrap()
-            .replace("name = 'collie'", "name = 'wrong-project'"),
-    )
-    .unwrap();
-    let output = cli(temp.path(), &project, &bin)
-        .args(["secrets", "check"])
-        .output()
-        .unwrap();
-    failure(&output, "differs from the governance secret namespace");
-    assert!(!temp.path().join("commands.log").exists());
+}
+
+#[test]
+fn development_wrappers_work_without_governance_remotes_or_secrets() {
+    let (temp, project, bin) = fixture();
+    std::fs::remove_file(project.join("secretspec.toml")).unwrap();
+    for args in [
+        vec!["dev", "run", "--", "true"],
+        vec!["dev", "up"],
+        vec!["dev", "task", "build"],
+        vec!["check", "--all"],
+    ] {
+        let output = cli(temp.path(), &project, &bin)
+            .env("COLLAR_GOVERNANCE", "/missing")
+            .env("SECRETSPEC_FILE", "/caller-selected-config")
+            .args(args)
+            .output()
+            .unwrap();
+        success(&output);
+    }
+    let args = log(temp.path());
+    assert!(!args.contains("--secretspec-profile"));
+    assert!(args.contains("arg:prek\narg:run\narg:--all-files\n"));
 }
 
 #[test]

@@ -82,7 +82,7 @@ enum Command {
         #[command(subcommand)]
         command: crate::actions::WorkflowCommand,
     },
-    /// Read ScottyLabs changelogs and prepare tech-lead announcements.
+    /// Read ScottyLabs changelogs and tech-lead announcements.
     Changelog {
         #[command(subcommand)]
         command: changelog::Command,
@@ -197,10 +197,12 @@ enum AuthCommand {
 
 #[derive(Subcommand)]
 enum RepoCommand {
-    /// Administer repositories through Forgejo.
-    Admin {
-        #[command(subcommand)]
-        command: crate::repository_admin::Command,
+    /// Fork the selected repository without changing its settings.
+    Fork {
+        #[arg(long)]
+        organization: Option<String>,
+        #[arg(long)]
+        name: Option<String>,
     },
     /// Clone using the repository's SSH URL and your existing Git authentication.
     Clone {
@@ -387,9 +389,9 @@ struct ReviewArgs {
     /// Read review text from a file, or - for stdin.
     #[arg(short = 'F', long)]
     body_file: Option<PathBuf>,
-    /// JSON array of {path,line,side,body}; side is old or new.
-    #[arg(long)]
-    comments_file: Option<PathBuf>,
+    /// Add an inline comment; repeat for multiple comments. SIDE is old or new.
+    #[arg(long = "inline-comment", num_args = 4, value_names = ["PATH", "LINE", "SIDE", "BODY"], action = clap::ArgAction::Append)]
+    inline_comments: Vec<String>,
 }
 
 #[derive(Args)]
@@ -410,11 +412,6 @@ struct ApiArgs {
 
 #[derive(Subcommand)]
 enum GovernanceCommand {
-    /// Prepare validated local changes for review.
-    Changes {
-        #[command(subcommand)]
-        command: crate::governance_changes::Command,
-    },
     #[command(flatten)]
     Workflows(governance_ops::Command),
     Project {
@@ -449,11 +446,6 @@ enum ProjectCommand {
 
 #[derive(Subcommand)]
 enum KennelCommand {
-    /// Read and search Kennel documentation.
-    Docs {
-        #[command(subcommand)]
-        command: crate::docs::Command,
-    },
     #[command(flatten)]
     Workflows(kennel::Command),
     /// Show build/deploy reports for a PR and historical preview comments.
@@ -514,9 +506,6 @@ pub fn run(cli: Cli) -> Result<()> {
     };
     match cli.command {
         Command::Docs { command } => crate::docs::run(command, &sources),
-        Command::Kennel {
-            command: KennelCommand::Docs { command },
-        } => crate::docs::run_kennel(command, &sources),
         Command::Completion { shell } => {
             clap_complete::generate(shell, &mut Cli::command(), "collar", &mut std::io::stdout());
             Ok(())
@@ -560,15 +549,9 @@ pub fn run(cli: Cli) -> Result<()> {
         }
         Command::Changelog { command } => changelog::run(command, &sources),
         Command::Config { command } => config.run(command),
-        Command::Secrets { command } => {
-            environment::secrets(command, &sources, cli.repo.as_deref(), cli.host.as_deref())
-        }
-        Command::Dev { command } => {
-            environment::dev(command, &sources, cli.repo.as_deref(), cli.host.as_deref())
-        }
-        Command::Check(args) => {
-            environment::checks(args, &sources, cli.repo.as_deref(), cli.host.as_deref())
-        }
+        Command::Secrets { command } => environment::secrets(command),
+        Command::Dev { command } => environment::dev(command),
+        Command::Check(args) => environment::checks(args),
         Command::Auth {
             command: AuthCommand::Bao { command },
         } => environment::bao(command),
@@ -635,13 +618,6 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Governance {
             command: GovernanceCommand::Workflows(command),
         } => governance_ops::run(command, &sources, cli.repo.as_deref(), cli.host.as_deref()),
-        Command::Governance {
-            command: GovernanceCommand::Changes { command },
-        } => {
-            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
-            let api = api(repo.origin.clone(), &config)?;
-            crate::governance_changes::run(command, &api, &repo, &sources)
-        }
         Command::Governance {
             command: GovernanceCommand::Project { command },
         } => match command {
@@ -805,17 +781,11 @@ pub fn run(cli: Cli) -> Result<()> {
             crate::repo::clone(&api, &repo, directory.as_deref(), https)
         }
         Command::Repo {
-            command: RepoCommand::Admin { command },
+            command: RepoCommand::Fork { organization, name },
         } => {
-            let selected = match &command {
-                crate::repository_admin::Command::Create { owner, name, .. } => {
-                    Some(format!("{owner}/{name}"))
-                }
-                _ => cli.repo.clone(),
-            };
-            let repo = config.repo(selected.as_deref(), cli.host.as_deref())?;
+            let repo = config.repo(cli.repo.as_deref(), cli.host.as_deref())?;
             let api = api(repo.origin.clone(), &config)?;
-            crate::repository_admin::run(command, &api, &repo)
+            crate::repo::fork(&api, &repo, organization, name)
         }
         Command::Repo {
             command: RepoCommand::View { repository, output },
@@ -1125,24 +1095,31 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
         PrCommand::Review(args) => {
             api.require_token()?;
             let number = pr::select(api, repo, args.selector.as_deref())?;
-            ensure!(
-                !(args.body_file.as_deref() == Some(Path::new("-"))
-                    && args.comments_file.as_deref() == Some(Path::new("-"))),
-                "review body and inline comments cannot both read stdin"
-            );
             let body = match args.body_file {
                 Some(path) => read_file(&path)?,
                 None => args.body.unwrap_or_default(),
             };
-            let comments: Vec<pr::LineComment> = args
-                .comments_file
-                .map(|path| {
-                    read_file(&path).and_then(|text| {
-                        serde_json::from_str(&text).context("parse inline comments JSON")
+            let comments = args
+                .inline_comments
+                .chunks_exact(4)
+                .map(|fields| {
+                    let line = fields[1]
+                        .parse::<u64>()
+                        .context("inline comment LINE must be a positive integer")?;
+                    ensure!(line > 0, "inline comment LINE must be positive");
+                    let side = match fields[2].as_str() {
+                        "old" => pr::Side::Old,
+                        "new" => pr::Side::New,
+                        _ => anyhow::bail!("inline comment SIDE must be old or new"),
+                    };
+                    Ok(pr::LineComment {
+                        path: fields[0].clone(),
+                        line,
+                        side,
+                        body: fields[3].clone(),
                     })
                 })
-                .transpose()?
-                .unwrap_or_default();
+                .collect::<Result<Vec<_>>>()?;
             let event = if args.approve {
                 "APPROVED"
             } else if args.request_changes {

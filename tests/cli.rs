@@ -26,6 +26,53 @@ fn command() -> Command {
 }
 
 #[test]
+fn repository_fork_creates_a_copy_with_native_options() {
+    let server = Server::new(vec![Response::json(json!({
+        "full_name": "contributor/collar-copy",
+        "html_url": "https://git.cmu.dev/contributor/collar-copy"
+    }))]);
+    let output = server
+        .command(true)
+        .args([
+            "repo",
+            "fork",
+            "-R",
+            "ScottyLabs/collar",
+            "--name",
+            "collar-copy",
+        ])
+        .output()
+        .unwrap();
+    success(&output);
+    let requests = server.finish();
+    assert_eq!(requests.len(), 1);
+    assert!(requests[0].starts_with("POST /api/v1/repos/ScottyLabs/collar/forks "));
+    let body: Value = serde_json::from_str(requests[0].split_once("\r\n\r\n").unwrap().1).unwrap();
+    assert_eq!(body, json!({"name": "collar-copy"}));
+}
+
+#[test]
+fn provisioned_configuration_commands_are_not_exposed() {
+    for arguments in [
+        vec!["repo", "admin", "create", "scratch"],
+        vec!["governance", "changes", "join"],
+        vec!["kennel", "docs", "list"],
+        vec!["governance", "run"],
+        vec!["governance", "validate"],
+        vec!["infra", "colmena"],
+        vec!["changelog", "new"],
+    ] {
+        let output = command()
+            .args(["--host", "http://127.0.0.1:1"])
+            .args(arguments)
+            .output()
+            .unwrap();
+        failure(&output, "unrecognized subcommand");
+        assert_eq!(output.status.code(), Some(2));
+    }
+}
+
+#[test]
 fn interactive_commands_reject_headless_use_before_network_access() {
     for arguments in [vec!["project", "select"], vec!["pr", "browse"]] {
         let output = command()
@@ -192,14 +239,6 @@ fn list_follows_short_pages_and_projects_gh_fields() {
 
 #[test]
 fn submits_one_commit_pinned_review_with_inline_comments() {
-    let comments = TempDir::new().unwrap();
-    let path = comments.path().join("comments.json");
-    std::fs::write(
-        &path,
-        json!([{ "path": "src/main.rs", "line": 1, "side": "new", "body": "Explain this" }])
-            .to_string(),
-    )
-    .unwrap();
     let server = Server::new(vec![
         Response::json(pull("reviewed-head")),
         Response { status: 200, body: "diff --git a/src/main.rs b/src/main.rs\n--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1 +1 @@\n-old\n+new\n".into(), headers: String::new() },
@@ -215,9 +254,12 @@ fn submits_one_commit_pinned_review_with_inline_comments() {
             "--request-changes",
             "--body",
             "Please explain",
-            "--comments-file",
+            "--inline-comment",
+            "src/main.rs",
+            "1",
+            "new",
+            "Explain this",
         ])
-        .arg(&path)
         .output()
         .unwrap();
     success(&output);
@@ -258,22 +300,23 @@ fn refuses_changed_heads_without_posting() {
 
 #[test]
 fn refuses_invalid_inline_anchors_without_posting() {
-    let comments = TempDir::new().unwrap();
-    let path = comments.path().join("comments.json");
-    std::fs::write(
-        &path,
-        json!([{ "path": "src/main.rs", "line": 99, "side": "new", "body": "Outside the diff" }])
-            .to_string(),
-    )
-    .unwrap();
     let server = Server::new(vec![
         Response::json(pull("head")),
         Response { status: 200, body: "diff --git a/src/main.rs b/src/main.rs\n--- a/src/main.rs\n+++ b/src/main.rs\n@@ -1 +1 @@\n-old\n+new\n".into(), headers: String::new() },
     ]);
     let output = server
         .command(true)
-        .args(["pr", "review", "42", "--comment", "--comments-file"])
-        .arg(&path)
+        .args([
+            "pr",
+            "review",
+            "42",
+            "--comment",
+            "--inline-comment",
+            "src/main.rs",
+            "99",
+            "new",
+            "Outside the diff",
+        ])
         .output()
         .unwrap();
     failure(&output, "not a commentable line");
@@ -1478,42 +1521,7 @@ fn changelog_reads_numbered_announcements_and_rejects_ambiguity() {
         .output()
         .unwrap();
     failure(&output, "duplicate announcement number");
-    let output = command()
-        .args(["changelog", "new", "../escape", "--checkout"])
-        .arg(temp.path())
-        .output()
-        .unwrap();
-    failure(&output, "slug must be lowercase words joined by hyphens");
 }
-
-#[test]
-fn changelog_authoring_delegates_literal_slug_and_preserves_failure() {
-    let temp = TempDir::new().unwrap();
-    std::fs::create_dir(temp.path().join("updates")).unwrap();
-    std::fs::write(
-        temp.path().join("new-update.sh"),
-        "test \"$1\" = kennel-sqlite || exit 9\nprintf 'updates/018-%s.md\\n' \"$1\"\nexit 7\n",
-    )
-    .unwrap();
-    let output = command()
-        .args(["changelog", "new", "kennel-sqlite", "--checkout"])
-        .arg(temp.path())
-        .output()
-        .unwrap();
-    assert_eq!(output.status.code(), Some(7));
-    assert_eq!(
-        String::from_utf8(output.stdout).unwrap(),
-        "updates/018-kennel-sqlite.md\n"
-    );
-}
-
-#[cfg(unix)]
-#[path = "cases/governance_changes.rs"]
-mod governance_changes;
-
-#[cfg(unix)]
-#[path = "cases/repository_admin.rs"]
-mod repository_admin;
 
 #[cfg(unix)]
 #[path = "cases/oauth.rs"]

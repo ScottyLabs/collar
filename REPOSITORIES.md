@@ -1,21 +1,15 @@
-# Repository administration
+# Repositories
 
-`collar repo admin` manages repositories through the Forgejo REST API on the selected host. Select the affected repository with `-R OWNER/REPO` (or the normal Git remote selection) for fork, edit, archive, unarchive, delete, and mirror synchronization. These commands require an authenticated token with the corresponding Forgejo permission. They do not grant permissions or bypass server policy.
-
-Create a repository by naming its owner and owner type explicitly:
+Clone, inspect, and fork existing repositories:
 
 ```sh
-collar repo admin create terrier-tools --owner ScottyLabs --owner-type org --private
-collar repo admin create scratch --owner my-account --owner-type user
+collar repo clone ScottyLabs/terrier
+collar repo view -R ScottyLabs/terrier
+collar repo fork -R ScottyLabs/terrier
 ```
 
-Personal creation first verifies that `--owner` is the authenticated account. Forking supports the native Forgejo options:
+Cloning uses SSH by default; use `--https` for HTTPS. Repository views support JSON output.
 
-```sh
-collar repo admin fork -R upstream-org/project
-collar repo admin fork -R upstream-org/project --organization ScottyLabs --name project-experiment
-```
+ScottyLabs repositories, their metadata, and mirrors are declared in governance code. Creation, metadata changes, archiving, deletion, and mirror synchronization are not exposed as Collar repository commands. Use the canonical governance workflow for provisioning changes.
 
-Edit accepts `--description`, `--homepage`, `--default-branch`, and one of `--private` or `--public`. Archive and unarchive set Forgejo's archived property. Permanent deletion requires `--confirm OWNER/REPO` to exactly match the selected repository. Mirror synchronization only runs when Forgejo reports the selected repository as a mirror; it asks Forgejo to sync the remote mirror and does not synchronize a local Git checkout.
-
-Repositories governed by a canonical ScottyLabs declaration should be changed through that repository's review and governance process. The CLI exposes the forge's native operations and does not update governance declarations automatically.
+Forking creates a copy without changing the source repository. It defaults to your account; `--organization` and `--name` select a destination organization and name. Forge permissions still apply.

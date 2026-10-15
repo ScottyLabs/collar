@@ -1,4 +1,3 @@
-use std::ffi::OsString;
 use std::path::PathBuf;
 use std::process::Command;
 
@@ -32,15 +31,6 @@ pub enum CommandKind {
         #[command(flatten)]
         source: SourceArgs,
     },
-    /// Run a Colmena command from a complete local infrastructure checkout.
-    Colmena {
-        /// Local checkout containing flake.nix, flake.lock, and devenv.nix.
-        #[arg(long, required = true)]
-        checkout: PathBuf,
-        /// Arguments passed to Colmena after `--`.
-        #[arg(last = true, required = true, num_args = 1.., allow_hyphen_values = true)]
-        args: Vec<OsString>,
-    },
 }
 
 #[derive(clap::Args)]
@@ -54,24 +44,10 @@ pub struct SourceArgs {
 }
 
 pub fn run(command: CommandKind, sources: &Sources<'_>) -> Result<()> {
-    if let CommandKind::Colmena { checkout, args } = &command {
-        let checkout =
-            std::fs::canonicalize(checkout).context("resolve infrastructure checkout")?;
-        for file in ["flake.nix", "flake.lock", "devenv.nix"] {
-            ensure!(checkout.join(file).is_file(), "checkout has no {file}");
-        }
-        let mut devenv = Command::new("devenv");
-        devenv
-            .current_dir(checkout)
-            .args(["shell", "--", "colmena"])
-            .args(args);
-        return process::run(&mut devenv);
-    }
     let args = match &command {
         CommandKind::Check { source }
         | CommandKind::Build { source, .. }
         | CommandKind::AtlantisConfig { source } => source,
-        CommandKind::Colmena { .. } => unreachable!(),
     };
     let source = sources.load(
         Kind::Infrastructure,
@@ -130,7 +106,6 @@ pub fn run(command: CommandKind, sources: &Sources<'_>) -> Result<()> {
                 .arg(format!("{reference}#atlantis-yaml"))
                 .arg("--no-link");
         }
-        CommandKind::Colmena { .. } => unreachable!(),
     }
     process::run(&mut nix).with_context(|| format!("{}; Nix input {reference}", source.describe()))
 }

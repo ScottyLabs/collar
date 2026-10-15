@@ -6,11 +6,11 @@ Collar lists, reads, and searches ScottyLabs organization guides by default, wit
 collar docs list
 collar docs view index
 collar docs search "deployment preview"
-collar kennel docs list
-collar kennel docs view guides/features
+collar docs list --service kennel
+collar docs view guides/features --service kennel
 collar docs view concepts/secrets --service infrastructure --offline
 ```
 
 ScottyLabs topics come from the `org-docs/scottylabs/` section of the documentation repository. Kennel topics come from `sites/docs/src/` and its repository README. Infrastructure topics come from `docs/src/`; governance exposes its repository README. Generated `SUMMARY.md` files are excluded. JSON output includes the topic and repository-relative path; views include the Markdown body, and each result carries its source metadata.
 
-`collar kennel docs` always selects Kennel, even when another `--service` is supplied. `collar docs` defaults to the organization guides.
+`collar docs` defaults to the organization guides. Use `--service kennel` for Kennel documentation.

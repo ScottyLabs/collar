@@ -1,5 +1,3 @@
-use std::path::PathBuf;
-
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Subcommand};
 use reqwest::Method;
@@ -73,9 +71,9 @@ pub struct Dispatch {
     /// Git ref to dispatch.
     #[arg(long)]
     r#ref: String,
-    /// JSON file containing a map of workflow input names to string values.
-    #[arg(long)]
-    inputs: Option<PathBuf>,
+    /// Workflow input as NAME=VALUE; repeat for multiple inputs.
+    #[arg(short = 'f', long = "field", value_name = "NAME=VALUE")]
+    fields: Vec<String>,
     /// Include the created run information in Forgejo's response.
     #[arg(long)]
     return_run_info: bool,
@@ -308,22 +306,21 @@ pub fn run_workflow(command: WorkflowCommand, api: &Api, repo: &Repo) -> Result<
             let workflow = workflow_path(&args.workflow)?;
             ensure!(!args.r#ref.trim().is_empty(), "ref must not be empty");
             api.require_token()?;
-            let inputs = if let Some(path) = args.inputs {
-                let value: Value = serde_json::from_slice(
-                    &std::fs::read(&path).with_context(|| format!("read {}", path.display()))?,
-                )
-                .context("parse workflow inputs JSON")?;
-                let object = value
-                    .as_object()
-                    .context("workflow inputs must be a JSON object")?;
+            let mut inputs = serde_json::Map::new();
+            for field in args.fields {
+                let (name, value) = field
+                    .split_once('=')
+                    .context("workflow input must use NAME=VALUE")?;
                 ensure!(
-                    object.values().all(Value::is_string),
-                    "workflow input values must be strings"
+                    !name.trim().is_empty(),
+                    "workflow input name must be nonempty"
                 );
-                value
-            } else {
-                json!({})
-            };
+                ensure!(
+                    !inputs.contains_key(name),
+                    "duplicate workflow input {name}"
+                );
+                inputs.insert(name.to_owned(), Value::String(value.to_owned()));
+            }
             let body = json!({"ref": args.r#ref, "inputs": inputs, "return_run_info": args.return_run_info});
             let filename = workflow
                 .rsplit('/')

@@ -58,7 +58,14 @@ fn docs_lists_and_reads_topics_from_a_local_service_checkout() {
     );
 
     let output = command()
-        .args(["kennel", "docs", "view", "guides/features", "--checkout"])
+        .args([
+            "docs",
+            "view",
+            "guides/features",
+            "--service",
+            "kennel",
+            "--checkout",
+        ])
         .arg(temp.path())
         .args(["--json", "topic,path,body"])
         .output()

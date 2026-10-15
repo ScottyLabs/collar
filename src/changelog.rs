@@ -1,4 +1,4 @@
-use std::{fs, path::PathBuf, process};
+use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use clap::{Args, Subcommand, ValueEnum};
@@ -28,12 +28,6 @@ pub enum Command {
         number: u32,
         #[command(flatten)]
         source: SourceArgs,
-    },
-    /// Invoke the canonical authoring helper in an explicit working checkout.
-    New {
-        slug: String,
-        #[arg(long)]
-        checkout: PathBuf,
     },
 }
 
@@ -88,23 +82,6 @@ pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
         Command::View { repository, source } => (source, Some(repository.file()), None),
         Command::Updates { source } => (source, None, None),
         Command::Update { number, source } => (source, None, Some(number)),
-        Command::New { slug, checkout } => {
-            ensure!(
-                valid_slug(&slug),
-                "slug must be lowercase words joined by hyphens"
-            );
-            let checkout = checkout.canonicalize().context("find changelog checkout")?;
-            ensure!(
-                checkout.join("new-update.sh").is_file() && checkout.join("updates").is_dir(),
-                "checkout must contain the changelog authoring helper and updates directory"
-            );
-            return crate::process::run(
-                process::Command::new("bash")
-                    .current_dir(&checkout)
-                    .arg(checkout.join("new-update.sh"))
-                    .arg(slug),
-            );
-        }
     };
     args.output
         .validate_fields(&["path", "title", "body", "number", "dataSource"])?;

@@ -1,0 +1,20 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    uses: ScottyLabs/kennel/.forgejo/workflows/ci.yml@main
+    enable-openid-connect: true
+    with:
+      build: false
+      secretspec-profile: dev
+  package:
+    runs-on: native
+    steps:
+      - uses: https://code.forgejo.org/actions/checkout@v7
+      - uses: https://git.cmu.dev/ScottyLabs/kennel/.forgejo/actions/prepare@main
+      - name: Build CLI package
+        run: nix build .#collar

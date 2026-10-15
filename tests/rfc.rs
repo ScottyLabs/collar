@@ -79,12 +79,17 @@ fn provides_help_and_rejects_invalid_options() {
 
 #[test]
 fn searches_repository_code_blocks_in_their_markdown_section() {
+    let root = tempfile::tempdir().unwrap();
+    let directory = root.path().join("rfcs");
+    fs::create_dir_all(&directory).unwrap();
+    fs::write(
+        directory.join("0001-deployment.md"),
+        "# RFC 0001: Deployment\n- **Status:** Accepted\n\n## Deployment\n```nix\n# NixOS configuration\n```\n",
+    )
+    .unwrap();
     let output = command()
         .args(["NixOS", "configuration"])
-        .env(
-            "DEVENV_ROOT",
-            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../.."),
-        )
+        .env("DEVENV_ROOT", root.path())
         .output()
         .unwrap();
     assert!(output.status.success());

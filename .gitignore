@@ -1,0 +1,12 @@
+.devenv/
+.pre-commit-config.yaml
+target/
+result
+result-*
+rustc-ice-*.txt
+.env
+.DS_Store
+
+.cargo/
+.claude/
+.mcp.json

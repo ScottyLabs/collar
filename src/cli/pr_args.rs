@@ -8,137 +8,30 @@ use crate::output::Output;
 #[derive(Subcommand)]
 pub(super) enum PrCommand {
     /// Fetch a verified PR head and switch to a local branch.
-    Checkout {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        /// Local branch name; defaults to pr/NUMBER.
-        #[arg(short = 'b', long)]
-        branch: Option<String>,
-        /// Configured Git remote; defaults to upstream, then origin.
-        #[arg(long)]
-        remote: Option<String>,
-    },
+    Checkout(CheckoutArgs),
     /// Merge the inspected PR head using Forgejo protection checks.
     #[command(group(ArgGroup::new("strategy").required(true).args(["merge", "squash", "rebase"])))]
-    Merge {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        /// Preserve commits with a merge commit.
-        #[arg(long)]
-        merge: bool,
-        /// Combine the PR into a single commit.
-        #[arg(long)]
-        squash: bool,
-        /// Rebase the PR commits instead of creating a merge commit.
-        #[arg(long)]
-        rebase: bool,
-        /// Refuse if the current head differs from this commit.
-        #[arg(long)]
-        match_head_commit: Option<String>,
-        /// Ask Forgejo to delete the source branch after merging.
-        #[arg(long)]
-        delete_branch: bool,
-        /// Ask Forgejo to merge when its checks succeed.
-        #[arg(long, conflicts_with = "match_head_commit")]
-        auto: bool,
-        #[command(flatten)]
-        output: Output,
-    },
+    Merge(MergeArgs),
     /// Merge or rebase the target branch into the PR branch.
-    UpdateBranch {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        /// Rebase the PR commits instead of creating a merge commit.
-        #[arg(long)]
-        rebase: bool,
-        /// Check the current head before submission; the update API has no atomic guard.
-        #[arg(long)]
-        match_head_commit: Option<String>,
-        #[command(flatten)]
-        output: Output,
-    },
+    UpdateBranch(UpdateBranchArgs),
     /// Create a PR from an already-pushed branch.
-    Create {
-        /// Pull request title.
-        #[arg(short = 't', long)]
-        title: String,
-        /// Branch or fork-owner:branch; defaults to the current Git branch.
-        #[arg(short = 'H', long)]
-        head: Option<String>,
-        /// Target branch; defaults to the forge repository's default branch.
-        #[arg(short = 'B', long)]
-        base: Option<String>,
-        #[command(flatten)]
-        text: PullText,
-        #[command(flatten)]
-        output: Output,
-    },
+    Create(CreateArgs),
     /// Edit a PR's title, body, or target branch.
-    Edit {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        /// Pull request title.
-        #[arg(short = 't', long)]
-        title: Option<String>,
-        #[arg(short = 'B', long)]
-        base: Option<String>,
-        #[command(flatten)]
-        text: PullText,
-        #[command(flatten)]
-        output: Output,
-    },
+    Edit(EditArgs),
     /// Add a discussion comment to a PR.
-    Comment {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        #[command(flatten)]
-        text: PullText,
-        #[command(flatten)]
-        output: Output,
-    },
+    Comment(CommentArgs),
     /// Close a PR without merging it.
     Close(Selection),
     /// Reopen a closed, unmerged PR.
     Reopen(Selection),
     /// Select a PR interactively, then inspect its details, diff, or checks.
-    Browse {
-        #[arg(short = 's', long, value_enum, default_value = "open")]
-        state: State,
-        #[arg(short = 'L', long, default_value_t = 30)]
-        limit: usize,
-        #[command(flatten)]
-        output: Output,
-    },
+    Browse(BrowseArgs),
     /// List pull requests.
-    List {
-        #[arg(short = 's', long, value_enum, default_value = "open")]
-        state: State,
-        #[arg(short = 'L', long, default_value_t = 30)]
-        limit: usize,
-        /// Filter by author login; @me uses the authenticated account.
-        #[arg(long)]
-        author: Option<String>,
-        /// Filter by target branch.
-        #[arg(long)]
-        base: Option<String>,
-        /// Filter by source branch.
-        #[arg(long)]
-        head: Option<String>,
-        #[command(flatten)]
-        output: Output,
-    },
+    List(ListArgs),
     /// View a PR selected by number, URL, or branch (default: current branch).
-    View {
-        /// PR number, same-repository URL, or branch; defaults to the current branch.
-        selector: Option<String>,
-        /// Include discussion, reviews, and inline review comments.
-        #[arg(long)]
-        comments: bool,
-        #[command(flatten)]
-        output: Output,
-    },
+    View(ViewArgs),
     /// Print a PR's unified diff.
-    Diff { selector: Option<String> },
+    Diff(DiffArgs),
     /// Show commit statuses; fail when none are reported or any are not successful.
     Checks(Selection),
     /// Submit a review, optionally including inline comments.
@@ -188,4 +81,143 @@ pub(super) struct ReviewArgs {
     /// Add an inline comment; repeat for multiple comments. SIDE is old or new.
     #[arg(long = "inline-comment", num_args = 4, value_names = ["PATH", "LINE", "SIDE", "BODY"], action = clap::ArgAction::Append)]
     pub(super) inline_comments: Vec<String>,
+}
+
+#[derive(Args)]
+pub(super) struct CheckoutArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Local branch name; defaults to pr/NUMBER.
+    #[arg(short = 'b', long)]
+    pub(super) branch: Option<String>,
+    /// Configured Git remote; defaults to upstream, then origin.
+    #[arg(long)]
+    pub(super) remote: Option<String>,
+}
+
+#[derive(Args)]
+pub(super) struct MergeArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Preserve commits with a merge commit.
+    #[arg(long)]
+    pub(super) merge: bool,
+    /// Combine the PR into a single commit.
+    #[arg(long)]
+    pub(super) squash: bool,
+    /// Rebase the PR commits instead of creating a merge commit.
+    #[arg(long)]
+    pub(super) rebase: bool,
+    /// Refuse if the current head differs from this commit.
+    #[arg(long)]
+    pub(super) match_head_commit: Option<String>,
+    /// Ask Forgejo to delete the source branch after merging.
+    #[arg(long)]
+    pub(super) delete_branch: bool,
+    /// Ask Forgejo to merge when its checks succeed.
+    #[arg(long, conflicts_with = "match_head_commit")]
+    pub(super) auto: bool,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct UpdateBranchArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Rebase the PR commits instead of creating a merge commit.
+    #[arg(long)]
+    pub(super) rebase: bool,
+    /// Check the current head before submission; the update API has no atomic guard.
+    #[arg(long)]
+    pub(super) match_head_commit: Option<String>,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct CreateArgs {
+    /// Pull request title.
+    #[arg(short = 't', long)]
+    pub(super) title: String,
+    /// Branch or fork-owner:branch; defaults to the current Git branch.
+    #[arg(short = 'H', long)]
+    pub(super) head: Option<String>,
+    /// Target branch; defaults to the forge repository's default branch.
+    #[arg(short = 'B', long)]
+    pub(super) base: Option<String>,
+    #[command(flatten)]
+    pub(super) text: PullText,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct EditArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Pull request title.
+    #[arg(short = 't', long)]
+    pub(super) title: Option<String>,
+    #[arg(short = 'B', long)]
+    pub(super) base: Option<String>,
+    #[command(flatten)]
+    pub(super) text: PullText,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct CommentArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    #[command(flatten)]
+    pub(super) text: PullText,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct BrowseArgs {
+    #[arg(short = 's', long, value_enum, default_value = "open")]
+    pub(super) state: State,
+    #[arg(short = 'L', long, default_value_t = 30)]
+    pub(super) limit: usize,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct ListArgs {
+    #[arg(short = 's', long, value_enum, default_value = "open")]
+    pub(super) state: State,
+    #[arg(short = 'L', long, default_value_t = 30)]
+    pub(super) limit: usize,
+    /// Filter by author login; @me uses the authenticated account.
+    #[arg(long)]
+    pub(super) author: Option<String>,
+    /// Filter by target branch.
+    #[arg(long)]
+    pub(super) base: Option<String>,
+    /// Filter by source branch.
+    #[arg(long)]
+    pub(super) head: Option<String>,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct ViewArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Include discussion, reviews, and inline review comments.
+    #[arg(long)]
+    pub(super) comments: bool,
+    #[command(flatten)]
+    pub(super) output: Output,
+}
+
+#[derive(Args)]
+pub(super) struct DiffArgs {
+    pub(super) selector: Option<String>,
 }

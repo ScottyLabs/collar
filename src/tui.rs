@@ -9,7 +9,7 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use console::{Style, Term};
+use console::{Style, Term, measure_text_width};
 
 use crate::{client::Api, output::Output, pr, repo::Repo};
 use dialoguer::{FuzzySelect, theme::ColorfulTheme};
@@ -30,6 +30,13 @@ pub fn require_terminal() -> Result<()> {
         bail!("interactive selection requires terminal stdin and stderr");
     }
     Ok(())
+}
+
+const HINT: &str = "Type to filter  |  arrows move  |  Enter select  |  Esc cancel";
+
+/// Rows taken by the blank line and the hint once wrapped to `columns`.
+fn hint_rows(columns: u16) -> usize {
+    1 + measure_text_width(HINT).div_ceil(usize::from(columns).max(1))
 }
 
 pub fn choose(prompt: &str, labels: &[String]) -> Result<usize> {
@@ -54,18 +61,19 @@ pub fn choose(prompt: &str, labels: &[String]) -> Result<usize> {
         values_style: accent,
         ..ColorfulTheme::default()
     };
-    term.write_line(&format!(
-        "\n{}",
-        muted.apply_to("Type to filter  |  arrows move  |  Enter select  |  Esc cancel")
-    ))?;
-    match FuzzySelect::with_theme(&theme)
+    let rows = hint_rows(term.size().1);
+    term.write_line(&format!("\n{}", muted.apply_to(HINT)))?;
+    let selection = FuzzySelect::with_theme(&theme)
         .with_prompt(single_line(prompt))
         .items(&labels)
         .default(0)
         .max_length(usize::from(term.size().0.saturating_sub(7)).clamp(3, 12))
         .report(false)
-        .interact_on_opt(&term)?
-    {
+        .interact_on_opt(&term)?;
+    // The picker erases its own lines; erase the hint too so that repeated
+    // pickers do not leave one stale copy each in the scrollback.
+    term.clear_last_lines(rows)?;
+    match selection {
         Some(index) => Ok(index),
         None => Err(Cancelled.into()),
     }
@@ -175,7 +183,7 @@ pub fn inspect_pull_request(api: &Api, repo: &Repo, number: u64) -> Result<Navig
             Action::Checks => {
                 let pull = pr::get(api, repo, number)?;
                 let statuses = pr::statuses(api, repo, &pull.head.sha)?;
-                eprintln!("Commit {}", terminal_text(&pull.head.sha));
+                eprintln!("\nCommit {}", terminal_text(&pull.head.sha));
                 if statuses.is_empty() {
                     eprintln!(
                         "No statuses reported; required checks and merge readiness are unknown."
@@ -193,7 +201,8 @@ pub fn inspect_pull_request(api: &Api, repo: &Repo, number: u64) -> Result<Navig
 
 #[cfg(test)]
 mod tests {
-    use super::{choose, single_line, terminal_text};
+    use super::{HINT, choose, hint_rows, single_line, terminal_text};
+    use console::measure_text_width;
 
     #[test]
     fn inspected_text_keeps_layout_but_drops_controls() {
@@ -209,6 +218,16 @@ mod tests {
             single_line("one\ntwo\t\x1b]0;title\x07"),
             "one two ]0;title"
         );
+    }
+
+    #[test]
+    fn hint_rows_count_the_blank_line_and_any_wrapping() {
+        let width = u16::try_from(measure_text_width(HINT)).unwrap();
+        assert_eq!(hint_rows(width), 2);
+        assert_eq!(hint_rows(width + 40), 2);
+        assert_eq!(hint_rows(width - 1), 3);
+        assert_eq!(hint_rows(width / 2), 3);
+        assert_eq!(hint_rows(0), 1 + measure_text_width(HINT));
     }
 
     #[test]

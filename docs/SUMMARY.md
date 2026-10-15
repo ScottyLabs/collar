@@ -5,14 +5,14 @@
 # Guides
 
 - [Installation and first steps](getting-started.md)
+- [Agent setup and skill](agents.md)
+  - [Bundled skill source](skill.md)
 - [Pull requests](guides/pull-requests.md)
 - [CI and previews](guides/actions-and-previews.md)
 - [Local development](guides/development.md)
 - [ScottyLabs projects](guides/scottylabs.md)
 - [Repository work](guides/repository-work.md)
 - [Shell completions](guides/completions.md)
-- [Using Collar with agents](agents.md)
-  - [Collar skill](skills/collar/SKILL.md)
 - [Troubleshooting](troubleshooting.md)
 
 # Reference
@@ -20,6 +20,7 @@
 - [Configuration and authentication](reference/configuration.md)
 - [Automation](reference/automation.md)
 - [Commands](reference/commands/index.md)
+  - [Agent skill](reference/commands/skill.md)
   - [Status](reference/commands/status.md)
   - [Authentication](reference/commands/auth.md)
   - [Pull requests](reference/commands/pr.md)

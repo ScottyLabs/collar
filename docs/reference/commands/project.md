@@ -53,7 +53,7 @@ Usage: collar project view [OPTIONS] [REPOSITORY]
 
 Arguments:
   [REPOSITORY]
-          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
+          Repository name or [HOST/]OWNER/REPO; defaults to the current repository
 
 Options:
       --checkout <CHECKOUT>

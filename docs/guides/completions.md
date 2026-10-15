@@ -67,10 +67,9 @@ collar completion fish | source
 For persistent setup:
 
 ```fish
+mkdir -p ~/.config/fish/completions
 collar completion fish > ~/.config/fish/completions/collar.fish
 ```
-
-Create the completions directory first if it does not exist.
 
 ## Zsh
 

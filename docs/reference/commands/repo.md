@@ -31,7 +31,7 @@ Usage: collar repo fork [OPTIONS] [REPOSITORY]
 
 Arguments:
   [REPOSITORY]
-          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
+          Repository name or [HOST/]OWNER/REPO; defaults to the current repository
 
 Options:
       --organization <ORGANIZATION>
@@ -75,7 +75,7 @@ Usage: collar repo view [OPTIONS] [REPOSITORY]
 
 Arguments:
   [REPOSITORY]
-          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
+          Repository name or [HOST/]OWNER/REPO; defaults to the current repository
 
 Options:
       --json [<FIELDS>]

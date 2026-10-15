@@ -41,13 +41,14 @@ project to inspect the full setup.
 Public reads do not require sign-in or a local clone:
 
 ```sh
-collar repo view -R ScottyLabs/collar
-collar pr list -R ScottyLabs/collar
+collar repo view collar
+collar pr list -R collar
 ```
 
 Inside a project checkout, Collar uses `upstream` if present, otherwise `origin`.
 This makes work in a fork target the canonical repository when an upstream is
-configured. Use `-R OWNER/REPO` to select a repository explicitly.
+configured. Bare names such as `collar` default to the `ScottyLabs` owner. Use
+`OWNER/REPO` to select another owner.
 
 ## Sign in
 
@@ -67,6 +68,15 @@ authenticate API requests.
 For headless sessions, see [environment tokens](reference/configuration.md#headless-authentication).
 For secrets access, use `collar auth bao login`; Forgejo and OpenBao logins are
 separate.
+
+## Set up a coding agent
+
+```sh
+collar skill install
+```
+
+The CLI bundles the skill; no checkout or download is needed. See
+[agent setup](agents.md) for other clients, updates, and headless authentication.
 
 ## Review a pull request
 

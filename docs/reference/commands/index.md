@@ -4,6 +4,7 @@ These pages are generated from Collar's Clap definitions. Use the help shipped
 with your installed version when it differs from this site. Global options are
 listed here and apply to every subcommand.
 
+- [`collar skill`](skill.md)
 - [`collar status`](status.md)
 - [`collar docs`](docs.md)
 - [`collar completion`](completion.md)
@@ -36,6 +37,7 @@ Review Forgejo pull requests, inspect CI and previews, find project documentatio
 Usage: collar [OPTIONS] <COMMAND>
 
 Commands:
+  skill       Show or install Collar's bundled agent skill
   status      Show your review requests, authored PRs, and assigned issues across the forge
   docs        Read and search canonical ScottyLabs documentation
   completion  Generate shell completions
@@ -68,7 +70,7 @@ Options:
           [env: COLLAR_HOST]
 
   -R, --repo <REPO>
-          Select [HOST/][OWNER/]REPO; omitted owner defaults to ScottyLabs
+          Select REPO, OWNER/REPO, or HOST/OWNER/REPO; default owner: ScottyLabs
 
       --config <CONFIG>
           Use a specific nonsecret settings file

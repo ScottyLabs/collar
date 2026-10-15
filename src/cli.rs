@@ -38,7 +38,7 @@ pub struct Cli {
     /// Forge origin; defaults to git.cmu.dev or the Git remote.
     #[arg(long, global = true, env = "COLLAR_HOST")]
     host: Option<String>,
-    /// Select [HOST/][OWNER/]REPO; omitted owner defaults to ScottyLabs.
+    /// Select REPO, OWNER/REPO, or HOST/OWNER/REPO; default owner: ScottyLabs.
     #[arg(short = 'R', long, global = true)]
     repo: Option<String>,
     /// Use a specific nonsecret settings file.
@@ -61,6 +61,14 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Show or install Collar's bundled agent skill.
+    #[command(
+        after_long_help = "Examples:\n  collar skill\n  collar skill install\n  collar skill install --agent claude\n  collar skill install --force\n\nThe skill ships with this binary and needs no network access. Installation defaults to Codex's user skill directory. Reinstall after updating Collar; --force explicitly replaces a different installed version."
+    )]
+    Skill {
+        #[command(subcommand)]
+        command: Option<crate::skill::Command>,
+    },
     /// Show your review requests, authored PRs, and assigned issues across the forge.
     #[command(
         after_long_help = "Examples:\n  collar status\n  collar status --owner ScottyLabs\n  collar status --interactive\n  collar status --json reviewRequests\n\nRequires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands."
@@ -222,6 +230,9 @@ enum Command {
 }
 
 pub fn run(cli: Cli) -> Result<()> {
+    if let Command::Skill { command } = cli.command {
+        return crate::skill::run(command);
+    }
     let creating = matches!(
         &cli.command,
         Command::Config {
@@ -237,6 +248,7 @@ pub fn run(cli: Cli) -> Result<()> {
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Skill { command } => crate::skill::run(command),
         Command::Status(args) => {
             anyhow::ensure!(
                 cli.repo.is_none(),

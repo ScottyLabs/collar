@@ -11,6 +11,7 @@ shipped with your installed version when a command differs from this guide.
 ## Start here
 
 1. [Install Collar and sign in](getting-started.md).
+1. [Install the Collar skill for an agent](agents.md#install-the-skill).
 1. [Inspect and review a pull request](guides/pull-requests.md).
 1. [Check CI and previews](guides/actions-and-previews.md).
 1. [Run development commands](guides/development.md).
@@ -22,7 +23,7 @@ shipped with your installed version when a command differs from this guide.
 | Find ownership, services, documentation, or changes | [ScottyLabs projects](guides/scottylabs.md) |
 | Manage issues, labels, releases, or forks | [Repository work](guides/repository-work.md) |
 | Enable shell completions or use Nushell | [Shell completions](guides/completions.md) |
-| Teach a coding agent to use Collar | [Using Collar with agents](agents.md) |
+| Install or update the agent skill | [Agent setup](agents.md#install-the-skill) |
 | Configure a host or understand authentication | [Configuration and authentication](reference/configuration.md) |
 | Script commands and handle failures | [Automation](reference/automation.md) |
 | Diagnose a problem | [Troubleshooting](troubleshooting.md) |

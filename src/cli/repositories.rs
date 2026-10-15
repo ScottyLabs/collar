@@ -12,7 +12,7 @@ use crate::{auth::api, config::Config, output::Output};
 pub(super) enum RepoCommand {
     /// Fork the selected repository without changing its settings.
     Fork {
-        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
+        /// Repository name or [HOST/]OWNER/REPO; defaults to the current repository.
         repository: Option<String>,
         /// Fork into this organization instead of your account.
         #[arg(long)]
@@ -31,7 +31,7 @@ pub(super) enum RepoCommand {
     },
     /// View a repository.
     View {
-        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
+        /// Repository name or [HOST/]OWNER/REPO; defaults to the current repository.
         repository: Option<String>,
         #[command(flatten)]
         output: Output,

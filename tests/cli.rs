@@ -10,6 +10,9 @@ mod inbox;
 #[path = "cases/reviewers.rs"]
 mod reviewers;
 
+#[path = "cases/skill.rs"]
+mod skill;
+
 mod support;
 use support::*;
 

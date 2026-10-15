@@ -34,6 +34,7 @@ mod project;
 mod releases;
 mod repo;
 mod rfc;
+mod skill;
 mod source;
 mod status;
 mod tui;

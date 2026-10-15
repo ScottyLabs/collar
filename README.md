@@ -11,7 +11,7 @@ From this repository, enter the ScottyLabs development environment:
 ```sh
 devenv shell
 collar --help
-collar repo view -R ScottyLabs/collar
+collar repo view collar
 ```
 
 To install the CLI from this checkout:
@@ -22,6 +22,9 @@ nix profile add .#collar
 
 See [installation and first steps](docs/getting-started.md) for Cargo installation,
 authentication, and requirements.
+
+For coding agents, start with `collar skill install` and the
+[agent setup guide](docs/agents.md).
 
 ## Everyday commands
 
@@ -35,14 +38,14 @@ collar check --all
 ```
 
 Repository commands use the current checkout's `upstream` remote, then `origin`.
-Pass `-R ScottyLabs/collar` to work without a checkout. Sign-in is required for
+Pass `-R collar` to work without a checkout; bare names default to `ScottyLabs`. Sign-in is required for
 private reads and writes; public reads work without it.
 
 ## Documentation
 
 - [User guide](docs/index.md)
 - [Command reference](docs/reference/commands/index.md), generated from CLI help
-- [Using Collar with agents](docs/agents.md)
+- [Install the agent skill](docs/agents.md#install-the-skill)
 - [Contributing](CONTRIBUTING.md)
 
 The [ScottyLabs documentation hub](https://docs.scottylabs.org) publishes the

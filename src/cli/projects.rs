@@ -27,7 +27,7 @@ pub(super) enum ContextCommand {
     },
     /// Show declared ownership, features, and the secret namespace.
     View {
-        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
+        /// Repository name or [HOST/]OWNER/REPO; defaults to the current repository.
         repository: Option<String>,
         /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]

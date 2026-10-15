@@ -35,6 +35,7 @@ mod releases;
 mod repo;
 mod rfc;
 mod source;
+mod status;
 mod tui;
 mod ui;
 

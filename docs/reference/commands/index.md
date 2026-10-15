@@ -4,6 +4,7 @@ These pages are generated from Collar's Clap definitions. Use the help shipped
 with your installed version when it differs from this site. Global options are
 listed here and apply to every subcommand.
 
+- [`collar status`](status.md)
 - [`collar docs`](docs.md)
 - [`collar completion`](completion.md)
 - [`collar issue`](issue.md)
@@ -35,6 +36,7 @@ Review Forgejo pull requests, inspect CI and previews, find project documentatio
 Usage: collar [OPTIONS] <COMMAND>
 
 Commands:
+  status      Show your review requests, authored PRs, and assigned issues across the forge
   docs        Read and search canonical ScottyLabs documentation
   completion  Generate shell completions
   issue       Work with Forgejo issues

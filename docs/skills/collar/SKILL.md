@@ -1,6 +1,7 @@
-______________________________________________________________________
-
-## name: collar description: Inspect ScottyLabs Forgejo pull requests, CI, and Kennel deployments with the Collar CLI, and perform requested development workflows.
+---
+name: collar
+description: Inspect ScottyLabs Forgejo pull requests, CI, and Kennel deployments with the Collar CLI, and perform requested development workflows.
+---
 
 # Collar
 
@@ -16,6 +17,10 @@ for query parameters, rather than constructing HTTP requests or reading token
 stores. For example, `collar api repos/ScottyLabs/kennel/git/trees/main --method GET -f recursive=true` discovers source paths without a clone. Request only the
 needed JSON fields and read relevant files, not entire snapshots. Do not fetch
 the same data again unless it may have changed.
+
+Use `collar status --json` to find requested reviews, authored PRs, and assigned
+issues across repositories. Use `pr reviewers NUMBER` to inspect review requests;
+`--add` and `--remove` are writes.
 
 For PR inspection, read details and discussion with `pr view NUMBER --comments --json`, the patch with `pr diff NUMBER`, and checks with `pr checks NUMBER --json`. A failed checks command is a result to investigate, not empty output.
 Use `actions logs RUN --failed --json` for CI failures and `kennel logs NUMBER`

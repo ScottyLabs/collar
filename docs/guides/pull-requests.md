@@ -1,5 +1,19 @@
 # Pull requests
 
+## Your work across repositories
+
+```sh
+collar status
+collar status --owner ScottyLabs
+collar status --json reviewRequests
+```
+
+`status` requires sign-in and lists your requested reviews, authored open PRs,
+and assigned open issues across the selected forge. It needs no checkout and
+shows up to ten recently updated items per category. Use `--limit` to change
+that bound, up to 50. Narrow it with `--owner`; `-R` applies to repository
+commands, not this inbox. Inspect an item's checks separately with `pr checks`.
+
 ## Find and inspect a PR
 
 ```sh

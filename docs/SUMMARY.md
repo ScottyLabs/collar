@@ -20,6 +20,7 @@
 - [Configuration and authentication](reference/configuration.md)
 - [Automation](reference/automation.md)
 - [Commands](reference/commands/index.md)
+  - [Status](reference/commands/status.md)
   - [Authentication](reference/commands/auth.md)
   - [Pull requests](reference/commands/pr.md)
   - [Repositories](reference/commands/repo.md)

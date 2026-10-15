@@ -61,6 +61,11 @@ pub struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
+    /// Show your review requests, authored PRs, and assigned issues across the forge.
+    #[command(
+        after_long_help = "Examples:\n  collar status\n  collar status --owner ScottyLabs\n  collar status --json reviewRequests\n\nRequires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands."
+    )]
+    Status(crate::status::Args),
     /// Read and search canonical ScottyLabs documentation.
     #[command(
         after_long_help = "Examples:\n  collar docs search secrets\n  collar docs list --service kennel"
@@ -232,6 +237,19 @@ pub fn run(cli: Cli) -> Result<()> {
         cache: cli.cache_dir.as_deref(),
     };
     match cli.command {
+        Command::Status(args) => {
+            anyhow::ensure!(
+                cli.repo.is_none(),
+                "status spans repositories; use --owner instead of -R"
+            );
+            crate::status::run(
+                args,
+                &api(
+                    crate::client::host_url(cli.host.as_deref().unwrap_or(config.host()))?,
+                    &config,
+                )?,
+            )
+        }
         Command::Docs { command } => crate::docs::run(command, &sources),
         Command::Completion { shell } => {
             shell.generate();

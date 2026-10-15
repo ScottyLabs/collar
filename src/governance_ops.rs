@@ -51,9 +51,9 @@ const FEATURES: &[(&str, &str, Option<&str>, &str)] = &[
     ),
     (
         "docs",
-        "Kennel docs deployment",
-        Some("https://docs.kennel.scottylabs.org/guides/features.html"),
-        "Follow Kennel's feature and deployment guides; the feature alone does not determine a site URL.",
+        "ScottyLabs documentation hub",
+        Some("https://docs.scottylabs.org"),
+        "The docs feature publishes the repository's docs/ directory through the ScottyLabs documentation hub.",
     ),
     (
         "kennel",

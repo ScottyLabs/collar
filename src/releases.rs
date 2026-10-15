@@ -30,14 +30,19 @@ pub enum Command {
     /// Create a release for an existing tag.
     Create {
         tag: String,
+        /// Release title; defaults to the tag on creation.
         #[arg(long)]
         title: Option<String>,
+        /// Release notes as Markdown text.
         #[arg(long, conflicts_with = "notes_file")]
         notes: Option<String>,
+        /// Read Markdown notes from a file, or - for stdin.
         #[arg(long)]
         notes_file: Option<PathBuf>,
+        /// Save as a draft without publishing.
         #[arg(long)]
         draft: bool,
+        /// Mark the release as a prerelease.
         #[arg(long)]
         prerelease: bool,
         #[command(flatten)]
@@ -46,18 +51,25 @@ pub enum Command {
     /// Edit a release by tag.
     Edit {
         tag: String,
+        /// Release title; defaults to the tag on creation.
         #[arg(long)]
         title: Option<String>,
+        /// Release notes as Markdown text.
         #[arg(long, conflicts_with = "notes_file")]
         notes: Option<String>,
+        /// Read Markdown notes from a file, or - for stdin.
         #[arg(long)]
         notes_file: Option<PathBuf>,
+        /// Convert to a draft.
         #[arg(long, conflicts_with = "publish")]
         draft: bool,
+        /// Publish a draft release.
         #[arg(long)]
         publish: bool,
+        /// Mark the release as a prerelease.
         #[arg(long, conflicts_with = "stable")]
         prerelease: bool,
+        /// Remove the prerelease flag.
         #[arg(long)]
         stable: bool,
         #[command(flatten)]

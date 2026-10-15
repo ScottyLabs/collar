@@ -6,7 +6,7 @@ use serde_json::{Map, Value};
 #[derive(Args, Debug)]
 pub struct Output {
     /// Output selected JSON fields (comma-separated); omit fields for all.
-    #[arg(long, num_args = 0..=1, default_missing_value = "*")]
+    #[arg(long, value_name = "FIELDS", num_args = 0..=1, default_missing_value = "*")]
     pub json: Option<String>,
 }
 

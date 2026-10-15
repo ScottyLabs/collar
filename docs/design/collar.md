@@ -3,7 +3,7 @@
 - **Status:** Draft
 - **Author(s):** @kritdass
 - **Created:** 2026-10-14
-- **Updated:** 2026-10-14
+- **Updated:** 2026-10-15
 
 ## Overview
 
@@ -13,7 +13,7 @@ Build Collar, an independent Rust CLI for git.cmu.dev with GitHub CLI command co
 
 Contributors currently move between Forgejo, governance TOML, Kennel status comments, and infrastructure configuration to understand a project. A common CLI can expose these relationships and provide familiar pull request review commands. Implement the client directly against Forgejo rather than depending on fj.
 
-The implementation follows the [link-shortener reference project](https://git.cmu.dev/ScottyLabs/link-shortener): workspace crates, a small entry point, focused modules, contextual errors, behavior tests, shared Kennel build helpers, and devenv scripts. Application OIDC and database setup are not requirements for this local CLI. Its user token is separate from deployed service credentials.
+The implementation follows the [link-shortener reference project](https://git.cmu.dev/ScottyLabs/link-shortener): a standalone Rust package, a small entry point, focused modules, contextual errors, behavior tests, shared Kennel build helpers, and devenv scripts. Application OIDC and database setup are not requirements for this local CLI. Its user token is separate from deployed service credentials.
 
 ## Goals
 
@@ -84,13 +84,13 @@ Use focused modules for argument parsing and orchestration, repository selection
 
 ## Compatibility and limits
 
-This remains a Draft POC. The supported commands are documented in the [crate README](README.md) and each command family's guide. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
+This remains a Draft POC. The supported commands are documented in the [command reference](../reference/commands/index.md) and task guides. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
 
 Typed forge workflows include PR review and authoring, repository inspection, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside the agreed POC scope.
 
 Read-only ScottyLabs discovery uses latest canonical snapshots without user-maintained clones. Explicit local checkouts are required for edits and tools that need full source trees. Governance provisioning, Atlantis, Colmena, Bao, and secretspec retain ownership of their workflows.
 
-The long-term repository home and minimum supported Forgejo version remain adoption decisions. This crate has no Terrier domain dependencies and keeps its design and user documentation locally.
+The minimum supported Forgejo version remains an adoption decision. The standalone package has no Terrier domain dependencies and keeps its design and user documentation in this repository.
 
 ### Expanded developer workflow
 

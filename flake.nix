@@ -32,6 +32,10 @@
         let
           pkgs = nixpkgs.legacyPackages.${system};
           helpers = scottylabs.mkLib pkgs;
+          docs = helpers.buildMdbook {
+            src = ./.;
+            name = "collar-docs";
+          };
           collar = helpers.buildRustService {
             src = ./.;
             nativeBuildInputs = [ pkgs.makeWrapper ];
@@ -46,7 +50,7 @@
           };
         in
         {
-          inherit collar;
+          inherit collar docs;
           default = collar;
         }
       );

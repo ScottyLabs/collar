@@ -23,6 +23,7 @@ pub enum BaoCommand {
 
 #[derive(Args)]
 pub struct ContextArgs {
+    /// Secret profile; uses the underlying tool default when omitted.
     #[arg(long, env = "SECRETSPEC_PROFILE")]
     profile: Option<String>,
     /// Audit reason, forwarded unchanged to secretspec and devenv.
@@ -69,6 +70,7 @@ pub enum DevCommand {
     },
     /// Start the project's configured processes.
     Up {
+        /// Start configured processes in the background.
         #[arg(short = 'd', long)]
         detach: bool,
         #[command(flatten)]
@@ -91,6 +93,7 @@ pub enum DevCommand {
 pub struct CheckArgs {
     /// Run only this hook.
     hook: Option<String>,
+    /// Run hooks for all files instead of only staged files.
     #[arg(long, conflicts_with = "files")]
     all: bool,
     /// Existing files relative to the calling directory, or absolute paths.

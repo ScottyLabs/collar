@@ -77,7 +77,7 @@ pub enum WorkflowCommand {
     List(WorkflowList),
     /// View workflow file metadata returned by Forgejo.
     View(WorkflowView),
-    /// Dispatch a workflow on a ref, optionally with a JSON object of string inputs.
+    /// Dispatch an existing workflow with optional NAME=VALUE inputs.
     Dispatch(Dispatch),
 }
 

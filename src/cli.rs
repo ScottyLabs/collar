@@ -19,7 +19,12 @@ use crate::{
 };
 
 #[derive(Parser)]
-#[command(version, about = "ScottyLabs forge, governance, and deployment tools")]
+#[command(
+    version,
+    about = "ScottyLabs development workflows from your terminal",
+    long_about = "Review Forgejo pull requests, inspect CI and previews, find project documentation, and run local development tools. Draft proof of concept.",
+    after_help = "Examples:\n  collar auth login\n  collar pr list -R ScottyLabs/collar\n  collar pr review 42 --approve\n  collar docs search secrets\n  collar check --all\n\nUse collar <command> --help for arguments and examples.\nDocumentation: https://docs.scottylabs.org/collar/"
+)]
 pub struct Cli {
     /// Forge origin; defaults to git.cmu.dev or the Git remote.
     #[arg(long, global = true, env = "COLLAR_HOST")]
@@ -85,99 +90,154 @@ impl CompletionShell {
 #[derive(Subcommand)]
 enum Command {
     /// Read and search canonical ScottyLabs documentation.
+    #[command(
+        after_long_help = "Examples:\n  collar docs search secrets\n  collar docs list --service kennel"
+    )]
     Docs {
         #[command(subcommand)]
         command: crate::docs::Command,
     },
     /// Generate shell completions.
+    #[command(
+        after_long_help = "Examples:\n  collar completion bash\n  collar completion nushell\n\nSave or source the generated script using your shell's completion setup. Regenerate it after updating Collar."
+    )]
     Completion {
         #[arg(value_enum)]
         shell: CompletionShell,
     },
     /// Work with Forgejo issues.
+    #[command(
+        after_long_help = "Examples:\n  collar issue list\n  collar issue create --title 'Preview times out' --body 'Steps to reproduce...'"
+    )]
     Issue {
         #[command(subcommand)]
         command: crate::issues::IssueCommand,
     },
     /// Manage repository labels.
+    #[command(
+        after_long_help = "Examples:\n  collar label list\n  collar label create --name bug --color ff0000"
+    )]
     Label {
         #[command(subcommand)]
         command: crate::issues::LabelCommand,
     },
     /// Inspect and manage repository releases.
+    #[command(after_long_help = "Examples:\n  collar release list\n  collar release view v0.1.0")]
     Release {
         #[command(subcommand)]
         command: crate::releases::Command,
     },
     /// Inspect Forgejo Actions runs.
+    #[command(after_long_help = "Examples:\n  collar actions list\n  collar actions jobs 123")]
     Actions {
         #[command(subcommand)]
         command: crate::actions::RunCommand,
     },
     /// Inspect or dispatch existing workflows.
+    #[command(
+        after_long_help = "Examples:\n  collar workflow dispatch ci.yml --ref main --field mode=fast"
+    )]
     Workflow {
         #[command(subcommand)]
         command: crate::actions::WorkflowCommand,
     },
     /// Read ScottyLabs changelogs and tech-lead announcements.
+    #[command(
+        after_long_help = "Examples:\n  collar changelog view kennel\n  collar changelog updates"
+    )]
     Changelog {
         #[command(subcommand)]
         command: changelog::Command,
     },
     /// Check or update project secrets through secretspec.
+    #[command(
+        after_long_help = "Examples:\n  collar secrets check --profile dev\n  collar secrets set JWT_SECRET --profile dev"
+    )]
     Secrets {
         #[command(subcommand)]
         command: environment::SecretCommand,
     },
     /// Run project shells, processes, and tasks through devenv.
+    #[command(
+        after_long_help = "Examples:\n  collar dev shell\n  collar dev run -- cargo test\n  collar dev up"
+    )]
     Dev {
         #[command(subcommand)]
         command: environment::DevCommand,
     },
     /// Run repository hooks inside the project's development shell.
+    #[command(
+        after_long_help = "Examples:\n  collar check\n  collar check --all\n  collar check treefmt --files src/main.rs\n\nRuns prek in the project development shell. No governance or secrets preflight is required; tool output and exit status are preserved."
+    )]
     Check(environment::CheckArgs),
     /// Search RFCs or create a draft.
     Rfc(rfc::Args),
     /// Diagnose local setup and ScottyLabs login readiness.
+    #[command(
+        after_long_help = "Examples:\n  collar doctor\n  collar doctor --offline --json\n\nPrints the full setup report before returning failure. Offline mode skips network probes and reads cached sources. Secret values are never resolved."
+    )]
     Doctor(doctor::Args),
     /// Connect the selected repository to its ScottyLabs project.
+    #[command(
+        after_long_help = "Examples:\n  collar project view -R ScottyLabs/collar\n  collar project select"
+    )]
     Project {
         #[command(subcommand)]
         command: ContextCommand,
     },
     /// Manage nonsecret user defaults.
+    #[command(
+        after_long_help = "Examples:\n  collar config get\n  collar config set host git.cmu.dev"
+    )]
     Config {
         #[command(subcommand)]
         command: config::Command,
     },
-    /// Inspect authentication.
+    /// Sign in to Forgejo or OpenBao and check saved credentials.
+    #[command(
+        after_long_help = "Examples:\n  collar auth login\n  collar auth status\n  collar auth bao login"
+    )]
     Auth {
         #[command(subcommand)]
         command: AuthCommand,
     },
-    /// Inspect repositories.
+    /// Clone, inspect, or fork a repository.
+    #[command(
+        after_long_help = "Examples:\n  collar repo view -R ScottyLabs/collar\n  collar repo fork -R ScottyLabs/collar"
+    )]
     Repo {
         #[command(subcommand)]
         command: RepoCommand,
     },
     /// Inspect and review pull requests.
+    #[command(
+        after_long_help = "Examples:\n  collar pr list\n  collar pr view 42\n  collar pr review 42 --approve"
+    )]
     Pr {
         #[command(subcommand)]
         command: PrCommand,
     },
     /// Send a request to this forge's REST API.
+    #[command(
+        after_long_help = "Examples:\n  collar api user --method GET\n  collar api repos/ScottyLabs/collar/pulls\n\nEndpoints are relative to /api/v1 on the selected forge. GET is the default; fields imply POST unless --method is set. This command can write and requires the same authorization as the underlying operation."
+    )]
     Api(ApiArgs),
-    /// Inspect declared project ownership and features.
+    /// Discover declared ownership and service access without a clone.
+    #[command(
+        after_long_help = "Examples:\n  collar governance project list\n  collar governance project view collar"
+    )]
     Governance {
         #[command(subcommand)]
         command: GovernanceCommand,
     },
     /// Inspect deployment reports from Forgejo.
+    #[command(after_long_help = "Examples:\n  collar kennel preview 42\n  collar kennel wait 42")]
     Kennel {
         #[command(subcommand)]
         command: KennelCommand,
     },
-    /// Find infrastructure configuration in a local checkout.
+    /// Inspect canonical infrastructure and build pinned Nix configurations.
+    #[command(after_long_help = "Examples:\n  collar infra hosts\n  collar infra service kennel")]
     Infra {
         #[command(subcommand)]
         command: InfraCommand,
@@ -188,6 +248,7 @@ enum Command {
 enum ContextCommand {
     /// Pick a project repository interactively; emits its context.
     Select {
+        /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
         #[arg(long)]
@@ -197,6 +258,7 @@ enum ContextCommand {
     },
     /// Show declared ownership, features, and the secret namespace.
     View {
+        /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
         /// Read an existing snapshot without refreshing it.
@@ -209,26 +271,29 @@ enum ContextCommand {
 
 #[derive(Subcommand)]
 enum AuthCommand {
-    /// Verify and save a personal access token in the OS credential store.
+    /// Sign in through your browser and save the verified credential.
+    #[command(
+        after_long_help = "Examples:\n  collar auth login\n  collar auth login --token\n\nBrowser sign-in is the default; choose university SSO in Forgejo. Git SSH authentication is separate. Headless sessions can use COLLAR_HOST and COLLAR_TOKEN supplied through a secret environment."
+    )]
     Login {
-        /// Read the token from stdin instead of a hidden terminal prompt.
+        /// Read a personal access token from stdin instead of opening a browser.
         #[arg(long)]
         with_token: bool,
         /// Use a hidden personal-access-token prompt instead of browser SSO.
         #[arg(long, conflicts_with_all = ["with_token", "web"])]
         token: bool,
-        /// Explicitly launch browser SSO from this caller.
+        /// Use browser SSO explicitly (the default login method).
         #[arg(long, conflicts_with_all = ["with_token", "token"])]
         web: bool,
     },
     /// Remove this host's saved credential without revoking it on the server.
     Logout,
-    /// Authenticate with ScottyLabs OpenBao.
+    /// Sign in to OpenBao for project secrets; separate from Forgejo login.
     Bao {
         #[command(subcommand)]
         command: environment::BaoCommand,
     },
-    /// Verify the configured token against the forge.
+    /// Verify your API credential against the selected forge.
     Status,
 }
 
@@ -236,8 +301,10 @@ enum AuthCommand {
 enum RepoCommand {
     /// Fork the selected repository without changing its settings.
     Fork {
+        /// Fork into this organization instead of your account.
         #[arg(long)]
         organization: Option<String>,
+        /// Name of the fork; defaults to the source repository name.
         #[arg(long)]
         name: Option<String>,
     },
@@ -262,6 +329,7 @@ enum RepoCommand {
 enum PrCommand {
     /// Fetch a verified PR head and switch to a local branch.
     Checkout {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
         /// Local branch name; defaults to pr/NUMBER.
         #[arg(short = 'b', long)]
@@ -273,16 +341,21 @@ enum PrCommand {
     /// Merge the inspected PR head using Forgejo protection checks.
     #[command(group(ArgGroup::new("strategy").required(true).args(["merge", "squash", "rebase"])))]
     Merge {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
+        /// Preserve commits with a merge commit.
         #[arg(long)]
         merge: bool,
+        /// Combine the PR into a single commit.
         #[arg(long)]
         squash: bool,
+        /// Rebase the PR commits instead of creating a merge commit.
         #[arg(long)]
         rebase: bool,
         /// Refuse if the current head differs from this commit.
         #[arg(long)]
         match_head_commit: Option<String>,
+        /// Ask Forgejo to delete the source branch after merging.
         #[arg(long)]
         delete_branch: bool,
         /// Ask Forgejo to merge when its checks succeed.
@@ -293,7 +366,9 @@ enum PrCommand {
     },
     /// Merge or rebase the target branch into the PR branch.
     UpdateBranch {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
+        /// Rebase the PR commits instead of creating a merge commit.
         #[arg(long)]
         rebase: bool,
         /// Check the current head before submission; the update API has no atomic guard.
@@ -304,6 +379,7 @@ enum PrCommand {
     },
     /// Create a PR from an already-pushed branch.
     Create {
+        /// Pull request title.
         #[arg(short = 't', long)]
         title: String,
         /// Branch or fork-owner:branch; defaults to the current Git branch.
@@ -319,7 +395,9 @@ enum PrCommand {
     },
     /// Edit a PR's title, body, or target branch.
     Edit {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
+        /// Pull request title.
         #[arg(short = 't', long)]
         title: Option<String>,
         #[arg(short = 'B', long)]
@@ -331,6 +409,7 @@ enum PrCommand {
     },
     /// Add a discussion comment to a PR.
     Comment {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
         #[command(flatten)]
         text: PullText,
@@ -370,6 +449,7 @@ enum PrCommand {
     },
     /// View a PR selected by number, URL, or branch (default: current branch).
     View {
+        /// PR number, same-repository URL, or branch; defaults to the current branch.
         selector: Option<String>,
         /// Include discussion, reviews, and inline review comments.
         #[arg(long)]
@@ -382,6 +462,9 @@ enum PrCommand {
     /// Show commit statuses; fail when none are reported or any are not successful.
     Checks(Selection),
     /// Submit a review, optionally including inline comments.
+    #[command(
+        after_long_help = "Examples:\n  collar pr review 42 --approve\n  collar pr review 42 --request-changes --body 'Cover the timeout case.'\n  collar pr review 42 --comment --inline-comment src/main.rs 12 new 'Handle this error.'\n\nSELECTOR is a PR number, same-repository URL, or branch; omitted selects the current branch. Reviews submit immediately and are pinned to the inspected head."
+    )]
     Review(ReviewArgs),
 }
 
@@ -404,6 +487,7 @@ impl State {
 
 #[derive(Args)]
 struct Selection {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
     selector: Option<String>,
     #[command(flatten)]
     output: Output,
@@ -411,6 +495,7 @@ struct Selection {
 
 #[derive(Args)]
 struct PullText {
+    /// Markdown text for the description, discussion comment, or review.
     #[arg(short = 'b', long, conflicts_with = "body_file")]
     body: Option<String>,
     /// Read Markdown from a file, or - for stdin.
@@ -430,13 +515,18 @@ impl PullText {
 #[derive(Args)]
 #[command(group(ArgGroup::new("verdict").required(true).args(["approve", "request_changes", "comment"])))]
 struct ReviewArgs {
+    /// PR number, same-repository URL, or branch; defaults to the current branch.
     selector: Option<String>,
+    /// Submit an approval.
     #[arg(short = 'a', long)]
     approve: bool,
+    /// Submit a change request.
     #[arg(short = 'r', long)]
     request_changes: bool,
+    /// Submit a review comment without approving or requesting changes.
     #[arg(short = 'c', long)]
     comment: bool,
+    /// Markdown text for the description, discussion comment, or review.
     #[arg(short = 'b', long, conflicts_with = "body_file")]
     body: Option<String>,
     /// Read review text from a file, or - for stdin.
@@ -467,6 +557,7 @@ struct ApiArgs {
 enum GovernanceCommand {
     #[command(flatten)]
     Workflows(governance_ops::Command),
+    /// List governed projects or inspect one by name.
     Project {
         #[command(subcommand)]
         command: ProjectCommand,
@@ -475,7 +566,9 @@ enum GovernanceCommand {
 
 #[derive(Subcommand)]
 enum ProjectCommand {
+    /// List repositories with their owning projects and teams.
     List {
+        /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
         /// Read an existing snapshot without refreshing it.
@@ -484,9 +577,11 @@ enum ProjectCommand {
         #[command(flatten)]
         output: Output,
     },
+    /// Inspect a project selected by slug or repository name.
     View {
         /// Project slug or repository name.
         name: String,
+        /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
         /// Read an existing snapshot without refreshing it.
@@ -509,7 +604,9 @@ enum KennelCommand {
 enum InfraCommand {
     #[command(flatten)]
     Workflows(infra_ops::CommandKind),
+    /// List declared infrastructure host configurations.
     Hosts {
+        /// Inspect local infrastructure changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
         checkout: Option<PathBuf>,
         /// Read an existing snapshot without refreshing it.
@@ -518,8 +615,10 @@ enum InfraCommand {
         #[command(flatten)]
         output: Output,
     },
+    /// Find the source configuration for a service across hosts.
     Service {
         name: String,
+        /// Inspect local infrastructure changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
         checkout: Option<PathBuf>,
         /// Read an existing snapshot without refreshing it.
@@ -1298,3 +1397,7 @@ fn raw_api(args: ApiArgs, host: Option<&str>, config: &Config) -> Result<()> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "command_docs.rs"]
+mod command_docs;

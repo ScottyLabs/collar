@@ -10,3 +10,5 @@ rustc-ice-*.txt
 .cargo/
 .claude/
 .mcp.json
+
+book/

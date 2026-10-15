@@ -1,0 +1,8 @@
+[book]
+title = "Collar"
+authors = ["Krit Dass"]
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "book"

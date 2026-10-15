@@ -2,7 +2,7 @@ use std::{fs, path::PathBuf};
 
 use anyhow::{Context, Result, ensure};
 use clap::{Args, Subcommand, ValueEnum};
-use serde_json::{Value, json};
+use serde::Serialize;
 
 use crate::{
     output::Output,
@@ -77,6 +77,14 @@ fn valid_slug(slug: &str) -> bool {
     })
 }
 
+#[derive(Serialize)]
+struct Entry {
+    path: String,
+    number: Option<u32>,
+    title: String,
+    body: String,
+}
+
 pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
     let (args, file, number) = match command {
         Command::View { repository, source } => (source, Some(repository.file()), None),
@@ -86,19 +94,25 @@ pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
     args.output
         .validate_fields(&["path", "title", "body", "number", "dataSource"])?;
     let source = sources.load(Kind::Changelog, args.checkout, args.offline)?;
-    let read = |path: &str, number: Option<u32>| -> Result<Value> {
+    let read = |path: &str, number: Option<u32>| -> Result<Entry> {
         let body = fs::read_to_string(source.directory.join(path))
             .with_context(|| format!("read changelog {path}"))?;
         let title = body
             .lines()
             .find_map(|line| line.strip_prefix("# "))
             .unwrap_or(path);
-        Ok(json!({"path":path,"number":number,"title":title,"body":body}))
+        Ok(Entry {
+            path: path.to_owned(),
+            number,
+            title: title.to_owned(),
+            body,
+        })
     };
     if let Some(file) = file {
-        let value = source.attach(&read(file, None)?)?;
+        let entry = read(file, None)?;
+        let value = source.attach(&entry)?;
         return args.output.print(&value, || {
-            println!("{}\n{}", source.describe(), value["body"].as_str().unwrap());
+            println!("{}\n{}", source.describe(), entry.body);
         });
     }
     let mut updates = Vec::new();
@@ -124,10 +138,11 @@ pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
             .iter()
             .find(|(candidate, _)| *candidate == number)
             .with_context(|| format!("announcement {number} does not exist"))?;
-        let value = source.attach(&read(path, Some(number))?)?;
-        return args.output.print(&value, || {
-            println!("{}\n{}", source.describe(), value["body"].as_str().unwrap())
-        });
+        let entry = read(path, Some(number))?;
+        let value = source.attach(&entry)?;
+        return args
+            .output
+            .print(&value, || println!("{}\n{}", source.describe(), entry.body));
     }
     let values: Vec<_> = updates
         .iter()
@@ -136,11 +151,7 @@ pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
     args.output.print(&source.attach(&values)?, || {
         println!("{}", source.describe());
         for value in &values {
-            println!(
-                "{}\t{}",
-                value["path"].as_str().unwrap(),
-                value["title"].as_str().unwrap()
-            );
+            println!("{}\t{}", value.path, value.title);
         }
     })
 }

@@ -30,7 +30,7 @@ listed here and apply to every subcommand.
 ## Global options
 
 ```text
-Review Forgejo pull requests, inspect CI and previews, find project documentation, and run local development tools. Draft proof of concept.
+Review Forgejo pull requests, inspect CI and previews, find project documentation, and run local development tools.
 
 Usage: collar [OPTIONS] <COMMAND>
 

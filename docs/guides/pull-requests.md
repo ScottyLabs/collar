@@ -35,6 +35,20 @@ For a terminal picker, use `collar pr browse`. Type to filter, choose a PR, then
 inspect details, its diff, or checks. Escape cancels. This is read-only and
 requires terminal input and output.
 
+## Request reviewers
+
+```sh
+collar pr reviewers 42
+collar pr reviewers 42 --add anish kritdass
+collar pr reviewers 42 --remove anish
+```
+
+With no changes, this lists requested users and teams. `--add` and `--remove`
+write immediately, require sign-in and an open PR, and cannot be combined.
+Usernames are supplied directly; no files or local clones are needed. Team
+requests are displayed but are not modified by these options. An uncertain
+failure after a write requires inspecting the list before retrying.
+
 ## Submit a review
 
 ```sh

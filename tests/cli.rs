@@ -4,6 +4,9 @@ use std::process::{Command, Output};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
+#[path = "cases/reviewers.rs"]
+mod reviewers;
+
 mod support;
 use support::*;
 

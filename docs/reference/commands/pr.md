@@ -22,6 +22,7 @@ Commands:
   diff           Print a PR's unified diff
   checks         Show commit statuses; fail when none are reported or any are not successful
   review         Submit a review, optionally including inline comments
+  reviewers      List, request, or cancel reviewers for a PR
   help           Print this message or the help of the given subcommand(s)
 
 Options:
@@ -391,4 +392,36 @@ Examples:
   collar pr review 42 --comment --inline-comment src/main.rs 12 new 'Handle this error.'
 
 SELECTOR is a PR number, same-repository URL, or branch; omitted selects the current branch. Reviews submit immediately and are pinned to the inspected head.
+```
+
+## `collar pr reviewers`
+
+```text
+List, request, or cancel reviewers for a PR
+
+Usage: collar pr reviewers [OPTIONS] [SELECTOR]
+
+Arguments:
+  [SELECTOR]
+          PR number, URL, or branch; defaults to the current branch
+
+Options:
+      --add <ADD>...
+          Request reviews from these usernames
+
+      --remove <REMOVE>...
+          Cancel review requests for these usernames
+
+      --json [<FIELDS>]
+          Output selected JSON fields (comma-separated); omit fields for all
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  collar pr reviewers 42
+  collar pr reviewers 42 --add anish kritdass
+  collar pr reviewers 42 --remove anish
+
+With no changes, lists the requested users and teams. Changes require sign-in and an open PR; --add and --remove cannot be combined.
 ```

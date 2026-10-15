@@ -39,6 +39,25 @@ pub(super) enum PrCommand {
         after_long_help = "Examples:\n  collar pr review 42 --approve\n  collar pr review 42 --request-changes --body 'Cover the timeout case.'\n  collar pr review 42 --comment --inline-comment src/main.rs 12 new 'Handle this error.'\n\nSELECTOR is a PR number, same-repository URL, or branch; omitted selects the current branch. Reviews submit immediately and are pinned to the inspected head."
     )]
     Review(ReviewArgs),
+    /// List, request, or cancel reviewers for a PR.
+    #[command(
+        after_long_help = "Examples:\n  collar pr reviewers 42\n  collar pr reviewers 42 --add anish kritdass\n  collar pr reviewers 42 --remove anish\n\nWith no changes, lists the requested users and teams. Changes require sign-in and an open PR; --add and --remove cannot be combined."
+    )]
+    Reviewers(ReviewersArgs),
+}
+
+#[derive(Args)]
+pub(super) struct ReviewersArgs {
+    /// PR number, URL, or branch; defaults to the current branch.
+    pub(super) selector: Option<String>,
+    /// Request reviews from these usernames.
+    #[arg(long, num_args = 1.., conflicts_with = "remove")]
+    pub(super) add: Vec<String>,
+    /// Cancel review requests for these usernames.
+    #[arg(long, num_args = 1..)]
+    pub(super) remove: Vec<String>,
+    #[command(flatten)]
+    pub(super) output: Output,
 }
 
 #[derive(Clone, ValueEnum)]

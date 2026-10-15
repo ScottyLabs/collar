@@ -1,5 +1,6 @@
 mod read;
 mod review;
+mod reviewers;
 mod write;
 
 use anyhow::Result;
@@ -23,6 +24,7 @@ pub(super) fn run(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
         PrCommand::Diff(args) => read::diff(api, repo, args),
         PrCommand::Checks(selection) => read::checks(api, repo, selection),
         PrCommand::Review(args) => review::review(api, repo, args),
+        PrCommand::Reviewers(args) => reviewers::run(api, repo, args),
     }
 }
 

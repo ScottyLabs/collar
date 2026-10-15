@@ -1,6 +1,6 @@
 # Contributing
 
-Collar is a standalone Rust CLI and a draft proof of concept. Keep changes
+Collar is a standalone Rust CLI. Keep changes
 focused on useful ScottyLabs workflows and test the behavior users will see.
 
 ## Development
@@ -19,7 +19,8 @@ prek run --all-files
 
 Run focused tests while developing, then the required hooks before committing.
 Use fixtures for remote writes; do not post comments, submit reviews, or change
-live resources as a test. Keep warnings at zero. Dependency changes use Cargo's
+live resources as a test. Keep warnings at zero. Production code must propagate errors rather than use
+`unwrap()` or `expect()`; Clippy enforces this outside test builds. Dependency changes use Cargo's
 commands and update the lockfile.
 
 ## Command design
@@ -66,7 +67,6 @@ linear history by rebasing; squash correction commits before review. Do not add
 authorship trailers or attribution notices for automated tools.
 
 Update tests and documentation with user-facing changes. Describe the resulting
-behavior and relevant validation in the PR. Leave the [Collar RFC](docs/design/collar.md)
-as Draft until it has been accepted through review.
+behavior and relevant validation in the PR. The [Collar RFC](docs/design/collar.md) records the accepted design.
 
 Contributions are licensed under [AGPL-3.0-or-later](LICENSE).

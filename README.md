@@ -4,9 +4,6 @@ Collar is the ScottyLabs development CLI. Use it to review Forgejo pull requests
 inspect CI and Kennel previews, find project documentation, and run local
 development tools.
 
-**Status: draft proof of concept.** Commands and output may change before a
-stable release.
-
 ## Get started
 
 From this repository, enter the ScottyLabs development environment:

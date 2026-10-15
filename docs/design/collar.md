@@ -1,13 +1,14 @@
 # RFC: Collar Developer CLI
 
-- **Status:** Draft
+- **Status:** Accepted
+- **Accepted:** 2026-10-15
 - **Author(s):** @kritdass
 - **Created:** 2026-10-14
 - **Updated:** 2026-10-15
 
 ## Overview
 
-Build Collar, an independent Rust CLI for git.cmu.dev with GitHub CLI command conventions and ScottyLabs governance, Kennel, and infrastructure workflows. Develop a bounded proof of concept on this branch before proposing production adoption.
+Build Collar, an independent Rust CLI for git.cmu.dev with GitHub CLI command conventions and ScottyLabs governance, Kennel, and infrastructure workflows.
 
 ## Motivation
 
@@ -27,13 +28,13 @@ The implementation follows the [link-shortener reference project](https://git.cm
 
 ## Non-Goals
 
-The POC does not implement every gh command or add Kennel server endpoints. Provisioning stays with governance and infrastructure tools. Repository provisioning, membership, and feature changes remain in the canonical governance workflow. GitHub-specific services remain outside this POC.
+Collar does not implement every gh command or add Kennel server endpoints. Provisioning stays with governance and infrastructure tools. Repository provisioning, membership, and feature changes remain in the canonical governance workflow. GitHub-specific services remain outside Collar's scope.
 
 ## Detailed Design
 
 ### Command contract
 
-The POC implements these workflows:
+Collar implements these workflows:
 
 | Group | Commands | Behavior |
 | --- | --- | --- |
@@ -50,7 +51,7 @@ The POC implements these workflows:
 
 Repository selection accepts -R [HOST/]OWNER/REPO and otherwise reads upstream then origin. Explicit host/repository disagreements are errors. PR selection accepts a positive number or a same-host PR URL; omitted selection resolves the current branch through the pull list and refuses ambiguity. JSON output projects explicit supported gh-style fields. Forgejo-native responses remain accessible through api.
 
-Review submission supports --approve, --request-changes, --comment, --body, and --body-file, including stdin. Exactly one review verdict is required. Repeatable --inline-comment flags carry path, line, side, and body directly. Validate line anchors against the inspected diff, then submit one review with that head SHA as commit_id. Do not retry mutations or silently retarget a changed head. The POC never submits reviews as part of its own live verification.
+Review submission supports --approve, --request-changes, --comment, --body, and --body-file, including stdin. Exactly one review verdict is required. Repeatable --inline-comment flags carry path, line, side, and body directly. Validate line anchors against the inspected diff, then submit one review with that head SHA as commit_id. Do not retry mutations or silently retarget a changed head. Verification uses fixtures rather than live review submissions.
 
 PR creation uses an already-pushed head branch and the repository's default target branch unless explicitly selected. Authoring commands accept literal text or Markdown files/stdin; edits send only supplied fields and support explicitly clearing the body. Comments verify that the numeric target is a PR before using Forgejo's shared issue-comment endpoint. Close/reopen refuse merged PRs and already-requested states. These metadata/state endpoints do not provide atomic expected-head guards; server permissions and current state remain authoritative. Remote mutations are verified only against fixtures during development.
 
@@ -84,9 +85,9 @@ Use focused modules for argument parsing and orchestration, repository selection
 
 ## Compatibility and limits
 
-This remains a Draft POC. The supported commands are documented in the [command reference](../reference/commands/index.md) and task guides. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
+The supported commands are documented in the [command reference](../reference/commands/index.md) and task guides. Forgejo fixtures cover the selected request/response contracts; compatibility with every gh command, flag, and exit code is not claimed.
 
-Typed forge workflows include PR review and authoring, repository inspection, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside the agreed POC scope.
+Typed forge workflows include PR review and authoring, repository inspection, issues and labels, release metadata, workflow dispatch, and run/job inspection. Raw API access covers additional native endpoints. Release asset transfer, GitHub-only services, extension management, and new Kennel backend APIs are outside this design's scope.
 
 Read-only ScottyLabs discovery uses latest canonical snapshots without user-maintained clones. Explicit local checkouts are required for edits and tools that need full source trees. Governance provisioning, Atlantis, Colmena, Bao, and secretspec retain ownership of their workflows.
 

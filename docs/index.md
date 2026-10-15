@@ -5,7 +5,7 @@ issues, CI, previews, project ownership, documentation, and local development.
 It uses Forgejo APIs for remote reads and calls the existing ScottyLabs tools
 for local operations.
 
-Collar is a **draft proof of concept**. Check `collar --version` and use the help
+Check `collar --version` and use the help
 shipped with your installed version when a command differs from this guide.
 
 ## Start here

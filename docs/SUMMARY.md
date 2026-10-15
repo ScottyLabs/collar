@@ -44,4 +44,4 @@
 
 # Project
 
-- [Draft RFC](design/collar.md)
+- [Accepted RFC](design/collar.md)

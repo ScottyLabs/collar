@@ -11,6 +11,7 @@ license = "AGPL-3.0-or-later"
 anyhow = "1.0.101"
 clap = { version = "4.6.7", features = ["derive", "env"] }
 clap_complete = { version = "4.6.11", default-features = false }
+clap_complete_nushell = "4.6.2"
 console = "0.16.6"
 dialoguer = { version = "0.12.0", default-features = false, features = [
   "fuzzy-select",

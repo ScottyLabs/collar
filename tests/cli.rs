@@ -1575,3 +1575,15 @@ fn closed_output_pipe_terminates_without_a_panic() {
     assert_eq!(output.status.signal(), Some(13));
     assert!(output.stderr.is_empty());
 }
+
+#[test]
+fn nushell_completion_defines_typed_commands() {
+    let output = command().args(["completion", "nushell"]).output().unwrap();
+    assert!(output.status.success());
+    assert!(output.stderr.is_empty());
+    let script = String::from_utf8(output.stdout).unwrap();
+    assert!(script.contains("export extern collar"));
+    assert!(script.contains("export extern \"collar pr view\""));
+    assert!(script.contains("--repo(-R): string"));
+    assert!(script.contains("export use completions *"));
+}

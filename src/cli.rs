@@ -45,6 +45,43 @@ pub struct Cli {
     command: Command,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum CompletionShell {
+    Bash,
+    Elvish,
+    Fish,
+    #[value(name = "powershell")]
+    PowerShell,
+    Zsh,
+    Nushell,
+}
+
+impl CompletionShell {
+    fn generate(self) {
+        let mut command = Cli::command();
+        let mut output = std::io::stdout();
+        match self {
+            Self::Nushell => clap_complete::generate(
+                clap_complete_nushell::Nushell,
+                &mut command,
+                "collar",
+                &mut output,
+            ),
+            shell => {
+                let shell = match shell {
+                    Self::Bash => clap_complete::Shell::Bash,
+                    Self::Elvish => clap_complete::Shell::Elvish,
+                    Self::Fish => clap_complete::Shell::Fish,
+                    Self::PowerShell => clap_complete::Shell::PowerShell,
+                    Self::Zsh => clap_complete::Shell::Zsh,
+                    Self::Nushell => unreachable!(),
+                };
+                clap_complete::generate(shell, &mut command, "collar", &mut output);
+            }
+        }
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Read and search canonical ScottyLabs documentation.
@@ -55,7 +92,7 @@ enum Command {
     /// Generate shell completions.
     Completion {
         #[arg(value_enum)]
-        shell: clap_complete::Shell,
+        shell: CompletionShell,
     },
     /// Work with Forgejo issues.
     Issue {
@@ -523,7 +560,7 @@ pub fn run(cli: Cli) -> Result<()> {
     match cli.command {
         Command::Docs { command } => crate::docs::run(command, &sources),
         Command::Completion { shell } => {
-            clap_complete::generate(shell, &mut Cli::command(), "collar", &mut std::io::stdout());
+            shell.generate();
             Ok(())
         }
         Command::Issue { command } => {

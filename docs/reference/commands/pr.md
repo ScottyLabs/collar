@@ -415,6 +415,9 @@ Options:
       --remove <REMOVE>...
           Cancel review requests for these usernames
 
+      --pick
+          Pick an eligible reviewer interactively; Enter requests their review
+
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all
 
@@ -425,6 +428,7 @@ Examples:
   collar pr reviewers 42
   collar pr reviewers 42 --add anish kritdass
   collar pr reviewers 42 --remove anish
+  collar pr reviewers 42 --pick
 
 With no changes, lists the requested users and teams. Changes require sign-in and an open PR; --add and --remove cannot be combined.
 ```

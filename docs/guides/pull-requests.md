@@ -5,6 +5,7 @@
 ```sh
 collar status
 collar status --owner ScottyLabs
+collar status --interactive
 collar status --json reviewRequests
 ```
 
@@ -13,6 +14,9 @@ and assigned open issues across the selected forge. It needs no checkout and
 shows up to ten recently updated items per category. Use `--limit` to change
 that bound, up to 50. Narrow it with `--owner`; `-R` applies to repository
 commands, not this inbox. Inspect an item's checks separately with `pr checks`.
+`--interactive` opens a read-only inbox picker; choose a PR to inspect details,
+diffs, or checks, or an issue to read its body. Back returns to the picker and
+Done exits. It requires a terminal and cannot accompany `--json`.
 
 ## Find and inspect a PR
 
@@ -49,8 +53,10 @@ successful. It does not determine whether every required check has reported;
 Forgejo enforces merge requirements.
 
 For a terminal picker, use `collar pr browse`. Type to filter, choose a PR, then
-inspect details, its diff, or checks. Escape cancels. This is read-only and
-requires terminal input and output.
+inspect details, its diff, or checks. Back returns to the PR list; Done exits
+successfully and Escape cancels. This is read-only and requires terminal input
+and stderr. With `--json`, the picker prints the selected PR without opening
+the inspection menu.
 
 ## Request reviewers
 
@@ -58,6 +64,7 @@ requires terminal input and output.
 collar pr reviewers 42
 collar pr reviewers 42 --add anish kritdass
 collar pr reviewers 42 --remove anish
+collar pr reviewers 42 --pick
 ```
 
 With no changes, this lists requested users and teams. `--add` and `--remove`
@@ -65,6 +72,11 @@ write immediately, require sign-in and an open PR, and cannot be combined.
 Usernames are supplied directly; no files or local clones are needed. Team
 requests are displayed but are not modified by these options. An uncertain
 failure after a write requires inspecting the list before retrying.
+
+`--pick` loads eligible reviewers from Forgejo and opens a filtered picker.
+Pressing Enter requests the selected user's review immediately; Escape cancels
+without writing. The picker excludes the PR author and currently requested
+reviewers. It cannot accompany `--add`, `--remove`, or `--json`.
 
 ## Submit a review
 

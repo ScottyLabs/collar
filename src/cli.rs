@@ -63,7 +63,7 @@ pub struct Cli {
 enum Command {
     /// Show your review requests, authored PRs, and assigned issues across the forge.
     #[command(
-        after_long_help = "Examples:\n  collar status\n  collar status --owner ScottyLabs\n  collar status --json reviewRequests\n\nRequires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands."
+        after_long_help = "Examples:\n  collar status\n  collar status --owner ScottyLabs\n  collar status --interactive\n  collar status --json reviewRequests\n\nRequires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands."
     )]
     Status(crate::status::Args),
     /// Read and search canonical ScottyLabs documentation.

@@ -1,3 +1,7 @@
+mod render;
+
+use render::{describe_diff, describe_pull, describe_status};
+
 use std::{
     error::Error,
     fmt,
@@ -5,10 +9,10 @@ use std::{
 };
 
 use anyhow::{Context, Result, bail};
-use console::Term;
+use console::{Style, Term};
 
 use crate::{client::Api, output::Output, pr, repo::Repo};
-use dialoguer::{FuzzySelect, theme::SimpleTheme};
+use dialoguer::{FuzzySelect, theme::ColorfulTheme};
 
 #[derive(Debug)]
 pub struct Cancelled;
@@ -35,15 +39,32 @@ pub fn choose(prompt: &str, labels: &[String]) -> Result<usize> {
     require_terminal()?;
 
     let labels: Vec<String> = labels.iter().map(|label| single_line(label)).collect();
-    match FuzzySelect::with_theme(&SimpleTheme)
-        .with_prompt(format!(
-            "{} [type: filter; Up/Down: move; Enter: select; Esc: cancel]",
-            single_line(prompt)
-        ))
+    let term = Term::stderr();
+    let accent = Style::new().for_stderr().cyan();
+    let muted = Style::new().for_stderr().dim();
+    let theme = ColorfulTheme {
+        prompt_prefix: accent.clone().bold().apply_to("collar".into()),
+        prompt_suffix: muted.apply_to("/".into()),
+        success_prefix: accent.clone().apply_to("+".into()),
+        success_suffix: muted.apply_to("/".into()),
+        active_item_style: accent.clone().bold(),
+        active_item_prefix: accent.clone().bold().apply_to(">".into()),
+        fuzzy_match_highlight_style: accent.clone().bold().underlined(),
+        hint_style: muted.clone(),
+        values_style: accent,
+        ..ColorfulTheme::default()
+    };
+    term.write_line(&format!(
+        "\n{}",
+        muted.apply_to("Type to filter  |  arrows move  |  Enter select  |  Esc cancel")
+    ))?;
+    match FuzzySelect::with_theme(&theme)
+        .with_prompt(single_line(prompt))
         .items(&labels)
         .default(0)
-        .max_length(8)
-        .interact_on_opt(&Term::stderr())?
+        .max_length(usize::from(term.size().0.saturating_sub(7)).clamp(3, 12))
+        .report(false)
+        .interact_on_opt(&term)?
     {
         Some(index) => Ok(index),
         None => Err(Cancelled.into()),
@@ -73,6 +94,7 @@ enum Action {
     Details,
     Diff,
     Checks,
+    Back,
     Done,
 }
 
@@ -82,6 +104,7 @@ impl fmt::Display for Action {
             Self::Details => "Details",
             Self::Diff => "Diff",
             Self::Checks => "Checks",
+            Self::Back => "Back",
             Self::Done => "Done",
         })
     }
@@ -112,25 +135,45 @@ pub fn browse_pull_requests(
             )
         })
         .collect();
-    let number = pulls
-        .get(choose("Pull request", &labels)?)
-        .context("pull request selection is out of range")?
-        .number;
-    if output.json.is_some() {
-        let pull = pr::get(api, repo, number)?;
-        return output.print(&pull.output(), || eprintln!("{}", describe_pull(&pull)));
+    loop {
+        let number = pulls
+            .get(choose("Pull request", &labels)?)
+            .context("pull request selection is out of range")?
+            .number;
+        if output.json.is_some() {
+            let pull = pr::get(api, repo, number)?;
+            return output.print(&pull.output(), || eprintln!("{}", describe_pull(&pull)));
+        }
+        if matches!(inspect_pull_request(api, repo, number)?, Navigation::Done) {
+            return Ok(());
+        }
     }
-    let actions = [Action::Details, Action::Diff, Action::Checks, Action::Done];
+}
+
+pub enum Navigation {
+    Back,
+    Done,
+}
+
+pub fn inspect_pull_request(api: &Api, repo: &Repo, number: u64) -> Result<Navigation> {
+    require_terminal()?;
+    let actions = [
+        Action::Details,
+        Action::Diff,
+        Action::Checks,
+        Action::Back,
+        Action::Done,
+    ];
     let labels = actions.iter().map(ToString::to_string).collect::<Vec<_>>();
     loop {
-        let pull = pr::get(api, repo, number)?;
         let action = actions
             .get(choose(&format!("Inspect PR #{number}"), &labels)?)
             .context("review action selection is out of range")?;
         match action {
-            Action::Details => eprintln!("{}", describe_pull(&pull)),
-            Action::Diff => eprintln!("{}", terminal_text(&pr::diff(api, repo, number)?)),
+            Action::Details => eprintln!("{}", describe_pull(&pr::get(api, repo, number)?)),
+            Action::Diff => eprintln!("{}", describe_diff(&pr::diff(api, repo, number)?)),
             Action::Checks => {
+                let pull = pr::get(api, repo, number)?;
                 let statuses = pr::statuses(api, repo, &pull.head.sha)?;
                 eprintln!("Commit {}", terminal_text(&pull.head.sha));
                 if statuses.is_empty() {
@@ -139,34 +182,13 @@ pub fn browse_pull_requests(
                     );
                 }
                 for status in statuses {
-                    eprintln!(
-                        "{}",
-                        terminal_text(&format!(
-                            "{}\t{}\t{}",
-                            status.context,
-                            status.state,
-                            status.target_url.as_deref().unwrap_or("")
-                        ))
-                    );
+                    eprintln!("{}", describe_status(&status));
                 }
             }
-            Action::Done => return Ok(()),
+            Action::Back => return Ok(Navigation::Back),
+            Action::Done => return Ok(Navigation::Done),
         }
     }
-}
-
-fn describe_pull(pull: &pr::Pull) -> String {
-    terminal_text(&format!(
-        "#{} {}\n{} -> {}\nState: {}\nCommit: {}\n{}\n\n{}",
-        pull.number,
-        pull.title,
-        pull.head.name,
-        pull.base.name,
-        if pull.merged { "merged" } else { &pull.state },
-        pull.head.sha,
-        pull.html_url,
-        pull.body.as_deref().unwrap_or("")
-    ))
 }
 
 #[cfg(test)]

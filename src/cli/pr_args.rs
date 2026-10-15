@@ -41,7 +41,7 @@ pub(super) enum PrCommand {
     Review(ReviewArgs),
     /// List, request, or cancel reviewers for a PR.
     #[command(
-        after_long_help = "Examples:\n  collar pr reviewers 42\n  collar pr reviewers 42 --add anish kritdass\n  collar pr reviewers 42 --remove anish\n\nWith no changes, lists the requested users and teams. Changes require sign-in and an open PR; --add and --remove cannot be combined."
+        after_long_help = "Examples:\n  collar pr reviewers 42\n  collar pr reviewers 42 --add anish kritdass\n  collar pr reviewers 42 --remove anish\n  collar pr reviewers 42 --pick\n\nWith no changes, lists the requested users and teams. Changes require sign-in and an open PR; --add and --remove cannot be combined."
     )]
     Reviewers(ReviewersArgs),
 }
@@ -56,6 +56,9 @@ pub(super) struct ReviewersArgs {
     /// Cancel review requests for these usernames.
     #[arg(long, num_args = 1..)]
     pub(super) remove: Vec<String>,
+    /// Pick an eligible reviewer interactively; Enter requests their review.
+    #[arg(long, conflicts_with_all = ["add", "remove", "json"])]
+    pub(super) pick: bool,
     #[command(flatten)]
     pub(super) output: Output,
 }

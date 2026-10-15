@@ -2,7 +2,11 @@ use super::*;
 
 #[test]
 fn interactive_commands_reject_headless_use_before_network_access() {
-    for arguments in [vec!["project", "select"], vec!["pr", "browse"]] {
+    for arguments in [
+        vec!["project", "select"],
+        vec!["pr", "browse"],
+        vec!["pr", "reviewers", "42", "--pick"],
+    ] {
         let output = command()
             .args(["--host", "http://127.0.0.1:1", "-R", "ScottyLabs/terrier"])
             .args(arguments)
@@ -41,4 +45,14 @@ fn nushell_completion_defines_typed_commands() {
     assert!(script.contains("export extern \"collar pr view\""));
     assert!(script.contains("--repo(-R): string"));
     assert!(script.contains("export use completions *"));
+}
+
+#[test]
+fn inbox_picker_requires_a_terminal_before_network_access() {
+    let output = command()
+        .args(["--host", "http://127.0.0.1:1", "status", "--interactive"])
+        .output()
+        .unwrap();
+    failure(&output, "requires terminal stdin and stderr");
+    assert!(output.stdout.is_empty());
 }

@@ -8,6 +8,9 @@ Show your review requests, authored PRs, and assigned issues across the forge
 Usage: collar status [OPTIONS]
 
 Options:
+      --interactive
+          Pick an inbox item and inspect it interactively without writing
+
       --owner <OWNER>
           Filter repositories by owner or organization
 
@@ -25,6 +28,7 @@ Options:
 Examples:
   collar status
   collar status --owner ScottyLabs
+  collar status --interactive
   collar status --json reviewRequests
 
 Requires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands.

@@ -3,7 +3,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
 use super::{select_read, select_write};
-use crate::{cli::pr_args::ReviewersArgs, client::Api, pr, repo::Repo, ui};
+use crate::{cli::pr_args::ReviewersArgs, client::Api, pr, repo::Repo, tui, ui};
 
 const FIELDS: &[&str] = &["number", "reviewers", "teams"];
 
@@ -34,8 +34,11 @@ struct Report {
     teams: Vec<String>,
 }
 
-pub(super) fn run(api: &Api, repo: &Repo, args: ReviewersArgs) -> Result<()> {
-    let changing = !args.add.is_empty() || !args.remove.is_empty();
+pub(super) fn run(api: &Api, repo: &Repo, mut args: ReviewersArgs) -> Result<()> {
+    if args.pick {
+        tui::require_terminal()?;
+    }
+    let changing = args.pick || !args.add.is_empty() || !args.remove.is_empty();
     let users = if args.add.is_empty() {
         &args.remove
     } else {
@@ -68,6 +71,14 @@ pub(super) fn run(api: &Api, repo: &Repo, args: ReviewersArgs) -> Result<()> {
             requests.pull.state == "open" && !requests.pull.merged,
             "PR must be open and unmerged"
         );
+        if args.pick {
+            args.add.push(pick(api, repo, &requests)?);
+        }
+        let users = if args.add.is_empty() {
+            &args.remove
+        } else {
+            &args.add
+        };
         let mut endpoint = path.clone();
         endpoint.push("requested_reviewers");
         let method = if args.add.is_empty() {
@@ -121,4 +132,34 @@ pub(super) fn run(api: &Api, repo: &Repo, args: ReviewersArgs) -> Result<()> {
             },
         );
     })
+}
+
+fn pick(api: &Api, repo: &Repo, requests: &Requests) -> Result<String> {
+    let mut path = repo.path().to_vec();
+    path.push("reviewers");
+    let users: Vec<pr::User> = api.json(Method::GET, &path, &[], None)?;
+    let mut names: Vec<_> = users
+        .into_iter()
+        .map(|user| user.login)
+        .filter(|login| {
+            login != &requests.pull.user.login
+                && !requests
+                    .requested_reviewers
+                    .iter()
+                    .any(|user| &user.login == login)
+        })
+        .collect();
+    names.sort();
+    names.dedup();
+    ensure!(
+        !names.is_empty(),
+        "no additional eligible reviewers; use --add USERNAME to request a specific user"
+    );
+    names
+        .get(tui::choose(
+            "Request a review from (Enter submits)",
+            &names,
+        )?)
+        .cloned()
+        .context("reviewer selection is out of range")
 }

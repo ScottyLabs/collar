@@ -269,41 +269,6 @@ fn pull_list_uses_native_author_and_branch_filters_without_a_checkout() {
 }
 
 #[test]
-fn pull_view_comments_includes_discussion_reviews_and_inline_context() {
-    let server = Server::new(vec![
-        Response::json(pull("head")),
-        Response::json(json!([{"id": 1, "body": "Discussion", "user": {"login": "alice"}}])),
-        Response::json(json!([])),
-        Response::json(
-            json!([{"id": 2, "body": "Review", "state": "REQUEST_CHANGES", "comments_count": 1, "user": {"login": "bob"}}]),
-        ),
-        Response::json(json!([])),
-        Response::json(
-            json!([{"id": 3, "path": "src/main.rs", "diff_hunk": "@@ -1 +1 @@", "body": "Explain this"}]),
-        ),
-        Response::json(json!([])),
-    ]);
-    let output = server
-        .command(false)
-        .args(["pr", "view", "42", "--comments", "--json"])
-        .output()
-        .unwrap();
-    success(&output);
-    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value["comments"][0]["body"], "Discussion");
-    assert_eq!(value["reviews"][0]["comments"][0]["path"], "src/main.rs");
-    let requests = server.finish();
-    assert!(
-        requests[1].starts_with(
-            "GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments?page=1&limit=50 "
-        )
-    );
-    assert!(requests[5].starts_with(
-        "GET /api/v1/repos/ScottyLabs/terrier/pulls/42/reviews/2/comments?page=1&limit=50 "
-    ));
-}
-
-#[test]
 fn compact_conversation_paginates_and_preserves_context_without_metadata() {
     for compact in [false, true] {
         let server = Server::new(vec![

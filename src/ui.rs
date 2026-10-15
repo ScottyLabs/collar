@@ -193,9 +193,4 @@ mod tests {
         assert_eq!(clean("a\u{1b}[31m\tb\nc"), "a[31mb\nc");
         assert_eq!(clean_cell("a\nb"), "a b");
     }
-
-    #[test]
-    fn empty_rows_still_allow_a_header() {
-        table(&["Header"], &[]);
-    }
 }

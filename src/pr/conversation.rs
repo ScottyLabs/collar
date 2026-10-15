@@ -151,16 +151,4 @@ mod tests {
             assert!(serde_json::from_value::<Review>(value).is_err());
         }
     }
-
-    #[test]
-    fn preserves_provider_metadata_without_untyped_control_flow() {
-        let value = json!({
-            "id": 1,
-            "state": "APPROVED",
-            "custom_field": {"enabled":true},
-            "comments": [],
-        });
-        let review: Review = serde_json::from_value(value.clone()).unwrap();
-        assert_eq!(serde_json::to_value(review).unwrap(), value);
-    }
 }

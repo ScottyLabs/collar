@@ -290,3 +290,75 @@ fn workflow_path_rejects_traversal_without_network_access() {
         "workflow must be a filename or path under a workflow directory",
     );
 }
+
+#[test]
+fn watch_polls_until_success_and_returns_the_final_run() {
+    let server = Server::new(vec![
+        Response::json(run(7, "running")),
+        Response::json(run(7, "success")),
+    ]);
+    let output = server
+        .command(false)
+        .args(["actions", "watch", "7", "--interval", "1", "--json"])
+        .output()
+        .unwrap();
+    success(&output);
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["status"], "success");
+    assert_eq!(server.finish().len(), 2);
+}
+
+#[test]
+fn watch_failure_preserves_json_and_returns_failure() {
+    let server = Server::new(vec![Response::json(run(7, "failure"))]);
+    let output = server
+        .command(false)
+        .args(["actions", "watch", "7", "--json"])
+        .output()
+        .unwrap();
+    failure(&output, "finished with failure");
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["status"], "failure");
+    server.finish();
+}
+
+#[test]
+fn watch_has_a_bounded_timeout() {
+    let server = Server::new(vec![Response::json(run(7, "blocked"))]);
+    let output = server
+        .command(false)
+        .args(["actions", "watch", "7", "--timeout", "1"])
+        .output()
+        .unwrap();
+    failure(&output, "timed out waiting");
+    assert_eq!(server.finish().len(), 1);
+}
+
+#[test]
+fn failed_logs_only_fetch_failed_jobs_with_their_attempt() {
+    let server = Server::new(vec![
+        Response::json(json!([
+            {"id": 90, "name": "test", "status": "failure", "attempt": 2},
+            {"id": 91, "name": "lint", "status": "success", "attempt": 1}
+        ])),
+        Response {
+            status: 200,
+            body: "test failed\n".into(),
+            headers: String::new(),
+        },
+    ]);
+    let output = server
+        .command(false)
+        .args(["actions", "logs", "7", "--failed", "--json"])
+        .output()
+        .unwrap();
+    success(&output);
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value.as_array().unwrap().len(), 1);
+    assert_eq!(value[0]["log"], "test failed\n");
+    let requests = server.finish();
+    assert!(
+        requests[1]
+            .starts_with("GET /api/v1/repos/ScottyLabs/terrier/actions/jobs/90/logs?attempt=2 ")
+    );
+}

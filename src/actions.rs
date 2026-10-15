@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use anyhow::{Context, Result, bail, ensure};
 use clap::{Args, Subcommand};
 use reqwest::Method;
@@ -13,6 +15,10 @@ pub enum RunCommand {
     View(RunId),
     /// List jobs for a workflow run.
     Jobs(RunId),
+    /// Wait for a workflow run; fail if it does not succeed.
+    Watch(Watch),
+    /// Print job logs for a run, optionally only failed jobs.
+    Logs(Logs),
     /// Delete a completed workflow run.
     Delete(RunId),
 }
@@ -36,6 +42,31 @@ pub struct ListRuns {
 pub struct RunId {
     /// Forgejo workflow run ID.
     id: u64,
+    #[command(flatten)]
+    output: Output,
+}
+
+#[derive(Args, Debug)]
+pub struct Watch {
+    /// Forgejo workflow run ID.
+    id: u64,
+    /// Seconds between polls.
+    #[arg(long, default_value_t = 5, value_parser = clap::value_parser!(u64).range(1..))]
+    interval: u64,
+    /// Maximum seconds to wait, excluding an in-flight request.
+    #[arg(long, default_value_t = 600, value_parser = clap::value_parser!(u64).range(1..))]
+    timeout: u64,
+    #[command(flatten)]
+    output: Output,
+}
+
+#[derive(Args, Debug)]
+pub struct Logs {
+    /// Forgejo workflow run ID.
+    id: u64,
+    /// Only include jobs with failure status.
+    #[arg(long)]
+    failed: bool,
     #[command(flatten)]
     output: Output,
 }
@@ -217,6 +248,102 @@ pub fn run_run(command: RunCommand, api: &Api, repo: &Repo) -> Result<()> {
                         })
                         .collect::<Vec<_>>(),
                 );
+            })
+        }
+        RunCommand::Watch(args) => {
+            args.output.validate_fields(&run_fields())?;
+            let start = Instant::now();
+            let timeout = Duration::from_secs(args.timeout);
+            let path = run_path(repo, args.id);
+            loop {
+                let value: Value = api.json(
+                    Method::GET,
+                    &path.iter().map(String::as_str).collect::<Vec<_>>(),
+                    &[],
+                    None,
+                )?;
+                validate_run(&value)?;
+                let status = value["status"]
+                    .as_str()
+                    .context("workflow run has no status")?;
+                ensure!(
+                    valid_status(status),
+                    "unsupported workflow run status: {status}"
+                );
+                if matches!(status, "success" | "failure" | "cancelled" | "skipped") {
+                    args.output.print(&value, || {
+                        ui::heading(&format!("Workflow run {}", args.id));
+                        ui::status(
+                            "Status",
+                            status,
+                            if status == "success" {
+                                ui::Status::Success
+                            } else {
+                                ui::Status::Error
+                            },
+                        );
+                    })?;
+                    ensure!(
+                        status == "success",
+                        "workflow run {} finished with {status}",
+                        args.id
+                    );
+                    return Ok(());
+                }
+                let remaining = timeout
+                    .checked_sub(start.elapsed())
+                    .context("timed out waiting for workflow run")?;
+                eprintln!("Run {}: {status}; waiting...", args.id);
+                std::thread::sleep(Duration::from_secs(args.interval).min(remaining));
+                ensure!(
+                    start.elapsed() < timeout,
+                    "timed out waiting for workflow run"
+                );
+            }
+        }
+        RunCommand::Logs(args) => {
+            args.output
+                .validate_fields(&["id", "name", "status", "attempt", "log"])?;
+            let path = run_jobs_path(repo, args.id);
+            let jobs: Vec<Value> = api.json(
+                Method::GET,
+                &path.iter().map(String::as_str).collect::<Vec<_>>(),
+                &[],
+                None,
+            )?;
+            let mut logs = Vec::new();
+            for job in jobs {
+                let status = job["status"]
+                    .as_str()
+                    .context("workflow job has no status")?;
+                if args.failed && status != "failure" {
+                    continue;
+                }
+                let id = job["id"]
+                    .as_u64()
+                    .context("workflow job has no numeric ID")?
+                    .to_string();
+                let mut path = repo.path().to_vec();
+                path.extend(["actions", "jobs", &id, "logs"]);
+                let mut query = Vec::new();
+                if let Some(attempt) = job["attempt"].as_u64() {
+                    query.push(("attempt".into(), attempt.to_string()));
+                }
+                let log = api.text(Method::GET, &path, &query, None)?;
+                logs.push(json!({"id": job["id"], "name": job["name"], "status": status, "attempt": job["attempt"], "log": log}));
+            }
+            args.output.print(&logs, || {
+                if logs.is_empty() {
+                    println!("No matching jobs.");
+                }
+                for job in &logs {
+                    ui::heading(&format!(
+                        "{} ({})",
+                        field(job, "name"),
+                        field(job, "status")
+                    ));
+                    ui::markdown(job["log"].as_str().unwrap_or(""));
+                }
             })
         }
         RunCommand::Delete(args) => {

@@ -36,9 +36,20 @@
             src = ./.;
             name = "collar-docs";
           };
+          # Keep the skill in the source for src/skill.rs's include_str!
+          collarSrc = pkgs.lib.fileset.toSource {
+            root = ./.;
+            fileset = pkgs.lib.fileset.unions [
+              ./Cargo.toml
+              ./Cargo.lock
+              ./src
+              ./docs/skills/collar/SKILL.md
+            ];
+          };
           collar = helpers.buildRustService {
             src = ./.;
             nativeBuildInputs = [ pkgs.makeWrapper ];
+            buildArgs.src = collarSrc;
             buildArgs.postInstall = ''
               wrapProgram $out/bin/collar --prefix PATH : ${
                 pkgs.lib.makeBinPath [

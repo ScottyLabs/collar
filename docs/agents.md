@@ -118,15 +118,16 @@ Secrets checks provide value-free reports. Do not read or paste secret values
 into a model context. Setting secrets remains an explicit operation subject to
 the user's request and the provider's access policy.
 
-## When a skill helps
+## Install the Collar skill
 
-For teams that repeat a multi-step workflow across many repositories, package
-these instructions as an [Agent Skill](https://agentskills.io/home). A skill is a
-folder with a `SKILL.md` containing its name, description, and workflow. Supported
-clients load it when relevant, which avoids loading a full manual for every task.
+The bundled [Collar skill](skills/collar/SKILL.md) provides a short workflow for
+PR inspection, CI, deployment reports, and authorized writes. Copy the complete
+`docs/skills/collar` directory from this repository into your client's skill
+location, retaining the `collar/SKILL.md` layout. For Codex, the user location is
+`~/.codex/skills/collar/SKILL.md`. Other clients use their own skill discovery
+paths; follow their installation instructions.
 
-Start with the short project instruction above. Add a skill when there is a
-specific repeated task, such as inspecting a PR, checking its CI and preview, and
-preparing a review. Keep command syntax in `--help` and reference this guide so
-copies do not become competing manuals. No skill installation or MCP server is
-required to use the CLI.
+The skill is optional. Project instructions and Collar's help remain sufficient
+for clients without skill support. Update the installed copy when you update
+Collar. The linked guide is available in the source repository and published
+manual; an installed copy can use CLI help without the repository checkout.

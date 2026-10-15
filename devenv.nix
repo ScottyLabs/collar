@@ -8,6 +8,9 @@
     rust.enable = true;
   };
 
+  # Agent Skills require YAML frontmatter, which plain mdformat rewrites.
+  treefmt.config.settings.formatter.mdformat.excludes = [ "**/SKILL.md" ];
+
   packages = with pkgs; [
     fd
     git

@@ -12,6 +12,7 @@
 - [Repository work](guides/repository-work.md)
 - [Shell completions](guides/completions.md)
 - [Using Collar with agents](agents.md)
+  - [Collar skill](skills/collar/SKILL.md)
 - [Troubleshooting](troubleshooting.md)
 
 # Reference

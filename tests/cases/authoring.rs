@@ -8,7 +8,7 @@ fn request_body(request: &str) -> Value {
 fn create_uses_current_branch_and_preserves_markdown_file() {
     let temp = TempDir::new().unwrap();
     assert!(
-        Command::new("git")
+        git_command()
             .args(["init", "-q", "-b", "feature/authoring"])
             .arg(temp.path())
             .status()
@@ -244,4 +244,56 @@ fn mutation_forbidden_is_not_retried_or_echoed() {
     assert_eq!(requests.len(), 1);
     assert!(requests[0].starts_with("PATCH /api/v1/repos/ScottyLabs/terrier/pulls/42 "));
     assert!(!String::from_utf8_lossy(&output.stderr).contains("denied"));
+}
+
+#[test]
+fn pull_list_uses_native_author_and_branch_filters_without_a_checkout() {
+    let server = Server::new(vec![
+        Response::json(json!({"login": "reviewer"})),
+        Response::json(json!([pull("head")])),
+    ]);
+    let output = server
+        .command(true)
+        .args([
+            "pr", "list", "--author", "@me", "--base", "main", "--head", "feature", "--limit", "1",
+            "--json",
+        ])
+        .output()
+        .unwrap();
+    success(&output);
+    let requests = server.finish();
+    assert!(requests[0].starts_with("GET /api/v1/user "));
+    assert!(
+        requests[1].contains("state=open&poster=reviewer&base=main&head=feature&page=1&limit=50")
+    );
+}
+
+#[test]
+fn pull_view_comments_includes_discussion_reviews_and_inline_context() {
+    let server = Server::new(vec![
+        Response::json(pull("head")),
+        Response::json(json!([{"id": 1, "body": "Discussion", "user": {"login": "alice"}}])),
+        Response::json(
+            json!([{"id": 2, "body": "Review", "state": "REQUEST_CHANGES", "comments_count": 1, "user": {"login": "bob"}}]),
+        ),
+        Response::json(json!([])),
+        Response::json(
+            json!([{"id": 3, "path": "src/main.rs", "diff_hunk": "@@ -1 +1 @@", "body": "Explain this"}]),
+        ),
+    ]);
+    let output = server
+        .command(false)
+        .args(["pr", "view", "42", "--comments", "--json"])
+        .output()
+        .unwrap();
+    success(&output);
+    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(value["comments"][0]["body"], "Discussion");
+    assert_eq!(value["reviews"][0]["comments"][0]["path"], "src/main.rs");
+    let requests = server.finish();
+    assert!(requests[1].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments "));
+    assert!(
+        requests[4]
+            .starts_with("GET /api/v1/repos/ScottyLabs/terrier/pulls/42/reviews/2/comments ")
+    );
 }

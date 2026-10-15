@@ -6,7 +6,7 @@ fn repo_clone_uses_existing_git_transport_without_forwarding_api_token() {
         let temp = TempDir::new().unwrap();
         let bare = temp.path().join("source.git");
         assert!(
-            Command::new("git")
+            git_command()
                 .args(["init", "--bare", "-q"])
                 .arg(&bare)
                 .status()
@@ -41,7 +41,7 @@ fn repo_clone_uses_existing_git_transport_without_forwarding_api_token() {
         let output = command.output().unwrap();
         success(&output);
         assert!(destination.join(".git").is_dir());
-        let output = Command::new("git")
+        let output = git_command()
             .current_dir(&destination)
             .args(["config", "--get", "remote.origin.url"])
             .output()

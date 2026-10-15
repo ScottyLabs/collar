@@ -214,9 +214,110 @@ pub fn comment(api: &Api, repo: &Repo, number: u64, body: &str) -> Result<Commen
 }
 
 pub fn list(api: &Api, repo: &Repo, state: &str, limit: usize) -> Result<Vec<Pull>> {
+    filtered_list(api, repo, state, limit, &Filters::default())
+}
+
+#[derive(Default)]
+pub struct Filters {
+    pub author: Option<String>,
+    pub base: Option<String>,
+    pub head: Option<String>,
+}
+
+pub fn filtered_list(
+    api: &Api,
+    repo: &Repo,
+    state: &str,
+    limit: usize,
+    filters: &Filters,
+) -> Result<Vec<Pull>> {
+    ensure!(limit > 0, "list limit must be positive");
+    let mut query = vec![("state".into(), state.into())];
+    for (key, value) in [
+        ("poster", &filters.author),
+        ("base", &filters.base),
+        ("head", &filters.head),
+    ] {
+        if let Some(value) = value {
+            ensure!(!value.trim().is_empty(), "{key} filter must be nonempty");
+            let value = if key == "poster" && value == "@me" {
+                api.require_token()?;
+                api.json::<User>(Method::GET, &["user"], &[], None)?.login
+            } else {
+                value.clone()
+            };
+            query.push((key.into(), value));
+        }
+    }
     let mut path = repo.path().to_vec();
     path.push("pulls");
-    api.list(&path, &[("state".into(), state.into())], limit)
+    api.list(&path, &query, limit)
+}
+
+pub fn add_conversation(api: &Api, repo: &Repo, number: u64, value: &mut Value) -> Result<()> {
+    let number = number.to_string();
+    let mut path = repo.path().to_vec();
+    path.extend(["issues", &number, "comments"]);
+    let comments: Vec<Value> = api.json(Method::GET, &path, &[], None)?;
+    let mut path = repo.path().to_vec();
+    path.extend(["pulls", &number, "reviews"]);
+    let mut reviews: Vec<Value> = api.list(&path, &[], 5001)?;
+    ensure!(
+        reviews.len() <= 5000,
+        "PR has too many reviews; inspect its conversation in the browser"
+    );
+    for review in &mut reviews {
+        let mut comments = Vec::<Value>::new();
+        if review
+            .get("comments_count")
+            .and_then(Value::as_u64)
+            .unwrap_or(0)
+            > 0
+        {
+            let id = review
+                .get("id")
+                .and_then(Value::as_u64)
+                .context("review has no numeric ID")?
+                .to_string();
+            let mut comment_path = path.clone();
+            comment_path.extend([&id, "comments"]);
+            comments = api.json(Method::GET, &comment_path, &[], None)?;
+        }
+        review
+            .as_object_mut()
+            .context("review must be an object")?
+            .insert("comments".into(), json!(comments));
+    }
+    value["comments"] = json!(comments);
+    value["reviews"] = json!(reviews);
+    Ok(())
+}
+
+pub fn print_conversation(value: &Value) {
+    for (key, heading) in [("comments", "Discussion"), ("reviews", "Reviews")] {
+        ui::heading(heading);
+        let entries = value[key]
+            .as_array()
+            .expect("conversation arrays are constructed locally");
+        if entries.is_empty() {
+            println!("No {}.", heading.to_lowercase());
+        }
+        for entry in entries {
+            let author = entry["user"]["login"].as_str().unwrap_or("unknown");
+            let state = entry["state"].as_str().unwrap_or("comment");
+            ui::detail(author, state);
+            ui::markdown(entry["body"].as_str().unwrap_or(""));
+            if let Some(comments) = entry["comments"].as_array() {
+                for comment in comments {
+                    ui::detail("File", comment["path"].as_str().unwrap_or("unknown"));
+                    if let Some(hunk) = comment["diff_hunk"].as_str() {
+                        ui::markdown(hunk);
+                    }
+                    ui::markdown(comment["body"].as_str().unwrap_or(""));
+                }
+            }
+        }
+    }
 }
 
 pub fn select(api: &Api, repo: &Repo, selector: Option<&str>) -> Result<u64> {

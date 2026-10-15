@@ -319,11 +319,27 @@ enum PrCommand {
         state: State,
         #[arg(short = 'L', long, default_value_t = 30)]
         limit: usize,
+        /// Filter by author login; @me uses the authenticated account.
+        #[arg(long)]
+        author: Option<String>,
+        /// Filter by target branch.
+        #[arg(long)]
+        base: Option<String>,
+        /// Filter by source branch.
+        #[arg(long)]
+        head: Option<String>,
         #[command(flatten)]
         output: Output,
     },
     /// View a PR selected by number, URL, or branch (default: current branch).
-    View(Selection),
+    View {
+        selector: Option<String>,
+        /// Include discussion, reviews, and inline review comments.
+        #[arg(long)]
+        comments: bool,
+        #[command(flatten)]
+        output: Output,
+    },
     /// Print a PR's unified diff.
     Diff { selector: Option<String> },
     /// Show commit statuses; fail when none are reported or any are not successful.
@@ -1020,10 +1036,19 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
         PrCommand::List {
             state,
             limit,
+            author,
+            base,
+            head,
             output,
         } => {
             output.validate_fields(pr::Pull::FIELDS)?;
-            let pulls = pr::list(api, repo, state.as_str(), limit)?;
+            let pulls = pr::filtered_list(
+                api,
+                repo,
+                state.as_str(),
+                limit,
+                &pr::Filters { author, base, head },
+            )?;
             let values: Vec<_> = pulls.iter().map(pr::Pull::output).collect();
             output.print(&values, || {
                 ui::heading("Pull requests");
@@ -1047,10 +1072,28 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
                 );
             })
         }
-        PrCommand::View(selection) => {
-            let number = pr::select(api, repo, selection.selector.as_deref())?;
+        PrCommand::View {
+            selector,
+            comments,
+            output,
+        } => {
+            let mut fields = pr::Pull::FIELDS.to_vec();
+            if comments {
+                fields.extend(["comments", "reviews"]);
+            }
+            output.validate_fields(&fields)?;
+            let number = pr::select(api, repo, selector.as_deref())?;
             let pull = pr::get(api, repo, number)?;
-            selection.output.print(&pull.output(), || pull.print())
+            let mut value = pull.output();
+            if comments {
+                pr::add_conversation(api, repo, number, &mut value)?;
+            }
+            output.print(&value, || {
+                pull.print();
+                if comments {
+                    pr::print_conversation(&value);
+                }
+            })
         }
         PrCommand::Diff { selector } => {
             let number = pr::select(api, repo, selector.as_deref())?;
@@ -1101,7 +1144,9 @@ fn run_pr(command: PrCommand, api: &Api, repo: &Repo) -> Result<()> {
             };
             let comments = args
                 .inline_comments
-                .chunks_exact(4)
+                .as_chunks::<4>()
+                .0
+                .iter()
                 .map(|fields| {
                     let line = fields[1]
                         .parse::<u64>()

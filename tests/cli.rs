@@ -7,8 +7,36 @@ use std::time::{Duration, Instant};
 use serde_json::{Value, json};
 use tempfile::TempDir;
 
+fn clear_git_repository_env(command: &mut Command) {
+    for variable in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
+        "GIT_SHALLOW_FILE",
+    ] {
+        command.env_remove(variable);
+    }
+}
+
+fn git_command() -> Command {
+    let mut command = Command::new("git");
+    clear_git_repository_env(&mut command);
+    command.args([
+        "-c",
+        "commit.gpgsign=false",
+        "-c",
+        "core.hooksPath=/dev/null",
+    ]);
+    command
+}
+
 fn isolated_command() -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_collar"));
+    clear_git_repository_env(&mut command);
     command
         .env_remove("COLLAR_CACHE_DIR")
         .env_remove("COLLAR_CONFIG")
@@ -458,7 +486,7 @@ fn broken_upstream_remote_does_not_silently_use_origin() {
         ],
     ] {
         assert!(
-            Command::new("git")
+            git_command()
                 .args(args)
                 .current_dir(directory.path())
                 .status()
@@ -763,7 +791,7 @@ fn inferred_remote_overrides_saved_host_without_receiving_its_token() {
         ],
     ] {
         assert!(
-            Command::new("git")
+            git_command()
                 .args(args)
                 .current_dir(temp.path())
                 .status()
@@ -957,7 +985,7 @@ fn doctor_fixture(temp: &std::path::Path) -> (std::path::PathBuf, std::path::Pat
             vec!["config", "branch.main.merge", "refs/heads/main"],
         ] {
             assert!(
-                Command::new("git")
+                git_command()
                     .args(args)
                     .current_dir(checkout)
                     .status()

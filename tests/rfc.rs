@@ -2,6 +2,14 @@ use std::{fs, path::PathBuf, process::Command};
 
 fn command() -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_collar"));
+    for variable in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_INDEX_FILE",
+        "GIT_COMMON_DIR",
+    ] {
+        command.env_remove(variable);
+    }
     command
         .env_remove("COLLAR_CONFIG")
         .args(["--no-config", "rfc"]);
@@ -245,6 +253,10 @@ fn finds_git_root_without_devenv_and_rejects_unsafe_creation() {
     .unwrap();
     assert!(
         Command::new("git")
+            .env_remove("GIT_DIR")
+            .env_remove("GIT_WORK_TREE")
+            .env_remove("GIT_INDEX_FILE")
+            .env_remove("GIT_COMMON_DIR")
             .args(["init", "--quiet"])
             .current_dir(temp.path())
             .status()

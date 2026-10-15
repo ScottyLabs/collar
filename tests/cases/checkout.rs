@@ -99,7 +99,7 @@ fn git<const N: usize>(directory: &Path, args: [&str; N]) {
 }
 
 fn git_out<const N: usize>(directory: &Path, args: [&str; N]) -> String {
-    let output = Command::new("git")
+    let output = git_command()
         .current_dir(directory)
         .args(args)
         .output()

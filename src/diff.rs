@@ -1,3 +1,5 @@
+//! Parses unified Git diffs to validate inline review anchors on either side.
+
 use std::collections::BTreeSet;
 
 use anyhow::{Context, Result, bail, ensure};

@@ -90,7 +90,11 @@ pub fn run_workflow(command: WorkflowCommand, api: &Api, repo: &Repo) -> Result<
                 );
                 inputs.insert(name.to_owned(), Value::String(value.to_owned()));
             }
-            let body = json!({"ref": args.r#ref, "inputs": inputs, "return_run_info": args.return_run_info});
+            let body = json!({
+                "ref": args.r#ref,
+                "inputs": inputs,
+                "return_run_info": args.return_run_info,
+            });
             let filename = workflow
                 .rsplit('/')
                 .next()
@@ -103,7 +107,7 @@ pub fn run_workflow(command: WorkflowCommand, api: &Api, repo: &Repo) -> Result<
                 Some(&body),
             )?;
             let value: Value = if response.is_empty() {
-                json!({"dispatched": true})
+                json!({ "dispatched": true })
             } else {
                 let mut response: Value =
                     serde_json::from_str(&response).context("decode workflow dispatch response")?;
@@ -147,6 +151,7 @@ fn contents_path(repo: &Repo, path: &str) -> Vec<String> {
         path.into(),
     ]
 }
+
 fn dispatch_path(repo: &Repo, workflow: &str) -> Vec<String> {
     vec![
         "repos".into(),
@@ -158,6 +163,7 @@ fn dispatch_path(repo: &Repo, workflow: &str) -> Vec<String> {
         "dispatches".into(),
     ]
 }
+
 fn is_missing_workflow_directory(error: &str, directory: &str) -> bool {
     error.contains("HTTP 404") && error.contains(&format!("contents/{directory}"))
 }
@@ -167,6 +173,7 @@ fn is_workflow_file(value: &Value) -> bool {
     let name = value.get("name").and_then(Value::as_str).unwrap_or(path);
     matches!(name.rsplit('.').next(), Some("yml" | "yaml"))
 }
+
 fn workflow_path(value: &str) -> Result<String> {
     let value = value.trim_start_matches('/');
     let value =

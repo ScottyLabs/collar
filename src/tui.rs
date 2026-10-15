@@ -4,8 +4,10 @@ use std::{
     io::{self, IsTerminal},
 };
 
-use anyhow::{Result, bail};
+use anyhow::{Context, Result, bail};
 use console::Term;
+
+use crate::{client::Api, output::Output, pr, repo::Repo};
 use dialoguer::{FuzzySelect, theme::SimpleTheme};
 
 #[derive(Debug)]
@@ -67,16 +69,34 @@ fn single_line(text: &str) -> String {
         .collect()
 }
 
+enum Action {
+    Details,
+    Diff,
+    Checks,
+    Done,
+}
+
+impl fmt::Display for Action {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Details => "Details",
+            Self::Diff => "Diff",
+            Self::Checks => "Checks",
+            Self::Done => "Done",
+        })
+    }
+}
+
 pub fn browse_pull_requests(
-    api: &crate::client::Api,
-    repo: &crate::repo::Repo,
+    api: &Api,
+    repo: &Repo,
     state: &str,
     limit: usize,
-    output: &crate::output::Output,
+    output: &Output,
 ) -> Result<()> {
     require_terminal()?;
-    output.validate_fields(crate::pr::Pull::FIELDS)?;
-    let pulls = crate::pr::list(api, repo, state, limit)?;
+    output.validate_fields(pr::Pull::FIELDS)?;
+    let pulls = pr::list(api, repo, state, limit)?;
     if pulls.is_empty() {
         bail!("no pull requests match the selected state");
     }
@@ -92,22 +112,26 @@ pub fn browse_pull_requests(
             )
         })
         .collect();
-    let number = pulls[choose("Pull request", &labels)?].number;
+    let number = pulls
+        .get(choose("Pull request", &labels)?)
+        .context("pull request selection is out of range")?
+        .number;
     if output.json.is_some() {
-        let pull = crate::pr::get(api, repo, number)?;
+        let pull = pr::get(api, repo, number)?;
         return output.print(&pull.output(), || eprintln!("{}", describe_pull(&pull)));
     }
-    let actions: Vec<_> = ["Details", "Diff", "Checks", "Done"]
-        .into_iter()
-        .map(str::to_owned)
-        .collect();
+    let actions = [Action::Details, Action::Diff, Action::Checks, Action::Done];
+    let labels = actions.iter().map(ToString::to_string).collect::<Vec<_>>();
     loop {
-        let pull = crate::pr::get(api, repo, number)?;
-        match choose(&format!("Inspect PR #{number}"), &actions)? {
-            0 => eprintln!("{}", describe_pull(&pull)),
-            1 => eprintln!("{}", terminal_text(&crate::pr::diff(api, repo, number)?)),
-            2 => {
-                let statuses = crate::pr::statuses(api, repo, &pull.head.sha)?;
+        let pull = pr::get(api, repo, number)?;
+        let action = actions
+            .get(choose(&format!("Inspect PR #{number}"), &labels)?)
+            .context("review action selection is out of range")?;
+        match action {
+            Action::Details => eprintln!("{}", describe_pull(&pull)),
+            Action::Diff => eprintln!("{}", terminal_text(&pr::diff(api, repo, number)?)),
+            Action::Checks => {
+                let statuses = pr::statuses(api, repo, &pull.head.sha)?;
                 eprintln!("Commit {}", terminal_text(&pull.head.sha));
                 if statuses.is_empty() {
                     eprintln!(
@@ -126,13 +150,12 @@ pub fn browse_pull_requests(
                     );
                 }
             }
-            3 => return Ok(()),
-            _ => unreachable!("selector returns a valid action index"),
+            Action::Done => return Ok(()),
         }
     }
 }
 
-fn describe_pull(pull: &crate::pr::Pull) -> String {
+fn describe_pull(pull: &pr::Pull) -> String {
     terminal_text(&format!(
         "#{} {}\n{} -> {}\nState: {}\nCommit: {}\n{}\n\n{}",
         pull.number,

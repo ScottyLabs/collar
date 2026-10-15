@@ -164,6 +164,7 @@ impl State {
         }
     }
 }
+
 #[derive(Args)]
 #[command(group(ArgGroup::new("verdict").required(true).args(["approve", "request_changes", "comment"])))]
 pub(super) struct ReviewArgs {

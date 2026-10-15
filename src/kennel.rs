@@ -50,16 +50,28 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
             output.validate_fields(&["number", "headRefOid", "comments", "currentness"])?;
             let pull = selected_pull(api, repo, selector.as_deref())?;
             let comments = comments(api, repo, pull.number)?;
-            let reports: Vec<_> = comments.into_iter().map(|comment| {
-                let revision = comment_revision(&comment.body, &pull.head.sha);
-                json!({"url": comment.html_url, "revision": revision, "previewUrls": urls(&comment.body)})
-            }).collect();
+            let reports: Vec<_> = comments
+                .into_iter()
+                .map(|comment| {
+                    let revision = comment_revision(&comment.body, &pull.head.sha);
+                    json!({
+                        "url": comment.html_url,
+                        "revision": revision,
+                        "previewUrls": urls(&comment.body),
+                    })
+                })
+                .collect();
             ensure!(
                 !reports.is_empty(),
                 "no marked Kennel deployment comments found for PR #{}",
                 pull.number
             );
-            let value = json!({"number":pull.number,"headRefOid":pull.head.sha,"comments":reports,"currentness":"Comments are historical reports; only a matching reported commit prefix identifies the PR head."});
+            let value = json!({
+                "number": pull.number,
+                "headRefOid": pull.head.sha,
+                "comments": reports,
+                "currentness": "Comments are historical reports; only a matching reported commit prefix identifies the PR head.",
+            });
             output.print(&value, || {
                 println!("PR #{} at {}", pull.number, pull.head.sha);
                 for comment in &reports {
@@ -87,7 +99,12 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
                 pull.number,
                 pull.head.sha
             );
-            let value = json!({"number":pull.number,"headRefOid":pull.head.sha,"statuses":statuses.iter().map(status_value).collect::<Vec<_>>(),"note":"Status target URLs point to Kennel reports, commonly build logs. Historical status records do not establish current deployment health."});
+            let value = json!({
+                "number": pull.number,
+                "headRefOid": pull.head.sha,
+                "statuses": statuses.iter().map(status_value).collect::<Vec<_>>(),
+                "note": "Status target URLs point to Kennel reports, commonly build logs. Historical status records do not establish current deployment health.",
+            });
             output.print(&value, || {
                 println!("PR #{} at {}", pull.number, pull.head.sha);
                 for status in &statuses {
@@ -185,7 +202,12 @@ fn relevant_statuses(api: &Api, repo: &Repo, sha: &str) -> Result<Vec<Status>> {
 }
 
 fn status_value(status: &Status) -> Value {
-    json!({"context":status.context,"status":status.state,"description":status.description,"targetUrl":status.target_url})
+    json!({
+        "context": status.context,
+        "status": status.state,
+        "description": status.description,
+        "targetUrl": status.target_url,
+    })
 }
 
 fn wait(
@@ -246,7 +268,13 @@ fn wait(
                 current.head.sha == sha,
                 "PR head changed while waiting; rerun for the new revision"
             );
-            let value = json!({"number":number,"headRefOid":sha,"build":build.map(status_value),"deploy":deploy.map(status_value),"health":"Kennel reported deployment success for this commit; live health was not checked."});
+            let value = json!({
+                "number": number,
+                "headRefOid": sha,
+                "build": build.map(status_value),
+                "deploy": deploy.map(status_value),
+                "health": "Kennel reported deployment success for this commit; live health was not checked.",
+            });
             output.print(&value, || println!("Kennel build and deployment succeeded for PR #{number} at {sha}. Live health was not checked."))?;
             return Ok(());
         }
@@ -269,9 +297,10 @@ fn timeout_error(
 ) -> Result<anyhow::Error> {
     Ok(anyhow::anyhow!(
         "timed out waiting for Kennel build/deploy reports for {sha}; latest reports: {}",
-        serde_json::to_string(
-            &json!({"build":build.map(status_value),"deploy":deploy.map(status_value)})
-        )?
+        serde_json::to_string(&json!({
+            "build": build.map(status_value),
+            "deploy": deploy.map(status_value),
+        }))?
     ))
 }
 

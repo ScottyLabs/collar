@@ -127,8 +127,15 @@ mod tests {
     #[test]
     fn rejects_malformed_review_identity_and_comment_count() {
         for value in [
-            json!({"id":"not-a-number","state":"APPROVED"}),
-            json!({"id":1,"state":"APPROVED","comments_count":"invalid"}),
+            json!({
+                "id": "not-a-number",
+                "state": "APPROVED",
+            }),
+            json!({
+                "id": 1,
+                "state": "APPROVED",
+                "comments_count": "invalid",
+            }),
         ] {
             assert!(serde_json::from_value::<Review>(value).is_err());
         }
@@ -136,8 +143,12 @@ mod tests {
 
     #[test]
     fn preserves_provider_metadata_without_untyped_control_flow() {
-        let value =
-            json!({"id":1,"state":"APPROVED","custom_field":{"enabled":true},"comments":[]});
+        let value = json!({
+            "id": 1,
+            "state": "APPROVED",
+            "custom_field": {"enabled":true},
+            "comments": [],
+        });
         let review: Review = serde_json::from_value(value.clone()).unwrap();
         assert_eq!(serde_json::to_value(review).unwrap(), value);
     }

@@ -55,7 +55,13 @@ pub(super) fn run(
                 !statuses.is_empty() || !comments.is_empty(),
                 "no Kennel reports found for PR #{number}; check governance registration and the webhook"
             );
-            let value = json!({ "number": number, "headRefOid": pull.head.sha, "statuses": statuses, "comments": comments, "liveHealthVerified": false });
+            let value = json!({
+                "number": number,
+                "headRefOid": pull.head.sha,
+                "statuses": statuses,
+                "comments": comments,
+                "liveHealthVerified": false,
+            });
             selection.output.print(&value, || {
                 ui::heading(&format!("Kennel reports for PR #{number}"));
                 ui::detail("Commit", &pull.head.sha);

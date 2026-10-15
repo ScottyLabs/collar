@@ -52,8 +52,12 @@ pub fn review(
             })
         })
         .collect();
-    let payload =
-        json!({ "event": event, "body": body, "commit_id": pull.head.sha, "comments": comments });
+    let payload = json!({
+        "event": event,
+        "body": body,
+        "commit_id": pull.head.sha,
+        "comments": comments,
+    });
     let mut path = repo.path().to_vec();
     let number = number.to_string();
     path.extend(["pulls", &number, "reviews"]);

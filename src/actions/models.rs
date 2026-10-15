@@ -210,7 +210,13 @@ mod tests {
 
     #[test]
     fn run_summary_retains_null_metadata_but_view_retains_extra_fields() {
-        let value = json!({"id": 1, "status": "waiting", "commit_sha": "head", "created": null, "custom": {"enabled": true}});
+        let value = json!({
+            "id": 1,
+            "status": "waiting",
+            "commit_sha": "head",
+            "created": null,
+            "custom": {"enabled": true},
+        });
         let record: RunRecord = serde_json::from_value(value.clone()).unwrap();
         let run = Run::try_from(record).unwrap();
         assert_eq!(serde_json::to_value(&run).unwrap(), value);
@@ -222,7 +228,12 @@ mod tests {
     #[test]
     fn preserves_job_attempt_presence_and_provider_metadata() {
         for attempt in [None, Some(Value::Null), Some(json!(2))] {
-            let mut value = json!({"id": 1, "name": "test", "status": "success", "custom": null});
+            let mut value = json!({
+                "id": 1,
+                "name": "test",
+                "status": "success",
+                "custom": null,
+            });
             if let Some(attempt) = attempt {
                 value["attempt"] = attempt;
             }
@@ -245,8 +256,17 @@ mod tests {
     #[test]
     fn rejects_invalid_job_ids_and_attempts() {
         for value in [
-            json!({"id": "wrong", "name": "test", "status": "running"}),
-            json!({"id": 1, "name": "test", "status": "running", "attempt": -1}),
+            json!({
+                "id": "wrong",
+                "name": "test",
+                "status": "running",
+            }),
+            json!({
+                "id": 1,
+                "name": "test",
+                "status": "running",
+                "attempt": -1,
+            }),
         ] {
             assert!(serde_json::from_value::<Job>(value).is_err());
         }

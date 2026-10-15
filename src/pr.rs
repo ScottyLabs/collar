@@ -108,7 +108,12 @@ pub fn create(
         Method::POST,
         &path,
         &[],
-        Some(&json!({"title":title,"head":head,"base":base,"body":body})),
+        Some(&json!({
+            "title": title,
+            "head": head,
+            "base": base,
+            "body": body,
+        })),
     )
 }
 
@@ -124,7 +129,7 @@ pub fn comment(api: &Api, repo: &Repo, number: u64, body: &str) -> Result<Commen
     let number = number.to_string();
     let mut path = repo.path().to_vec();
     path.extend(["issues", &number, "comments"]);
-    api.json(Method::POST, &path, &[], Some(&json!({"body":body})))
+    api.json(Method::POST, &path, &[], Some(&json!({ "body": body })))
 }
 
 pub fn diff(api: &Api, repo: &Repo, number: u64) -> Result<String> {

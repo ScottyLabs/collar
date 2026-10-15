@@ -58,16 +58,19 @@ impl ToolExit {
             .unwrap_or(1)
     }
 }
+
 impl std::fmt::Display for ToolExit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} exited with {}", self.program, self.status)
     }
 }
+
 impl std::fmt::Debug for ToolExit {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         std::fmt::Display::fmt(self, f)
     }
 }
+
 impl std::error::Error for ToolExit {}
 
 #[cfg(all(test, unix))]

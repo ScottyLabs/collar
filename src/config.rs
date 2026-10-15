@@ -132,7 +132,11 @@ impl Config {
     pub fn run(mut self, command: Command) -> Result<()> {
         match command {
             Command::Get { output } => {
-                let value = serde_json::json!({"path": self.path, "host": self.settings.host, "logins":self.settings.logins});
+                let value = serde_json::json!({
+                    "path": self.path,
+                    "host": self.settings.host,
+                    "logins": self.settings.logins,
+                });
                 let human = serde_json::to_string_pretty(&value)?;
                 output.print(&value, || println!("{human}"))
             }

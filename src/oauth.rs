@@ -1,3 +1,5 @@
+//! Runs the credential helper with bounded output and parses its OAuth credential response.
+
 use std::ffi::OsStr;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
@@ -10,7 +12,7 @@ use url::Url;
 const HELPER_TIMEOUT: Duration = Duration::from_secs(300);
 const HELPER_OUTPUT_LIMIT: usize = 64 * 1024;
 
-/// Starts the Forgejo OAuth browser flow through the installed credential helper.
+/// Access and refresh credentials returned by the installed OAuth helper.
 ///
 /// Forgejo pre-registers this helper's OAuth client. The helper owns the PKCE,
 /// loopback callback, state validation, and OAuth token exchange.

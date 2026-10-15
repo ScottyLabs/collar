@@ -17,6 +17,9 @@ cargo fmt
 prek run --all-files
 ```
 
+Keep small unit tests inline. Larger test modules use Rust's standard module
+paths rather than `#[path]` overrides.
+
 Run focused tests while developing, then the required hooks before committing.
 Use fixtures for remote writes; do not post comments, submit reviews, or change
 live resources as a test. Keep warnings at zero. Production code must propagate errors rather than use

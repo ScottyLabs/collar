@@ -1,3 +1,4 @@
+use std::fs;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
@@ -174,7 +175,7 @@ fn list_topics(checkout: &Path, service: Service) -> Result<Vec<Topic>> {
     files
         .into_iter()
         .map(|path| {
-            let body = std::fs::read_to_string(checkout.join(&path))
+            let body = fs::read_to_string(checkout.join(&path))
                 .with_context(|| format!("read documentation {}", path.display()))?;
             let path_string = slash_path(&path);
             Ok(Topic {
@@ -202,7 +203,7 @@ fn view_topic(checkout: &Path, service: Service, requested: &str) -> Result<Docu
             format!("documentation topic {requested:?} was not found for {service:?}")
         })?;
     let path_string = slash_path(&path);
-    let body = std::fs::read_to_string(checkout.join(&path))
+    let body = fs::read_to_string(checkout.join(&path))
         .with_context(|| format!("read documentation {}", path.display()))?;
     Ok(Document {
         topic: topic_from_path(service, &path),
@@ -218,7 +219,7 @@ fn search(checkout: &Path, service: Service, query: &str) -> Result<Vec<Match>> 
     let mut result = Vec::new();
     for path in markdown_files(checkout, service)? {
         let path_string = slash_path(&path);
-        let body = std::fs::read_to_string(checkout.join(&path))
+        let body = fs::read_to_string(checkout.join(&path))
             .with_context(|| format!("read documentation {}", path.display()))?;
         if let Some(line) = body
             .lines()
@@ -297,7 +298,7 @@ fn collect_markdown(directory: &Path, checkout: &Path, files: &mut Vec<PathBuf>)
         "documentation directory {} is missing",
         directory.display()
     );
-    for entry in std::fs::read_dir(directory)
+    for entry in fs::read_dir(directory)
         .with_context(|| format!("read documentation directory {}", directory.display()))?
     {
         let entry = entry?;
@@ -427,10 +428,10 @@ mod tests {
     fn topics_are_discovered_without_summary_and_search_is_literal_case_insensitive() {
         let temp = tempfile::tempdir().unwrap();
         let docs = temp.path().join("sites/docs/src/guides");
-        std::fs::create_dir_all(&docs).unwrap();
-        std::fs::write(temp.path().join("README.md"), "# Overview\n").unwrap();
-        std::fs::write(temp.path().join("sites/docs/src/SUMMARY.md"), "not a topic").unwrap();
-        std::fs::write(
+        fs::create_dir_all(&docs).unwrap();
+        fs::write(temp.path().join("README.md"), "# Overview\n").unwrap();
+        fs::write(temp.path().join("sites/docs/src/SUMMARY.md"), "not a topic").unwrap();
+        fs::write(
             docs.join("features.md"),
             "# Features\nUse `kennel` for builds.\n",
         )

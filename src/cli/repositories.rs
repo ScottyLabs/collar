@@ -70,7 +70,14 @@ pub(super) fn run(
                 archived: bool,
             }
             let repository: Repository = api.json(Method::GET, &repo.path(), &[], None)?;
-            let value = json!({ "nameWithOwner": repository.full_name, "description": repository.description, "url": repository.html_url, "defaultBranchRef": { "name": repository.default_branch }, "isPrivate": repository.private, "isArchived": repository.archived });
+            let value = json!({
+                "nameWithOwner": repository.full_name,
+                "description": repository.description,
+                "url": repository.html_url,
+                "defaultBranchRef": { "name": repository.default_branch },
+                "isPrivate": repository.private,
+                "isArchived": repository.archived,
+            });
             output.print(&value, || {
                 println!(
                     "{}\n{}\n{}",

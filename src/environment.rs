@@ -1,6 +1,7 @@
 use std::collections::BTreeMap;
 use std::ffi::OsString;
-use std::io::IsTerminal;
+use std::fs;
+use std::io::{self, IsTerminal};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -116,8 +117,7 @@ struct SecretProject {
 }
 
 pub fn validate(root: &Path, namespace: Option<&str>, profile: &str) -> Result<Secretspec> {
-    let text =
-        std::fs::read_to_string(root.join("secretspec.toml")).context("read secretspec.toml")?;
+    let text = fs::read_to_string(root.join("secretspec.toml")).context("read secretspec.toml")?;
     let spec: Secretspec = crate::document::parse(&text, "secretspec.toml")?;
     ensure!(
         spec.project.revision == "1.0",
@@ -188,7 +188,7 @@ pub fn secrets(command: SecretCommand) -> Result<()> {
     } = &command
     {
         ensure!(
-            std::io::stdin().is_terminal(),
+            io::stdin().is_terminal(),
             "secret updates require a terminal prompt or explicit --from-file PATH (use - for stdin)"
         );
     }
@@ -242,7 +242,7 @@ pub fn secrets(command: SecretCommand) -> Result<()> {
                 let path = if path == Path::new("-") {
                     path.clone()
                 } else {
-                    std::fs::canonicalize(path).context("resolve secret input file")?
+                    fs::canonicalize(path).context("resolve secret input file")?
                 };
                 child.arg("--from-file").arg(path);
             }
@@ -253,49 +253,56 @@ pub fn secrets(command: SecretCommand) -> Result<()> {
 }
 
 pub fn dev(command: DevCommand) -> Result<()> {
-    if let DevCommand::Down { reason } = command {
-        let mut child = Command::new("devenv");
-        child.current_dir(repo::root()?).args(["processes", "down"]);
-        if let Some(reason) = reason {
-            child.env("SECRETSPEC_REASON", reason);
-        }
-        return process::run(&mut child);
+    match command {
+        DevCommand::Shell(context) => dev_shell(&context),
+        DevCommand::Run { context, command } => dev_run(&context, command),
+        DevCommand::Up { detach, context } => dev_up(&context, detach),
+        DevCommand::Task { name, context } => dev_task(&context, &name),
+        DevCommand::Down { reason } => dev_down(reason.as_deref()),
     }
-    let args = match &command {
-        DevCommand::Shell(context)
-        | DevCommand::Run { context, .. }
-        | DevCommand::Up { context, .. }
-        | DevCommand::Task { context, .. } => context,
-        DevCommand::Down { .. } => unreachable!(),
-    };
-    if matches!(command, DevCommand::Shell(_)) {
-        ensure!(
-            std::io::stdin().is_terminal(),
-            "interactive shell requires a terminal; use collar dev run -- COMMAND for scripts"
-        );
+}
+
+fn dev_shell(context: &ContextArgs) -> Result<()> {
+    ensure!(
+        io::stdin().is_terminal(),
+        "interactive shell requires a terminal; use collar dev run -- COMMAND for scripts"
+    );
+    run_devenv(context, vec!["shell".into()])
+}
+
+fn dev_run(context: &ContextArgs, command: Vec<OsString>) -> Result<()> {
+    let mut args = vec!["shell".into(), "--".into()];
+    args.extend(command);
+    run_devenv(context, args)
+}
+
+fn dev_up(context: &ContextArgs, detach: bool) -> Result<()> {
+    let mut args = vec!["up".into()];
+    if detach {
+        args.push("-d".into());
     }
+    run_devenv(context, args)
+}
+
+fn dev_task(context: &ContextArgs, name: &str) -> Result<()> {
     let root = repo::root()?;
-    let mut child = devenv(&root, args);
-    match &command {
-        DevCommand::Shell(_) => {
-            child.arg("shell");
-        }
-        DevCommand::Run { command, .. } => {
-            child.args(["shell", "--"]).args(command);
-        }
-        DevCommand::Up { detach, .. } => {
-            child.arg("up");
-            if *detach {
-                child.arg("-d");
-            }
-        }
-        DevCommand::Task { name, .. } => {
-            ensure!(!name.is_empty(), "task name must be nonempty");
-            child.args(["tasks", "run", "--", name]);
-        }
-        DevCommand::Down { .. } => unreachable!(),
+    ensure!(!name.is_empty(), "task name must be nonempty");
+    process::run(devenv(&root, context).args(["tasks", "run", "--", name]))
+}
+
+fn dev_down(reason: Option<&str>) -> Result<()> {
+    let mut command = Command::new("devenv");
+    command
+        .current_dir(repo::root()?)
+        .args(["processes", "down"]);
+    if let Some(reason) = reason {
+        command.env("SECRETSPEC_REASON", reason);
     }
-    process::run(&mut child)
+    process::run(&mut command)
+}
+
+fn run_devenv(context: &ContextArgs, args: Vec<OsString>) -> Result<()> {
+    process::run(devenv(&repo::root()?, context).args(args))
 }
 
 pub fn checks(args: CheckArgs) -> Result<()> {
@@ -314,9 +321,9 @@ pub fn checks(args: CheckArgs) -> Result<()> {
     }
     if !args.files.is_empty() {
         child.arg("--files");
-        let root = std::fs::canonicalize(&root)?;
+        let root = fs::canonicalize(&root)?;
         for path in args.files {
-            let path = std::fs::canonicalize(path).context("resolve hook input file")?;
+            let path = fs::canonicalize(path).context("resolve hook input file")?;
             let relative = path
                 .strip_prefix(&root)
                 .context("hook input is outside the project checkout")?;

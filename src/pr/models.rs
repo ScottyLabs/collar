@@ -91,7 +91,12 @@ pub struct Comment {
 
 impl Comment {
     pub fn output(&self) -> Value {
-        json!({"id":self.id,"body":self.body,"url":self.html_url,"author":{"login":self.user.login}})
+        json!({
+            "id": self.id,
+            "body": self.body,
+            "url": self.html_url,
+            "author": {"login":self.user.login},
+        })
     }
 }
 

@@ -294,5 +294,4 @@ pub fn run(cli: Cli) -> Result<()> {
 }
 
 #[cfg(test)]
-#[path = "command_docs.rs"]
 mod command_docs;

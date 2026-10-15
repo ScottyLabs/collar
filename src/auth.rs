@@ -269,5 +269,4 @@ pub fn logout(config: &mut Config, origin: Url) -> Result<()> {
 }
 
 #[cfg(test)]
-#[path = "auth_tests.rs"]
 mod tests;

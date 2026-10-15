@@ -1,6 +1,10 @@
+//! Fetches and verifies revision-pinned canonical sources, with explicit offline reads.
+
 use std::collections::BTreeSet;
+use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::str;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, ensure};
@@ -125,7 +129,12 @@ impl Sources<'_> {
     ) -> Result<Source> {
         if let Some(directory) = checkout {
             return Ok(Source {
-                info: json!({"kind": "checkout", "path": directory, "revision": null, "offline": offline}),
+                info: json!({
+                    "kind": "checkout",
+                    "path": directory,
+                    "revision": null,
+                    "offline": offline,
+                }),
                 directory,
                 revision: None,
             });
@@ -144,11 +153,11 @@ impl Sources<'_> {
             .map(|byte| format!("{byte:02x}"))
             .collect();
         for part in encoded.as_bytes().chunks(64) {
-            cache.push(std::str::from_utf8(part)?);
+            cache.push(str::from_utf8(part)?);
         }
         let cache = cache.join(kind.name());
         let revision = if offline {
-            let revision = std::fs::read_to_string(cache.join("current")).with_context(|| {
+            let revision = fs::read_to_string(cache.join("current")).with_context(|| {
                 format!(
                     "no readable cached {} snapshot; run without --offline to refresh",
                     kind.name()
@@ -213,10 +222,12 @@ fn valid_path(path: &str) -> Result<()> {
 struct Repository {
     default_branch: String,
 }
+
 #[derive(Deserialize)]
 struct Branch {
     commit: Commit,
 }
+
 #[derive(Deserialize)]
 struct Commit {
     id: String,
@@ -255,6 +266,7 @@ struct Tree {
     truncated: bool,
     tree: Vec<Entry>,
 }
+
 #[derive(Deserialize)]
 struct Entry {
     path: String,
@@ -264,12 +276,14 @@ struct Entry {
     kind: String,
     size: u64,
 }
+
 #[derive(Serialize, Deserialize)]
 struct File {
     path: String,
     sha: String,
     size: u64,
 }
+
 #[derive(Serialize, Deserialize)]
 struct Manifest {
     kind: Kind,
@@ -341,7 +355,7 @@ fn download(api: &Api, kind: Kind, revision: &str, cache: &Path) -> Result<()> {
         !selected.is_empty(),
         "canonical source has no required files"
     );
-    std::fs::create_dir_all(cache).context("create source cache directory")?;
+    fs::create_dir_all(cache).context("create source cache directory")?;
     let staging =
         tempfile::tempdir_in(cache).context("create source snapshot staging directory")?;
     for file in &selected {
@@ -354,8 +368,8 @@ fn download(api: &Api, kind: Kind, revision: &str, cache: &Path) -> Result<()> {
         );
         verify_blob(content.as_bytes(), &file.sha)?;
         let destination = staging.path().join(&file.path);
-        std::fs::create_dir_all(destination.parent().context("source file has no parent")?)?;
-        std::fs::write(destination, content).context("write source file")?;
+        fs::create_dir_all(destination.parent().context("source file has no parent")?)?;
+        fs::write(destination, content).context("write source file")?;
     }
     let manifest = Manifest {
         kind,
@@ -367,13 +381,13 @@ fn download(api: &Api, kind: Kind, revision: &str, cache: &Path) -> Result<()> {
             .as_secs(),
         files: selected,
     };
-    std::fs::write(
+    fs::write(
         staging.path().join("manifest.toml"),
         toml::to_string(&manifest)?,
     )
     .context("write source manifest")?;
     validate_snapshot(staging.path(), kind, revision, api.origin())?;
-    std::fs::rename(staging.path(), cache.join(revision)).context(
+    fs::rename(staging.path(), cache.join(revision)).context(
         "publish source snapshot; a concurrent refresh may have completed, retry the command",
     )?;
     Ok(())
@@ -386,13 +400,12 @@ fn validate_snapshot(
     origin: &Url,
 ) -> Result<Manifest> {
     ensure!(
-        std::fs::symlink_metadata(directory)?.is_dir()
-            && std::fs::symlink_metadata(directory.join("manifest.toml"))?.is_file(),
+        fs::symlink_metadata(directory)?.is_dir()
+            && fs::symlink_metadata(directory.join("manifest.toml"))?.is_file(),
         "cached snapshot directory or manifest is invalid"
     );
     let manifest: Manifest = document::parse(
-        &std::fs::read_to_string(directory.join("manifest.toml"))
-            .context("read source manifest")?,
+        &fs::read_to_string(directory.join("manifest.toml")).context("read source manifest")?,
         "source manifest",
     )?;
     ensure!(
@@ -418,7 +431,7 @@ fn validate_snapshot(
         for part in &parts[..parts.len() - 1] {
             parent.push(part);
             ensure!(
-                std::fs::symlink_metadata(&parent)?.is_dir(),
+                fs::symlink_metadata(&parent)?.is_dir(),
                 "cached source parent is not a directory"
             );
         }
@@ -426,14 +439,14 @@ fn validate_snapshot(
             kind.includes(&file.path) && paths.insert(&file.path),
             "cached source manifest contains an invalid or duplicate path"
         );
-        let metadata = std::fs::symlink_metadata(directory.join(&file.path))
+        let metadata = fs::symlink_metadata(directory.join(&file.path))
             .context("cached source is incomplete; remove the snapshot directory and refresh")?;
         ensure!(
             metadata.is_file() && metadata.len() == file.size,
             "cached source file is invalid; remove the snapshot directory and refresh"
         );
         verify_blob(
-            &std::fs::read(directory.join(&file.path)).context("read cached source")?,
+            &fs::read(directory.join(&file.path)).context("read cached source")?,
             &file.sha,
         )?;
     }

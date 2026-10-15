@@ -21,10 +21,13 @@ pub fn run_run(command: RunCommand, api: &Api, repo: &Repo) -> Result<()> {
             let mut path = runs_path(repo);
             path.push(&id);
             api.text(Method::DELETE, &path, &[], None)?;
-            args.output
-                .print(&json!({"id": args.id, "deleted": true}), || {
-                    println!("Deleted completed workflow run {}.", args.id)
-                })
+            args.output.print(
+                &json!({
+                    "id": args.id,
+                    "deleted": true,
+                }),
+                || println!("Deleted completed workflow run {}.", args.id),
+            )
         }
     }
 }

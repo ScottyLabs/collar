@@ -232,6 +232,9 @@ pub(super) struct ViewArgs {
     /// Include discussion, reviews, and inline review comments.
     #[arg(long)]
     pub(super) comments: bool,
+    /// Omit provider metadata from conversation JSON.
+    #[arg(long, requires_all = ["comments", "json"])]
+    pub(super) compact: bool,
     #[command(flatten)]
     pub(super) output: Output,
 }

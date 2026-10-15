@@ -273,6 +273,7 @@ fn pull_view_comments_includes_discussion_reviews_and_inline_context() {
     let server = Server::new(vec![
         Response::json(pull("head")),
         Response::json(json!([{"id": 1, "body": "Discussion", "user": {"login": "alice"}}])),
+        Response::json(json!([])),
         Response::json(
             json!([{"id": 2, "body": "Review", "state": "REQUEST_CHANGES", "comments_count": 1, "user": {"login": "bob"}}]),
         ),
@@ -280,6 +281,7 @@ fn pull_view_comments_includes_discussion_reviews_and_inline_context() {
         Response::json(
             json!([{"id": 3, "path": "src/main.rs", "diff_hunk": "@@ -1 +1 @@", "body": "Explain this"}]),
         ),
+        Response::json(json!([])),
     ]);
     let output = server
         .command(false)
@@ -291,9 +293,97 @@ fn pull_view_comments_includes_discussion_reviews_and_inline_context() {
     assert_eq!(value["comments"][0]["body"], "Discussion");
     assert_eq!(value["reviews"][0]["comments"][0]["path"], "src/main.rs");
     let requests = server.finish();
-    assert!(requests[1].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments "));
     assert!(
-        requests[4]
-            .starts_with("GET /api/v1/repos/ScottyLabs/terrier/pulls/42/reviews/2/comments ")
+        requests[1].starts_with(
+            "GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments?page=1&limit=50 "
+        )
     );
+    assert!(requests[5].starts_with(
+        "GET /api/v1/repos/ScottyLabs/terrier/pulls/42/reviews/2/comments?page=1&limit=50 "
+    ));
+}
+
+#[test]
+fn compact_conversation_paginates_and_preserves_context_without_metadata() {
+    for compact in [false, true] {
+        let server = Server::new(vec![
+            Response::json(pull("head")),
+            Response::json(
+                json!([{"id":1,"body":"First","user":{"login":"alice","avatar_url":"opaque"},"provider":"opaque"}]),
+            ),
+            Response::json(
+                json!([{"id":2,"body":"Later discussion","html_url":"discussion-url","created_at":"today","user":{"login":"bob","id":99}}]),
+            ),
+            Response::json(json!([])),
+            Response::json(
+                json!([{"id":3,"state":"COMMENT","body":"Review","comments_count":2,"provider":"opaque","user":{"login":"reviewer","avatar_url":"opaque"}}]),
+            ),
+            Response::json(json!([])),
+            Response::json(json!([{"id":4,"path":"src/main.rs","body":"First inline"}])),
+            Response::json(
+                json!([{"id":5,"path":"src/lib.rs","body":"Later inline","diff_hunk":"@@ -1 +2 @@","line":2,"old_line_num":1,"new_line_num":2,"side":"RIGHT","start_line":1,"original_position":7,"html_url":"inline-url","updated_at":"today","user":{"login":"reviewer","avatar_url":"opaque"},"resolver":{"login":"maintainer","avatar_url":"opaque"},"provider":"opaque"}]),
+            ),
+            Response::json(json!([])),
+        ]);
+        let mut command = server.command(false);
+        command.args([
+            "pr",
+            "view",
+            "42",
+            "--comments",
+            "--json",
+            "comments,reviews",
+        ]);
+        if compact {
+            command.arg("--compact");
+        }
+        let output = command.output().unwrap();
+        success(&output);
+        let value: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(value["comments"].as_array().unwrap().len(), 2);
+        assert_eq!(value["comments"][1]["body"], "Later discussion");
+        assert_eq!(value["comments"][1]["created_at"], "today");
+        let inline = &value["reviews"][0]["comments"][1];
+        assert_eq!(inline["body"], "Later inline");
+        assert_eq!(inline["diff_hunk"], "@@ -1 +2 @@");
+        assert_eq!(inline["path"], "src/lib.rs");
+        assert_eq!(inline["line"], 2);
+        assert_eq!(inline["old_line_num"], 1);
+        assert_eq!(inline["new_line_num"], 2);
+        assert_eq!(inline["start_line"], 1);
+        assert_eq!(inline["original_position"], 7);
+        assert_eq!(inline["side"], "RIGHT");
+        assert_eq!(inline["updated_at"], "today");
+        assert_eq!(inline["html_url"], "inline-url");
+        assert_eq!(inline["user"]["login"], "reviewer");
+        assert_eq!(inline["resolver"]["login"], "maintainer");
+        if compact {
+            assert_eq!(value["comments"][0]["user"], json!({"login":"alice"}));
+            assert_eq!(value["reviews"][0]["user"], json!({"login":"reviewer"}));
+            assert!(value["reviews"][0].get("provider").is_none());
+            assert!(inline.get("provider").is_none());
+            assert_eq!(inline["user"], json!({"login":"reviewer"}));
+            assert_eq!(inline["resolver"], json!({"login":"maintainer"}));
+        } else {
+            assert_eq!(value["reviews"][0]["provider"], "opaque");
+            assert_eq!(inline["provider"], "opaque");
+            assert_eq!(inline["user"]["avatar_url"], "opaque");
+        }
+        let requests = server.finish();
+        assert!(requests[2].contains("issues/42/comments?page=2&limit=50"));
+        assert!(requests[7].contains("reviews/3/comments?page=2&limit=50"));
+    }
+}
+
+#[test]
+fn compact_conversation_requires_comments_and_json_before_requests() {
+    let server = Server::new(vec![]);
+    for args in [
+        vec!["pr", "view", "42", "--compact", "--json"],
+        vec!["pr", "view", "42", "--compact", "--comments"],
+    ] {
+        let output = server.command(false).args(args).output().unwrap();
+        failure(&output, "required arguments");
+    }
+    assert!(server.finish().is_empty());
 }

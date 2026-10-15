@@ -311,6 +311,9 @@ Options:
       --comments
           Include discussion, reviews, and inline review comments
 
+      --compact
+          Omit provider metadata from conversation JSON
+
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all
 

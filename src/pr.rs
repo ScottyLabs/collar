@@ -3,7 +3,7 @@ mod models;
 mod query;
 mod review;
 
-pub use conversation::Conversation;
+pub use conversation::{Conversation, ConversationView};
 pub use models::{Comment, LineComment, Pull, Side, Status, User};
 pub use query::{Filters, filtered_list, list, select, statuses};
 pub use review::review;

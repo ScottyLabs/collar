@@ -6,12 +6,16 @@ Use JSON instead of parsing terminal tables:
 
 ```sh
 collar pr list -R ScottyLabs/collar --json number,title,headRefOid
-collar project view -R ScottyLabs/collar --json
+collar project view collar --json
 ```
 
 `--json` returns every supported field; `--json field1,field2` selects fields.
 Field names are exact and comma-separated. An unsupported field fails with the
 available names. List commands emit arrays and object views emit objects.
+`pr view --comments --compact --json comments,reviews` keeps conversation
+context while omitting unrelated metadata. `--compact` is opt-in; existing
+JSON fields and default output are preserved.
+
 Canonical source results include `dataSource` when requested or when returning
 all fields. The raw `api` command prints the server response rather than applying
 this projection.

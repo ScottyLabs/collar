@@ -51,6 +51,7 @@ pub(super) fn view(api: &Api, repo: &Repo, args: ViewArgs) -> Result<()> {
     let ViewArgs {
         selector,
         comments,
+        compact,
         output,
     } = args;
     let mut fields = pr::Pull::FIELDS.to_vec();
@@ -64,7 +65,9 @@ pub(super) fn view(api: &Api, repo: &Repo, args: ViewArgs) -> Result<()> {
         .transpose()?;
     let value = PullView {
         pull: pull.output(),
-        conversation: conversation.as_ref(),
+        conversation: conversation
+            .as_ref()
+            .map(|conversation| conversation.output(compact)),
     };
     output.print(&value, || {
         pull.print();
@@ -137,7 +140,7 @@ struct PullView<'a> {
     #[serde(flatten)]
     pull: serde_json::Value,
     #[serde(flatten)]
-    conversation: Option<&'a pr::Conversation>,
+    conversation: Option<pr::ConversationView<'a>>,
 }
 
 #[derive(Serialize)]

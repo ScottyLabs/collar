@@ -27,6 +27,8 @@ pub(super) enum ContextCommand {
     },
     /// Show declared ownership, features, and the secret namespace.
     View {
+        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
+        repository: Option<String>,
         /// Inspect local governance changes instead of the latest canonical revision.
         #[arg(long, env = "COLLAR_GOVERNANCE")]
         checkout: Option<PathBuf>,
@@ -119,6 +121,7 @@ pub(super) fn run_context(
             })
         }
         ContextCommand::View {
+            repository,
             checkout,
             offline,
             output,
@@ -126,7 +129,7 @@ pub(super) fn run_context(
             let mut fields = project::Project::FIELDS.to_vec();
             fields.push("dataSource");
             output.validate_fields(&fields)?;
-            let repo = config.repo(selection, host)?;
+            let repo = config.repo(repository.as_deref().or(selection), host)?;
             let source = sources.load_at(Kind::Governance, checkout, offline, &repo.origin)?;
             let project = project::resolve(&source.directory, &repo)?;
             output.print(&source.attach(&project)?, || {

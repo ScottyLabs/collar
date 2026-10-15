@@ -38,7 +38,7 @@ pub struct Cli {
     /// Forge origin; defaults to git.cmu.dev or the Git remote.
     #[arg(long, global = true, env = "COLLAR_HOST")]
     host: Option<String>,
-    /// Select [HOST/]OWNER/REPO instead of the Git remote.
+    /// Select [HOST/][OWNER/]REPO; omitted owner defaults to ScottyLabs.
     #[arg(short = 'R', long, global = true)]
     repo: Option<String>,
     /// Use a specific nonsecret settings file.

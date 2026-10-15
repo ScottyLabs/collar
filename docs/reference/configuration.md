@@ -3,8 +3,9 @@
 ## Repository and host selection
 
 Repository commands use the first available remote named `upstream`, then
-`origin`. `-R [HOST/]OWNER/REPO` selects a repository directly and works outside a
-checkout. A bare `OWNER/REPO` uses the explicit host, saved host, or `git.cmu.dev`.
+`origin`. `-R [HOST/][OWNER/]REPO` selects a repository directly and works outside a
+checkout. An omitted owner defaults to `ScottyLabs`: `-R terrier` selects
+`ScottyLabs/terrier`. Both `REPO` and `OWNER/REPO` use the explicit host, saved host, or `git.cmu.dev`.
 An inferred Git remote or explicit repository host supplies its own forge origin.
 An explicit `--host` must agree with that origin.
 

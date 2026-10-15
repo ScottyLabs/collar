@@ -6,7 +6,7 @@ You do not need clones of governance, infrastructure, documentation, or changelo
 ## Find ownership and access
 
 ```sh
-collar project view -R ScottyLabs/collar
+collar project view ScottyLabs/collar
 collar project select
 collar governance project list
 collar governance project view collar

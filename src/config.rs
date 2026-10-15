@@ -122,7 +122,7 @@ impl Config {
 
     pub fn repo(&self, explicit: Option<&str>, host: Option<&str>) -> Result<Repo> {
         match explicit {
-            Some(value) if value.split('/').count() == 2 => {
+            Some(value) if value.split('/').count() <= 2 => {
                 Repo::parse(value, Some(host.unwrap_or(self.host())))
             }
             _ => Repo::resolve(explicit, host),
@@ -187,11 +187,7 @@ mod tests {
             },
         };
         assert_eq!(
-            config
-                .repo(Some("owner/repo"), None)
-                .unwrap()
-                .origin
-                .host_str(),
+            config.repo(Some("repo"), None).unwrap().origin.host_str(),
             Some("saved.example")
         );
         assert_eq!(

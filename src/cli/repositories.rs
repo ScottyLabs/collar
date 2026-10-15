@@ -12,6 +12,8 @@ use crate::{auth::api, config::Config, output::Output};
 pub(super) enum RepoCommand {
     /// Fork the selected repository without changing its settings.
     Fork {
+        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
+        repository: Option<String>,
         /// Fork into this organization instead of your account.
         #[arg(long)]
         organization: Option<String>,
@@ -29,7 +31,7 @@ pub(super) enum RepoCommand {
     },
     /// View a repository.
     View {
-        /// Repository as [HOST/]OWNER/REPO.
+        /// Repository as [HOST/][OWNER/]REPO; defaults to the current repository.
         repository: Option<String>,
         #[command(flatten)]
         output: Output,
@@ -52,8 +54,12 @@ pub(super) fn run(
             let api = api(repo.origin.clone(), config)?;
             crate::repo::clone(&api, &repo, directory.as_deref(), https)
         }
-        RepoCommand::Fork { organization, name } => {
-            let repo = config.repo(selection, host)?;
+        RepoCommand::Fork {
+            repository,
+            organization,
+            name,
+        } => {
+            let repo = config.repo(repository.as_deref().or(selection), host)?;
             let api = api(repo.origin.clone(), config)?;
             crate::repo::fork(&api, &repo, organization, name)
         }

@@ -4,9 +4,16 @@
 
 ```sh
 collar repo clone ScottyLabs/collar
-collar repo view -R ScottyLabs/collar
-collar repo fork -R ScottyLabs/collar
+collar repo view collar
+collar repo fork collar
 ```
+
+Bare names such as `terrier` resolve to `ScottyLabs/terrier`. Specify
+`OWNER/REPO` for another owner.
+
+Omit the repository for `repo view`, `repo fork`, or `project view` to use the
+current checkout. `-R` remains available for commands such as `pr view 42`, where
+the positional argument identifies a different resource.
 
 Cloning uses SSH by default; `--https` selects HTTPS. Forking creates a copy in
 your account without changing the source repository. `--organization` and

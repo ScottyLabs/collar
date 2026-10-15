@@ -27,7 +27,11 @@ Examples:
 ```text
 Fork the selected repository without changing its settings
 
-Usage: collar repo fork [OPTIONS]
+Usage: collar repo fork [OPTIONS] [REPOSITORY]
+
+Arguments:
+  [REPOSITORY]
+          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
 
 Options:
       --organization <ORGANIZATION>
@@ -71,7 +75,7 @@ Usage: collar repo view [OPTIONS] [REPOSITORY]
 
 Arguments:
   [REPOSITORY]
-          Repository as [HOST/]OWNER/REPO
+          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
 
 Options:
       --json [<FIELDS>]

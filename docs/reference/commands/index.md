@@ -66,7 +66,7 @@ Options:
           [env: COLLAR_HOST]
 
   -R, --repo <REPO>
-          Select [HOST/]OWNER/REPO instead of the Git remote
+          Select [HOST/][OWNER/]REPO; omitted owner defaults to ScottyLabs
 
       --config <CONFIG>
           Use a specific nonsecret settings file

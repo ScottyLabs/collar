@@ -49,7 +49,11 @@ Options:
 ```text
 Show declared ownership, features, and the secret namespace
 
-Usage: collar project view [OPTIONS]
+Usage: collar project view [OPTIONS] [REPOSITORY]
+
+Arguments:
+  [REPOSITORY]
+          Repository as [HOST/][OWNER/]REPO; defaults to the current repository
 
 Options:
       --checkout <CHECKOUT>

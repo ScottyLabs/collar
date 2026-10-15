@@ -18,9 +18,10 @@ impl Repo {
     pub fn parse(value: &str, host: Option<&str>) -> Result<Self> {
         let parts: Vec<_> = value.split('/').collect();
         let (repo_host, owner, name) = match parts.as_slice() {
+            [name] => (host.unwrap_or(DEFAULT_HOST), "ScottyLabs", *name),
             [owner, name] => (host.unwrap_or(DEFAULT_HOST), *owner, *name),
             [repo_host, owner, name] => (*repo_host, *owner, *name),
-            _ => bail!("repository must be [HOST/]OWNER/REPO"),
+            _ => bail!("repository must be REPO, OWNER/REPO, or HOST/OWNER/REPO"),
         };
         let origin = host_url(repo_host)?;
         if let Some(host) = host {
@@ -68,7 +69,12 @@ impl Repo {
                 &url[url::Position::BeforeHost..url::Position::AfterPort]
             ),
         };
-        Self::parse(url.path().trim_matches('/'), Some(&api_host)).and_then(|repo| {
+        let path = url.path().trim_matches('/');
+        ensure!(
+            path.split('/').count() == 2,
+            "Git remote must include owner and repository"
+        );
+        Self::parse(path, Some(&api_host)).and_then(|repo| {
             if let Some(host) = host {
                 ensure!(
                     repo.origin == host_url(host)?,
@@ -275,6 +281,20 @@ fn print_repository(value: &Value, action: &str) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bare_names_default_to_scottylabs_without_weakening_remote_validation() {
+        let repo = Repo::parse("terrier", Some("forge.example")).unwrap();
+        assert_eq!(repo.owner, "ScottyLabs");
+        assert_eq!(repo.name, "terrier");
+        assert_eq!(repo.origin.host_str(), Some("forge.example"));
+        assert_eq!(
+            Repo::parse("contributor/terrier", None).unwrap().owner,
+            "contributor"
+        );
+        assert!(Repo::remote("https://git.cmu.dev/terrier", None).is_err());
+        assert!(Repo::parse("", None).is_err());
+    }
 
     #[test]
     fn resolves_scottylabs_ssh_and_https_remotes() {

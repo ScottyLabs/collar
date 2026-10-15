@@ -8,14 +8,7 @@ fn repository_fork_creates_a_copy_with_native_options() {
     }))]);
     let output = server
         .command(true)
-        .args([
-            "repo",
-            "fork",
-            "-R",
-            "ScottyLabs/collar",
-            "--name",
-            "collar-copy",
-        ])
+        .args(["repo", "fork", "ScottyLabs/collar", "--name", "collar-copy"])
         .output()
         .unwrap();
     success(&output);
@@ -79,4 +72,33 @@ fn broken_upstream_remote_does_not_silently_use_origin() {
         .output()
         .unwrap();
     failure(&output, "configured remote upstream");
+}
+
+#[test]
+fn repository_view_accepts_a_positional_repository_without_a_checkout() {
+    let server = Server::new(vec![Response::json(json!({
+        "full_name": "ScottyLabs/collar",
+        "description": "Development CLI",
+        "html_url": "https://git.cmu.dev/ScottyLabs/collar",
+        "default_branch": "main",
+        "private": false,
+        "archived": false
+    }))]);
+    let output = server
+        .command(false)
+        .args([
+            "repo",
+            "view",
+            "ScottyLabs/collar",
+            "--json",
+            "nameWithOwner",
+        ])
+        .output()
+        .unwrap();
+    success(&output);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap()["nameWithOwner"],
+        "ScottyLabs/collar"
+    );
+    assert!(server.finish()[0].starts_with("GET /api/v1/repos/ScottyLabs/collar "));
 }

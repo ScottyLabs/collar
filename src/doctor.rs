@@ -1,3 +1,6 @@
+//! Aggregate local tooling, declared project context, and remote access diagnostics.
+
+use std::fmt::Display;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
@@ -7,8 +10,10 @@ use clap::Args as ClapArgs;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 
+use crate::config::Config;
 use crate::output::Output;
-use crate::source::{Kind, Sources};
+use crate::repo::Repo;
+use crate::source::{Kind, Source, Sources};
 use crate::{auth, infra, pr, process, project, repo};
 
 const LOGIN: &str = "nix run git+https://git.cmu.dev/ScottyLabs/kennel#login";
@@ -48,7 +53,12 @@ struct Check {
     action: Option<String>,
 }
 
-fn record(checks: &mut Vec<Check>, name: &str, result: Result<String>, action: &str) {
+fn record(
+    checks: &mut Vec<Check>,
+    name: &str,
+    result: std::result::Result<String, impl Display>,
+    action: &str,
+) {
     let (status, detail, action) = match result {
         Ok(detail) => (Status::Pass, detail, None),
         Err(error) => (Status::Fail, format!("{error:#}"), Some(action.into())),
@@ -123,16 +133,88 @@ fn secretspec(root: &Path, namespace: Option<&str>, profile: &str) -> Result<Str
     ))
 }
 
-pub fn run(
-    args: Args,
-    sources: &Sources<'_>,
-    selection: Option<&str>,
-    host: Option<&str>,
-) -> Result<()> {
-    let config = sources.config;
-    args.output
-        .validate_fields(&["name", "status", "detail", "action"])?;
-    let mut checks = Vec::new();
+fn devenv_files(root: &Path) -> Result<String> {
+    for file in ["devenv.nix", "devenv.yaml", "flake.nix"] {
+        ensure!(root.join(file).is_file(), "project is missing {file}");
+    }
+    Ok("project files present; evaluation and shell readiness are not verified".into())
+}
+
+fn check_revision(checks: &mut Vec<Check>, source: &Source, name: &str, action: &str) {
+    record(
+        checks,
+        name,
+        match &source.revision {
+            Some(_) => Ok(source.describe()),
+            None => checkout_revision(&source.directory),
+        },
+        action,
+    );
+}
+
+fn check_governance(
+    checks: &mut Vec<Check>,
+    governance: Result<Source>,
+    selected: &Result<Repo>,
+) -> Option<project::Project> {
+    let action = "Refresh the canonical governance snapshot online or provide --governance PATH.";
+    let context = match (&governance, selected) {
+        (Err(error), _) | (_, Err(error)) => {
+            record(checks, "governance", Err(error), action);
+            None
+        }
+        (Ok(source), Ok(repo)) => {
+            let context = project::resolve(&source.directory, repo);
+            record(
+                checks,
+                "governance",
+                context
+                    .as_ref()
+                    .map(|project| format!("project {}, team {}", project.slug, project.team)),
+                action,
+            );
+            context.ok()
+        }
+    };
+    if let Ok(source) = governance {
+        check_revision(
+            checks,
+            &source,
+            "governance-revision",
+            "Inspect local changes and fetch/rebase the governance checkout; doctor never updates it.",
+        );
+    }
+    context
+}
+
+fn check_infrastructure(checks: &mut Vec<Check>, infrastructure: Result<Source>) {
+    let action =
+        "Refresh the canonical infrastructure snapshot online or provide --infrastructure PATH.";
+    match infrastructure {
+        Ok(source) => {
+            record(
+                checks,
+                "infrastructure",
+                infra::hosts(&source.directory).map(|hosts| {
+                    format!(
+                        "{} host source configurations; evaluation and health are not verified",
+                        hosts.len()
+                    )
+                }),
+                action,
+            );
+            check_revision(
+                checks,
+                &source,
+                "infrastructure-revision",
+                "Inspect local changes and fetch/rebase the infrastructure checkout; doctor never updates it.",
+            );
+        }
+        Err(error) => record(checks, "infrastructure", Err(error), action),
+    }
+}
+
+fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
     for (tool, version) in [
         ("git", "--version"),
         ("nix", "--version"),
@@ -141,7 +223,7 @@ pub fn run(
         ("secretspec", "--version"),
     ] {
         record(
-            &mut checks,
+            checks,
             &format!("tool:{tool}"),
             process::check(Command::new(tool).arg(version), Duration::from_secs(5))
                 .map(|()| "available".into()),
@@ -150,17 +232,15 @@ pub fn run(
     }
     let root = repo::root();
     record(
-        &mut checks,
+        checks,
         "checkout",
-        root.as_ref()
-            .map(|path| path.display().to_string())
-            .map_err(|error| anyhow::anyhow!("{error:#}")),
+        root.as_ref().map(|path| path.display().to_string()),
         "Run doctor inside a project Git checkout.",
     );
     if let Ok(root) = &root {
         for key in ["user.name", "user.email"] {
             record(
-                &mut checks,
+                checks,
                 &format!("git:{key}"),
                 git(root, &["config", "--get", key]).and_then(|value| {
                     ensure!(!value.is_empty(), "Git identity is empty");
@@ -170,125 +250,26 @@ pub fn run(
             );
         }
         record(
-            &mut checks,
+            checks,
             "devenv",
-            (|| {
-                for file in ["devenv.nix", "devenv.yaml", "flake.nix"] {
-                    ensure!(root.join(file).is_file(), "project is missing {file}");
-                }
-                Ok("project files present; evaluation and shell readiness are not verified".into())
-            })(),
+            devenv_files(root),
             "Follow the Kennel devenv setup guide: https://docs.kennel.scottylabs.org/guides/deploying.html",
         );
     }
     record(
-        &mut checks,
+        checks,
         "ssh-agent",
         process::check(Command::new("ssh-add").arg("-l"), Duration::from_secs(5))
             .map(|()| "agent has keys; forge authentication is not verified".into()),
         "Load your SSH key with ssh-add; register its public key in your forge's SSH settings.",
     );
-    let selected = config.repo(selection, host);
-    record(
-        &mut checks,
-        "repository",
-        selected
-            .as_ref()
-            .map(|repo| format!("{}{}/{}", repo.origin, repo.owner, repo.name))
-            .map_err(|error| anyhow::anyhow!("{error:#}")),
-        "Configure upstream/origin or select the canonical repository with -R.",
-    );
-    let governance = sources.load(Kind::Governance, args.governance, args.offline);
-    let context = (|| {
-        project::resolve(
-            &governance
-                .as_ref()
-                .map_err(|error| anyhow::anyhow!("{error:#}"))?
-                .directory,
-            selected
-                .as_ref()
-                .map_err(|error| anyhow::anyhow!("{error:#}"))?,
-        )
-    })();
-    record(
-        &mut checks,
-        "governance",
-        context
-            .as_ref()
-            .map(|project| format!("project {}, team {}", project.slug, project.team))
-            .map_err(|error| anyhow::anyhow!("{error:#}")),
-        "Refresh the canonical governance snapshot online or provide --governance PATH.",
-    );
-    if let Ok(checkout) = governance {
-        record(
-            &mut checks,
-            "governance-revision",
-            match &checkout.revision {
-                Some(_) => Ok(checkout.describe()),
-                None => checkout_revision(&checkout.directory),
-            },
-            "Inspect local changes and fetch/rebase the governance checkout; doctor never updates it.",
-        );
-    }
-    if let (Ok(root), Ok(project)) = (&root, &context) {
-        record(
-            &mut checks,
-            "secretspec",
-            secretspec(root, project.secret_namespace.as_deref(), &args.profile),
-            "Align secretspec.toml with governance, declare the selected profile, then run secretspec check --no-prompt explicitly.",
-        );
-    } else {
-        skipped(
-            &mut checks,
-            "secretspec",
-            "requires a local project checkout and resolved governance namespace",
-        );
-    }
-    let infrastructure = sources.load(Kind::Infrastructure, args.infrastructure, args.offline);
-    record(
-        &mut checks,
-        "infrastructure",
-        infrastructure
-            .as_ref()
-            .map_err(|error| anyhow::anyhow!("{error:#}"))
-            .and_then(|source| infra::hosts(&source.directory))
-            .map(|hosts| {
-                format!(
-                    "{} host source configurations; evaluation and health are not verified",
-                    hosts.len()
-                )
-            }),
-        "Refresh the canonical infrastructure snapshot online or provide --infrastructure PATH.",
-    );
-    if let Ok(checkout) = infrastructure {
-        record(
-            &mut checks,
-            "infrastructure-revision",
-            match &checkout.revision {
-                Some(_) => Ok(checkout.describe()),
-                None => checkout_revision(&checkout.directory),
-            },
-            "Inspect local changes and fetch/rebase the infrastructure checkout; doctor never updates it.",
-        );
-    }
-    checks.push(Check {
-        name: "linked-accounts".into(),
-        status: Status::Manual,
-        detail: "Keycloak account linking and applied group membership require verification".into(),
-        action: Some(
-            context
-                .as_ref()
-                .map(|project| project.linked_accounts_url.to_string())
-                .unwrap_or_else(|_| ACCOUNTS.into()),
-        ),
-    });
-    if args.offline {
+    root
+}
+
+fn check_remote(checks: &mut Vec<Check>, selected: Result<Repo>, config: &Config, offline: bool) {
+    if offline {
         for name in ["forge", "forge-auth", "bao-auth"] {
-            skipped(
-                &mut checks,
-                name,
-                "offline mode; remote access was not checked",
-            );
+            skipped(checks, name, "offline mode; remote access was not checked");
         }
     } else {
         match selected.and_then(|repo| auth::api(repo.origin, config)) {
@@ -298,14 +279,14 @@ pub fn run(
                     version: String,
                 }
                 record(
-                    &mut checks,
+                    checks,
                     "forge",
                     api.json::<Version>(Method::GET, &["version"], &[], None)
                         .map(|version| format!("Forgejo {} reachable", version.version)),
                     "Check the selected forge host and network connection.",
                 );
                 record(
-                    &mut checks,
+                    checks,
                     "forge-auth",
                     api.require_token()
                         .and_then(|()| api.json::<pr::User>(Method::GET, &["user"], &[], None))
@@ -314,14 +295,14 @@ pub fn run(
                 );
             }
             Err(error) => record(
-                &mut checks,
+                checks,
                 "forge",
                 Err(error),
                 "Fix repository selection and host-bound authentication configuration.",
             ),
         }
         record(
-            &mut checks,
+            checks,
             "bao-auth",
             process::check(
                 Command::new("bao")
@@ -335,12 +316,15 @@ pub fn run(
             LOGIN,
         );
     }
+}
+
+fn print_checks(checks: &[Check], output: &Output) -> Result<()> {
     let failed = checks
         .iter()
         .filter(|check| matches!(check.status, Status::Fail))
         .count();
-    args.output.print(&checks, || {
-        for check in &checks {
+    output.print(&checks, || {
+        for check in checks {
             let status = match check.status {
                 Status::Pass => "PASS",
                 Status::Fail => "FAIL",
@@ -358,6 +342,64 @@ pub fn run(
         "{failed} diagnostics failed; complete manual checks before relying on access"
     );
     Ok(())
+}
+
+pub fn run(
+    args: Args,
+    sources: &Sources<'_>,
+    selection: Option<&str>,
+    host: Option<&str>,
+) -> Result<()> {
+    let config = sources.config;
+    args.output
+        .validate_fields(&["name", "status", "detail", "action"])?;
+    let mut checks = Vec::new();
+    let root = check_local(&mut checks);
+    let selected = config.repo(selection, host);
+    record(
+        &mut checks,
+        "repository",
+        selected
+            .as_ref()
+            .map(|repo| format!("{}{}/{}", repo.origin, repo.owner, repo.name)),
+        "Configure upstream/origin or select the canonical repository with -R.",
+    );
+    let context = check_governance(
+        &mut checks,
+        sources.load(Kind::Governance, args.governance, args.offline),
+        &selected,
+    );
+    if let (Ok(root), Some(project)) = (&root, &context) {
+        record(
+            &mut checks,
+            "secretspec",
+            secretspec(root, project.secret_namespace.as_deref(), &args.profile),
+            "Align secretspec.toml with governance, declare the selected profile, then run secretspec check --no-prompt explicitly.",
+        );
+    } else {
+        skipped(
+            &mut checks,
+            "secretspec",
+            "requires a local project checkout and resolved governance namespace",
+        );
+    }
+    check_infrastructure(
+        &mut checks,
+        sources.load(Kind::Infrastructure, args.infrastructure, args.offline),
+    );
+    checks.push(Check {
+        name: "linked-accounts".into(),
+        status: Status::Manual,
+        detail: "Keycloak account linking and applied group membership require verification".into(),
+        action: Some(
+            context
+                .as_ref()
+                .map(|project| project.linked_accounts_url.to_string())
+                .unwrap_or_else(|| ACCOUNTS.into()),
+        ),
+    });
+    check_remote(&mut checks, selected, config, args.offline);
+    print_checks(&checks, &args.output)
 }
 
 #[cfg(test)]

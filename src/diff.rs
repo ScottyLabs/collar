@@ -1,4 +1,5 @@
-//! Parses unified Git diffs to validate inline review anchors on either side.
+//! Parses unified Git diffs to validate inline review anchors on either side
+//! and to classify lines for display.
 
 use std::collections::BTreeSet;
 
@@ -34,6 +35,10 @@ impl Range {
         self.remaining -= 1;
         Ok(line)
     }
+
+    fn skip(&mut self) {
+        self.remaining = self.remaining.saturating_sub(1);
+    }
 }
 
 struct Hunk {
@@ -56,6 +61,71 @@ impl Hunk {
         );
         Ok(Self { old, new })
     }
+}
+
+/// How one line of a unified diff is presented.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LineKind {
+    /// The `diff --git` line that starts a file.
+    FileHeader,
+    /// An old or new `---` / `+++` path header.
+    FilePath,
+    /// Other extended headers: modes, index, renames, binary notices.
+    Meta,
+    /// An `@@` hunk header.
+    HunkHeader,
+    Added,
+    Removed,
+    Context,
+    /// The `\ No newline at end of file` marker.
+    Note,
+}
+
+/// Classifies each line of `diff` for display, in order.
+///
+/// Unlike [`anchors`] this never fails, so any diff can still be shown. Hunk
+/// line counts decide where content ends, which keeps a removed line such as
+/// `--- text` from being read as a file header. A truncated hunk cannot swallow
+/// the next file because `diff ` and `@@ ` never begin hunk content.
+pub fn line_kinds(diff: &str) -> Vec<LineKind> {
+    let mut open: Option<Hunk> = None;
+    diff.lines()
+        .map(|line| {
+            if line.starts_with('\\') {
+                return LineKind::Note;
+            }
+            if line.starts_with("diff ") {
+                open = None;
+                return LineKind::FileHeader;
+            }
+            if let Some(header) = line.strip_prefix("@@ ") {
+                open = Hunk::parse(header).ok();
+                return LineKind::HunkHeader;
+            }
+            if let Some(hunk) = open.as_mut().filter(|hunk| !hunk.complete()) {
+                return match line.as_bytes().first() {
+                    Some(b'+') => {
+                        hunk.new.skip();
+                        LineKind::Added
+                    }
+                    Some(b'-') => {
+                        hunk.old.skip();
+                        LineKind::Removed
+                    }
+                    _ => {
+                        hunk.old.skip();
+                        hunk.new.skip();
+                        LineKind::Context
+                    }
+                };
+            }
+            if line.starts_with("--- ") || line.starts_with("+++ ") {
+                LineKind::FilePath
+            } else {
+                LineKind::Meta
+            }
+        })
+        .collect()
 }
 
 pub fn anchors(diff: &str) -> Result<BTreeSet<(String, bool, u64)>> {
@@ -247,5 +317,59 @@ mod tests {
             git_path(r#""b/with\"quote\tfile.rs""#, "b/").unwrap(),
             Some("with\"quote\tfile.rs".into())
         );
+    }
+
+    #[test]
+    fn classifies_a_new_file_diff() {
+        use LineKind::*;
+        let diff = "diff --git a/n.md b/n.md\nnew file mode 100644\nindex 0000000..6ce559d\n--- /dev/null\n+++ b/n.md\n@@ -0,0 +1,2 @@\n+one\n+two\n";
+        assert_eq!(
+            line_kinds(diff),
+            [
+                FileHeader, Meta, Meta, FilePath, FilePath, HunkHeader, Added, Added
+            ]
+        );
+    }
+
+    #[test]
+    fn content_that_looks_like_a_header_stays_content() {
+        use LineKind::*;
+        let diff = "diff --git a/q.sql b/q.sql\nindex 1..2 100644\n--- a/q.sql\n+++ b/q.sql\n@@ -1,2 +1,2 @@\n--- old comment\n+++ new comment\n keep\n";
+        assert_eq!(
+            line_kinds(diff),
+            [
+                FileHeader, Meta, FilePath, FilePath, HunkHeader, Removed, Added, Context
+            ]
+        );
+    }
+
+    #[test]
+    fn the_next_file_starts_fresh_after_complete_or_truncated_hunks() {
+        use LineKind::*;
+        let complete = "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1 +1 @@\n-x\n+y\ndiff --git a/b b/b\n--- a/b\n+++ b/b\n";
+        assert_eq!(
+            line_kinds(complete),
+            [
+                FileHeader, FilePath, FilePath, HunkHeader, Removed, Added, FileHeader, FilePath,
+                FilePath
+            ]
+        );
+        let truncated = "diff --git a/a b/a\n--- a/a\n+++ b/a\n@@ -1,5 +1,5 @@\n-x\ndiff --git a/b b/b\n--- a/b\n";
+        assert_eq!(
+            line_kinds(truncated),
+            [
+                FileHeader, FilePath, FilePath, HunkHeader, Removed, FileHeader, FilePath
+            ]
+        );
+    }
+
+    #[test]
+    fn marks_missing_newline_notes_and_survives_bad_headers() {
+        use LineKind::*;
+        let diff =
+            "@@ -1 +1 @@\n-a\n\\ No newline at end of file\n+b\n\\ No newline at end of file\n";
+        assert_eq!(line_kinds(diff), [HunkHeader, Removed, Note, Added, Note]);
+        assert_eq!(line_kinds("@@ nonsense @@\nstray\n"), [HunkHeader, Meta]);
+        assert!(line_kinds("").is_empty());
     }
 }

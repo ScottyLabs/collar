@@ -8,7 +8,7 @@ use anyhow::{Context, Result, bail, ensure};
 use clap::Subcommand;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 
 use crate::{client::Api, output::Output, repo::Repo, ui};
 
@@ -113,39 +113,8 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
     let mut path = repo.path().to_vec();
     path.push("releases");
     match command {
-        Command::List { limit, output } => {
-            output.validate_fields(FIELDS)?;
-            let releases: Vec<Release> = api.list(&path, &[], limit)?;
-            output.print(&releases, || {
-                ui::heading("Releases");
-                ui::table(
-                    &["Tag", "Name", "Status", "Assets"],
-                    &releases
-                        .iter()
-                        .map(|release| {
-                            vec![
-                                release.tag_name.clone(),
-                                release.name.clone().unwrap_or_default(),
-                                if release.draft {
-                                    "draft".into()
-                                } else if release.prerelease {
-                                    "prerelease".into()
-                                } else {
-                                    "published".into()
-                                },
-                                release.assets.len().to_string(),
-                            ]
-                        })
-                        .collect::<Vec<_>>(),
-                );
-            })
-        }
-        Command::View { tag, output } => {
-            valid_tag(&tag)?;
-            output.validate_fields(FIELDS)?;
-            let release = by_tag(api, &path, &tag)?;
-            output.print(&release, || print_release(&release))
-        }
+        Command::List { limit, output } => list(api, &path, limit, output),
+        Command::View { tag, output } => view(api, &path, tag, output),
         Command::Create {
             tag,
             title,
@@ -154,22 +123,19 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
             draft,
             prerelease,
             output,
-        } => {
-            valid_tag(&tag)?;
-            if let Some(title) = &title {
-                valid_title(title)?;
-            }
-            output.validate_fields(FIELDS)?;
-            api.require_token()?;
-            let body = notes_body(notes, notes_file)?;
-            let mut payload =
-                json!({"tag_name": tag, "body": body, "draft": draft, "prerelease": prerelease});
-            if let Some(title) = title {
-                payload["name"] = Value::String(title);
-            }
-            let release: Release = api.json(Method::POST, &path, &[], Some(&payload))?;
-            output.print(&release, || print_release(&release))
-        }
+        } => create(
+            api,
+            &path,
+            CreateOptions {
+                tag,
+                title,
+                notes,
+                notes_file,
+                draft,
+                prerelease,
+                output,
+            },
+        ),
         Command::Edit {
             tag,
             title,
@@ -180,53 +146,22 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
             prerelease,
             stable,
             output,
-        } => {
-            valid_tag(&tag)?;
-            output.validate_fields(FIELDS)?;
-            ensure!(
-                title.is_some()
-                    || notes.is_some()
-                    || notes_file.is_some()
-                    || draft
-                    || publish
-                    || prerelease
-                    || stable,
-                "specify at least one field to edit"
-            );
-            if let Some(title) = &title {
-                valid_title(title)?;
-            }
-            api.require_token()?;
-            let mut payload = serde_json::Map::new();
-            if let Some(title) = title {
-                payload.insert("name".into(), Value::String(title));
-            }
-            if notes.is_some() || notes_file.is_some() {
-                payload.insert("body".into(), Value::String(notes_body(notes, notes_file)?));
-            }
-            if draft || publish {
-                payload.insert("draft".into(), Value::Bool(draft));
-            }
-            if prerelease || stable {
-                payload.insert("prerelease".into(), Value::Bool(prerelease));
-            }
-            let release = by_tag(api, &path, &tag)?;
-            let id = release.id.to_string();
-            path.push(&id);
-            let updated: Release =
-                api.json(Method::PATCH, &path, &[], Some(&Value::Object(payload)))?;
-            output.print(&updated, || print_release(&updated))
-        }
-        Command::Delete { tag } => {
-            valid_tag(&tag)?;
-            api.require_token()?;
-            let release = by_tag(api, &path, &tag)?;
-            let id = release.id.to_string();
-            path.push(&id);
-            api.text(Method::DELETE, &path, &[], None)?;
-            println!("Deleted release {tag}");
-            Ok(())
-        }
+        } => edit(
+            api,
+            &path,
+            EditOptions {
+                tag,
+                title,
+                notes,
+                notes_file,
+                draft,
+                publish,
+                prerelease,
+                stable,
+                output,
+            },
+        ),
+        Command::Delete { tag } => delete(api, &path, tag),
     }
 }
 
@@ -320,4 +255,152 @@ fn print_release(release: &Release) {
     {
         println!("\n{body}");
     }
+}
+
+fn list(api: &Api, path: &[&str], limit: usize, output: Output) -> Result<()> {
+    output.validate_fields(FIELDS)?;
+    let releases: Vec<Release> = api.list(path, &[], limit)?;
+    output.print(&releases, || {
+        ui::heading("Releases");
+        ui::table(
+            &["Tag", "Name", "Status", "Assets"],
+            &releases
+                .iter()
+                .map(|release| {
+                    vec![
+                        release.tag_name.clone(),
+                        release.name.clone().unwrap_or_default(),
+                        if release.draft {
+                            "draft".into()
+                        } else if release.prerelease {
+                            "prerelease".into()
+                        } else {
+                            "published".into()
+                        },
+                        release.assets.len().to_string(),
+                    ]
+                })
+                .collect::<Vec<_>>(),
+        );
+    })
+}
+
+fn view(api: &Api, path: &[&str], tag: String, output: Output) -> Result<()> {
+    valid_tag(&tag)?;
+    output.validate_fields(FIELDS)?;
+    let release = by_tag(api, path, &tag)?;
+    output.print(&release, || print_release(&release))
+}
+
+fn create(api: &Api, path: &[&str], options: CreateOptions) -> Result<()> {
+    let CreateOptions {
+        tag,
+        title,
+        notes,
+        notes_file,
+        draft,
+        prerelease,
+        output,
+    } = options;
+    valid_tag(&tag)?;
+    if let Some(title) = &title {
+        valid_title(title)?;
+    }
+    output.validate_fields(FIELDS)?;
+    api.require_token()?;
+    let body = notes_body(notes, notes_file)?;
+    let mut payload = json!({
+        "tag_name": tag,
+        "body": body,
+        "draft": draft,
+        "prerelease": prerelease
+    });
+    if let Some(title) = title {
+        payload["name"] = Value::String(title);
+    }
+    let release: Release = api.json(Method::POST, path, &[], Some(&payload))?;
+    output.print(&release, || print_release(&release))
+}
+
+fn edit(api: &Api, path: &[&str], options: EditOptions) -> Result<()> {
+    let EditOptions {
+        tag,
+        title,
+        notes,
+        notes_file,
+        draft,
+        publish,
+        prerelease,
+        stable,
+        output,
+    } = options;
+    valid_tag(&tag)?;
+    output.validate_fields(FIELDS)?;
+    ensure!(
+        title.is_some()
+            || notes.is_some()
+            || notes_file.is_some()
+            || draft
+            || publish
+            || prerelease
+            || stable,
+        "specify at least one field to edit"
+    );
+    if let Some(title) = &title {
+        valid_title(title)?;
+    }
+    api.require_token()?;
+    let mut payload = Map::new();
+    if let Some(title) = title {
+        payload.insert("name".into(), Value::String(title));
+    }
+    if notes.is_some() || notes_file.is_some() {
+        payload.insert("body".into(), Value::String(notes_body(notes, notes_file)?));
+    }
+    if draft || publish {
+        payload.insert("draft".into(), Value::Bool(draft));
+    }
+    if prerelease || stable {
+        payload.insert("prerelease".into(), Value::Bool(prerelease));
+    }
+    let release = by_tag(api, path, &tag)?;
+    let id = release.id.to_string();
+    let mut path = path.to_vec();
+    path.push(&id);
+    let updated: Release = api.json(Method::PATCH, &path, &[], Some(&Value::Object(payload)))?;
+    output.print(&updated, || print_release(&updated))
+}
+
+fn delete(api: &Api, path: &[&str], tag: String) -> Result<()> {
+    valid_tag(&tag)?;
+    api.require_token()?;
+    let release = by_tag(api, path, &tag)?;
+    let id = release.id.to_string();
+    let mut path = path.to_vec();
+    path.push(&id);
+    api.text(Method::DELETE, &path, &[], None)?;
+    println!("Deleted release {tag}");
+    Ok(())
+}
+
+struct CreateOptions {
+    tag: String,
+    title: Option<String>,
+    notes: Option<String>,
+    notes_file: Option<PathBuf>,
+    draft: bool,
+    prerelease: bool,
+    output: Output,
+}
+
+struct EditOptions {
+    tag: String,
+    title: Option<String>,
+    notes: Option<String>,
+    notes_file: Option<PathBuf>,
+    draft: bool,
+    prerelease: bool,
+    publish: bool,
+    stable: bool,
+    output: Output,
 }

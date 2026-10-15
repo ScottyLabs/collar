@@ -197,3 +197,30 @@ fn wait_times_out_when_reports_are_missing() {
     failure(&output, "timed out waiting for Kennel");
     server.finish();
 }
+
+#[test]
+fn kennel_reports_marked_comments_without_claiming_live_health() {
+    let server = Server::new(vec![
+        Response::json(pull("head")),
+        Response::json(json!([{ "id": 1, "context": "kennel/deploy", "status": "success" }])),
+        Response::json(json!([])),
+        Response::json(json!([
+            { "body": "unrelated", "html_url": "https://example.com/1" },
+            { "body": "<!-- kennel-deployment -->\nPreview: https://collie-pr-42.scottylabs.net", "html_url": "https://example.com/2" }
+        ])),
+    ]);
+    let output = server
+        .command(false)
+        .args(["kennel", "status", "42", "--json"])
+        .output()
+        .unwrap();
+    success(&output);
+    let report: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(report["liveHealthVerified"], false);
+    assert_eq!(report["comments"].as_array().unwrap().len(), 1);
+    let requests = server.finish();
+    assert_eq!(requests.len(), 4);
+    assert!(
+        requests[3].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments HTTP/1.1")
+    );
+}

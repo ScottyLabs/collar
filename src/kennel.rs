@@ -20,6 +20,11 @@ const DEPLOY: &str = "kennel/deploy";
 
 #[derive(Subcommand)]
 pub enum Command {
+    /// Retry a Kennel branch build through its verified Forgejo webhook.
+    #[command(
+        after_long_help = "Examples:\n  collar kennel retry\n  collar kennel retry staging\n  collar kennel retry dev --hook 12\n\nOmitting BRANCH selects the repository's default branch. Kennel push retries support main, staging, and dev. PR previews require a pull-request event and cannot be retried by Forgejo's push-test endpoint. Requires repository webhook administration permission. An accepted trigger is not proof of delivery or build start; never repeat an uncertain write automatically."
+    )]
+    Retry(retry::Args),
     /// Find preview links reported in marked Kennel PR comments.
     Preview {
         selector: Option<String>,
@@ -46,6 +51,7 @@ pub enum Command {
 
 pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
     match command {
+        Command::Retry(args) => retry::run(args, api, repo)?,
         Command::Preview { selector, output } => {
             output.validate_fields(&["number", "headRefOid", "comments", "currentness"])?;
             let pull = selected_pull(api, repo, selector.as_deref())?;
@@ -335,3 +341,4 @@ mod tests {
         );
     }
 }
+mod retry;

@@ -215,7 +215,7 @@ enum Command {
         #[command(subcommand)]
         command: GovernanceCommand,
     },
-    /// Inspect deployment reports from Forgejo.
+    /// Inspect Kennel deployment reports and retry branch builds.
     #[command(after_long_help = "Examples:\n  collar kennel preview 42\n  collar kennel wait 42")]
     Kennel {
         #[command(subcommand)]

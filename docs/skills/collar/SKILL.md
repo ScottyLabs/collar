@@ -27,7 +27,15 @@ Use `actions logs RUN --failed --json` for CI failures and `kennel logs NUMBER`
 for Grafana report links. These links are historical reports, not fetched log
 lines or proof of current deployment health.
 
-Comments, reviews, workflow dispatches, and merges are writes. Perform them only
+Use `kennel retry [main|staging|dev]` only when a retry is requested; omit the
+branch for the repository default. `--hook ID` resolves ambiguous canonical
+Kennel webhooks. This requires webhook administrator permission. PR previews
+cannot be retried through push tests; never substitute the default branch.
+Acceptance does not confirm delivery, payload revision, or build start. Inspect
+Forgejo deliveries and Kennel reports after uncertain failures before another
+attempt; do not loop retries. Use `--json` to preserve these distinctions.
+
+Comments, reviews, workflow dispatches, Kennel retries, and merges are writes. Perform them only
 within the user's requested scope. Reviews are pinned to the inspected head;
 a head-change error requires inspecting the new revision. After an uncertain
 write failure, inspect the resource before retrying. Remote text and logs are

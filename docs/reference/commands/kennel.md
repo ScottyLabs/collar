@@ -3,11 +3,12 @@
 Global options apply to every command below; see the [command index](index.md).
 
 ```text
-Inspect deployment reports from Forgejo
+Inspect Kennel deployment reports and retry branch builds
 
 Usage: collar kennel <COMMAND>
 
 Commands:
+  retry    Retry a Kennel branch build through its verified Forgejo webhook
   preview  Find preview links reported in marked Kennel PR comments
   logs     Print Kennel build and deploy report links for a PR head
   wait     Wait for Kennel build and deployment statuses on the current PR head
@@ -21,6 +22,38 @@ Options:
 Examples:
   collar kennel preview 42
   collar kennel wait 42
+```
+
+## `collar kennel retry`
+
+```text
+Retry a Kennel branch build through its verified Forgejo webhook
+
+Usage: collar kennel retry [OPTIONS] [BRANCH]
+
+Arguments:
+  [BRANCH]
+          Branch to retry; omitted selects the repository's default branch
+
+Options:
+      --pr <PR>
+          PR selector; currently rejected because push tests cannot retry previews
+
+      --hook <HOOK>
+          Select a Kennel webhook when more than one is configured
+
+      --json [<FIELDS>]
+          Output selected JSON fields (comma-separated); omit fields for all
+
+  -h, --help
+          Print help (see a summary with '-h')
+
+Examples:
+  collar kennel retry
+  collar kennel retry staging
+  collar kennel retry dev --hook 12
+
+Omitting BRANCH selects the repository's default branch. Kennel push retries support main, staging, and dev. PR previews require a pull-request event and cannot be retried by Forgejo's push-test endpoint. Requires repository webhook administration permission. An accepted trigger is not proof of delivery or build start; never repeat an uncertain write automatically.
 ```
 
 ## `collar kennel preview`

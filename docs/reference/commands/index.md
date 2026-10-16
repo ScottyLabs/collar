@@ -59,7 +59,7 @@ Commands:
   pr          Inspect and review pull requests
   api         Send a request to this forge's REST API
   governance  Discover declared ownership and service access without a clone
-  kennel      Inspect deployment reports from Forgejo
+  kennel      Inspect Kennel deployment reports and retry branch builds
   infra       Inspect canonical infrastructure and build pinned Nix configurations
   help        Print this message or the help of the given subcommand(s)
 

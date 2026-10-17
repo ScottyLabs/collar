@@ -41,7 +41,9 @@ statuses. Governance owns repository provisioning, membership, and features.
 ## Documentation
 
 User documentation lives in `docs/`. The governance `docs` feature publishes that
-directory through the ScottyLabs documentation hub. Preview the same content:
+directory at [docs.scottylabs.org/collar](https://docs.scottylabs.org/collar/).
+Governance manages the rebuild webhook; publication needs no Kennel site
+configuration in this repository. Preview the same content:
 
 ```sh
 docs

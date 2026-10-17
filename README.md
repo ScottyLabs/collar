@@ -20,11 +20,11 @@ To install the CLI from this checkout:
 nix profile add .#collar
 ```
 
-See [installation and first steps](docs/getting-started.md) for Cargo installation,
+See [installation and first steps](https://docs.scottylabs.org/collar/getting-started.html) for Cargo installation,
 authentication, and requirements.
 
 For coding agents, start with `collar skill install` and the
-[agent setup guide](docs/agents.md).
+[agent setup guide](https://docs.scottylabs.org/collar/agents.html).
 
 ## Everyday commands
 
@@ -43,13 +43,13 @@ private reads and writes; public reads work without it.
 
 ## Documentation
 
-- [User guide](docs/index.md)
-- [Command reference](docs/reference/commands/index.md), generated from CLI help
-- [Install the agent skill](docs/agents.md#install-the-skill)
+- [User guide](https://docs.scottylabs.org/collar/)
+- [Command reference](https://docs.scottylabs.org/collar/reference/commands/index.html), generated from CLI help
+- [Install the agent skill](https://docs.scottylabs.org/collar/agents.html#install-the-skill)
 - [Contributing](CONTRIBUTING.md)
 
 The [ScottyLabs documentation hub](https://docs.scottylabs.org) publishes the
-`docs/` directory when the repository's governance `docs` feature is enabled.
+`docs/` directory through the repository's enabled governance `docs` feature.
 All documentation source stays in this repository.
 
 ## License

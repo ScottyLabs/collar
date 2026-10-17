@@ -15,8 +15,13 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
             Response::json(json!({"page": 2, "total_count": 2, "truncated": false, "tree": [tree_entry("data/teams/collie.toml", team)]})),
             Response {status: 200, body: org, headers: String::new()},
             Response {status: 200, body: team.into(), headers: String::new()},
-            Response {status: 503, body: "never-print-server-secret".into(), headers: String::new()},
         ]);
+        responses.extend(source_head());
+        responses.push(Response {
+            status: 503,
+            body: "never-print-server-secret".into(),
+            headers: String::new(),
+        });
         responses
     });
     let run = |offline| {
@@ -29,7 +34,7 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
                 "view",
                 "collie-api",
                 "--json",
-                "slug,secretNamespace,dataSource",
+                "slug,secretNamespace,source,dataSource",
             ]);
         if offline {
             cmd.arg("--offline");
@@ -44,6 +49,16 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     assert_eq!(value["dataSource"]["revision"], SOURCE_REVISION);
     assert_eq!(value["dataSource"]["offline"], false);
     success(&run(true));
+    let source_file = std::path::Path::new(value["source"].as_str().unwrap());
+    // The fixture is stored at REVISION/data/teams/collie.toml.
+    let cache = source_file.ancestors().nth(4).unwrap();
+    let obsolete = cache.join("2".repeat(40));
+    std::fs::create_dir(&obsolete).unwrap();
+    std::fs::write(obsolete.join("old-content"), "obsolete").unwrap();
+    success(&run(false));
+    assert!(!obsolete.exists());
+    assert!(source_file.is_file());
+    std::fs::create_dir(&obsolete).unwrap();
     let foreign = command()
         .args(["--host", "other.example", "--cache-dir"])
         .arg(temp.path())
@@ -69,13 +84,14 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
 
     let failed = run(false);
     failure(&failed, "HTTP 503");
+    assert!(obsolete.is_dir(), "failed refresh must not run eviction");
     assert!(failed.stdout.is_empty());
     let cached = run(true);
     success(&cached);
     let value: Value = serde_json::from_slice(&cached.stdout).unwrap();
     assert_eq!(value["dataSource"]["offline"], true);
     let requests = server.finish();
-    assert_eq!(requests.len(), 7);
+    assert_eq!(requests.len(), 9);
     assert!(requests[2].contains("recursive=true&page=1&per_page=1000"));
     assert!(requests[3].contains("page=2"));
     for request in &requests[4..6] {

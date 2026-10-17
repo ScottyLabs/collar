@@ -108,3 +108,12 @@ its source in `dataSource`, including the revision and offline status.
 fails when that snapshot is missing or corrupt. A failed online refresh does not
 silently fall back to cached content. Local checkout overrides return their
 working-tree path and no canonical revision.
+
+A successful online refresh removes older revisions for that source and forge
+host, keeping the verified current snapshot for offline use. Each snapshot holds
+at most 32 MiB of file content, plus its manifest. Across the five source types,
+retained file content is limited to 160 MiB per host and cache root; a refresh
+can temporarily hold both the old and new snapshots. Failed refreshes keep the
+last usable snapshot. Commands sharing a source cache wait for the active
+reader to finish before refreshing or removing files. Cleanup ignores symlinks
+and unrelated entries; it does not manage Nix, Cargo, or sccache caches.

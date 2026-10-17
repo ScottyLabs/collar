@@ -1,7 +1,7 @@
 //! Fetches and verifies revision-pinned canonical sources, with explicit offline reads.
 
 use std::collections::BTreeSet;
-use std::fs;
+use std::fs::{self, File};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str;
@@ -18,6 +18,8 @@ use url::Url;
 use crate::client::{Api, host_url};
 use crate::config::Config;
 use crate::{auth, document};
+
+mod cache;
 
 #[derive(Clone, Copy, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
@@ -83,6 +85,8 @@ pub struct Source {
     pub directory: PathBuf,
     pub revision: Option<String>,
     info: Value,
+    // Protect the snapshot until the caller has finished reading it.
+    _cache_lock: Option<File>,
 }
 
 impl Source {
@@ -129,6 +133,7 @@ impl Sources<'_> {
     ) -> Result<Source> {
         if let Some(directory) = checkout {
             return Ok(Source {
+                _cache_lock: None,
                 info: json!({
                     "kind": "checkout",
                     "path": directory,
@@ -156,6 +161,12 @@ impl Sources<'_> {
             cache.push(str::from_utf8(part)?);
         }
         let cache = cache.join(kind.name());
+        let cache_lock = cache::lock(&cache, offline).with_context(|| {
+            format!(
+                "no readable cached {} snapshot; run without --offline to refresh",
+                kind.name()
+            )
+        })?;
         let revision = if offline {
             let revision = fs::read_to_string(cache.join("current")).with_context(|| {
                 format!(
@@ -189,9 +200,19 @@ impl Sources<'_> {
         valid_revision(&revision)?;
         let directory = cache.join(&revision);
         let manifest = validate_snapshot(&directory, kind, &revision, origin)?;
+        if !offline {
+            cache::evict(&cache, &revision)?;
+        }
         Ok(Source {
-            info: json!({"kind": "snapshot", "repository": format!("ScottyLabs/{}", kind.name()), "host": origin,
-            "revision": revision, "downloadedAt": manifest.downloaded_at, "offline": offline}),
+            _cache_lock: Some(cache_lock),
+            info: json!({
+                "kind": "snapshot",
+                "repository": format!("ScottyLabs/{}", kind.name()),
+                "host": origin,
+                "revision": revision,
+                "downloadedAt": manifest.downloaded_at,
+                "offline": offline,
+            }),
             directory,
             revision: Some(revision),
         })
@@ -278,7 +299,7 @@ struct Entry {
 }
 
 #[derive(Serialize, Deserialize)]
-struct File {
+struct ManifestFile {
     path: String,
     sha: String,
     size: u64,
@@ -290,7 +311,7 @@ struct Manifest {
     host: String,
     revision: String,
     downloaded_at: u64,
-    files: Vec<File>,
+    files: Vec<ManifestFile>,
 }
 
 fn download(api: &Api, kind: Kind, revision: &str, cache: &Path) -> Result<()> {
@@ -336,7 +357,7 @@ fn download(api: &Api, kind: Kind, revision: &str, cache: &Path) -> Result<()> {
                         && selected.len() < 500,
                     "source snapshot exceeds file or size bounds"
                 );
-                selected.push(File {
+                selected.push(ManifestFile {
                     path: entry.path,
                     sha: entry.sha,
                     size: entry.size,

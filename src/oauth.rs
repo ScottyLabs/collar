@@ -1,5 +1,6 @@
-//! Runs the credential helper with bounded output and parses its OAuth credential response.
+//! Handles browser sign-in through the credential helper and silent token refresh.
 
+#[cfg(test)]
 use std::ffi::OsStr;
 use std::io::{Read, Write};
 use std::process::{Command, Stdio};
@@ -28,17 +29,98 @@ pub fn browser_login_with_helper(
     refresh_token: Option<&str>,
     helper: &OsStr,
 ) -> Result<OAuthCredential> {
-    browser_login_inner(origin, refresh_token, helper)
+    // Read the fixture script through sh rather than executing a newly written inode.
+    // Concurrent child processes can briefly inherit its write descriptor.
+    let mut command = Command::new("sh");
+    command.arg(helper);
+    browser_login_inner(origin, refresh_token, command)
 }
 
 pub fn browser_login(origin: &Url, refresh_token: Option<&str>) -> Result<OAuthCredential> {
-    browser_login_inner(origin, refresh_token, OsStr::new("git-credential-oauth"))
+    browser_login_inner(origin, refresh_token, Command::new("git-credential-oauth"))
+}
+
+/// Refresh a Forgejo credential without opening a browser or retrying the exchange.
+pub fn refresh(origin: &Url, refresh_token: &str) -> Result<OAuthCredential> {
+    #[derive(serde::Deserialize)]
+    struct Response {
+        access_token: String,
+        refresh_token: Option<String>,
+        expires_in: u64,
+    }
+
+    // Forgejo's pre-registered git-credential-oauth public client.
+    const CLIENT_ID: &str = "a4792ccc-144e-407e-86c9-5e7d8d9c3269";
+    ensure!(
+        (origin.scheme() == "https" || is_loopback(origin))
+            && origin.username().is_empty()
+            && origin.password().is_none()
+            && origin.path() == "/"
+            && origin.query().is_none()
+            && origin.fragment().is_none(),
+        "OAuth refresh requires a secure forge origin"
+    );
+    let client = reqwest::blocking::Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .build()
+        .context("create OAuth refresh client")?;
+    let body = url::form_urlencoded::Serializer::new(String::new())
+        .extend_pairs([
+            ("grant_type", "refresh_token"),
+            ("client_id", CLIENT_ID),
+            ("refresh_token", refresh_token),
+        ])
+        .finish();
+    let response = client
+        .post(origin.join("login/oauth/access_token")?)
+        .header(
+            reqwest::header::CONTENT_TYPE,
+            "application/x-www-form-urlencoded",
+        )
+        .body(body)
+        .send()
+        .context("OAuth refresh could not be confirmed; run collar auth login --web")?;
+    ensure!(
+        response.status().is_success(),
+        "OAuth refresh failed (HTTP {}); run collar auth login --web",
+        response.status().as_u16()
+    );
+    let value: Response = response.json().map_err(|_| {
+        anyhow::anyhow!("invalid OAuth refresh response; run collar auth login --web")
+    })?;
+    ensure!(
+        !value.access_token.trim().is_empty()
+            && !value.access_token.contains(['\r', '\n'])
+            && value.expires_in > 0
+            && value
+                .refresh_token
+                .as_ref()
+                .is_none_or(|token| { !token.trim().is_empty() && !token.contains(['\r', '\n']) }),
+        "invalid OAuth refresh credential; run collar auth login --web"
+    );
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .context("system clock is before Unix epoch")?
+        .as_secs();
+    Ok(OAuthCredential {
+        access_token: value.access_token,
+        refresh_token: value
+            .refresh_token
+            .or_else(|| Some(refresh_token.to_owned())),
+        expires_at: Some(
+            now.checked_add(value.expires_in)
+                .context("invalid OAuth expiry")?,
+        ),
+    })
 }
 
 fn browser_login_inner(
     origin: &Url,
     refresh_token: Option<&str>,
-    helper: &OsStr,
+    mut command: Command,
 ) -> Result<OAuthCredential> {
     ensure!(
         origin.username().is_empty()
@@ -76,7 +158,7 @@ fn browser_login_inner(
         );
     }
     let git_config = tempfile::tempdir().context("isolate OAuth helper Git configuration")?;
-    let mut child = Command::new(helper)
+    let mut child = command
         .arg("get")
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())

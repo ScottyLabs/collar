@@ -4,15 +4,12 @@ mod helper;
 
 #[cfg(unix)]
 mod unix {
-    use std::os::unix::fs::PermissionsExt;
-
     use tempfile::TempDir;
     use url::Url;
 
     fn helper(temp: &TempDir, script: &str) -> std::path::PathBuf {
         let path = temp.path().join("mock-oauth-helper");
         std::fs::write(&path, format!("#!/bin/sh\n{script}\n")).unwrap();
-        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o700)).unwrap();
         path
     }
 
@@ -90,5 +87,50 @@ mod unix {
             .to_string();
         assert!(error.contains("require HTTPS"));
         assert!(!marker.exists());
+    }
+}
+
+#[test]
+fn refresh_rotates_credentials_without_browser_or_api_write_replay() {
+    use super::*;
+    for rotated in [None, Some("rotated-refresh")] {
+        let server = Server::new(vec![Response::json(json!({
+            "access_token": "new-access",
+            "refresh_token": rotated,
+            "expires_in": 3600,
+        }))]);
+        let credential =
+            helper::refresh(&url::Url::parse(&server.origin).unwrap(), "old-refresh").unwrap();
+        assert_eq!(credential.access_token, "new-access");
+        assert_eq!(
+            credential.refresh_token.as_deref(),
+            Some(rotated.unwrap_or("old-refresh"))
+        );
+        assert!(credential.expires_at.is_some());
+        let requests = server.finish();
+        assert_eq!(requests.len(), 1);
+        assert!(requests[0].starts_with("POST /login/oauth/access_token "));
+        assert!(requests[0].contains("grant_type=refresh_token"));
+        assert!(requests[0].contains("refresh_token=old-refresh"));
+    }
+}
+
+#[test]
+fn refresh_failures_are_redacted_and_not_retried() {
+    use super::*;
+    for status in [400, 500] {
+        let server = Server::new(vec![Response {
+            status,
+            body: "secret-error-body".into(),
+            headers: String::new(),
+        }]);
+        let error = helper::refresh(&url::Url::parse(&server.origin).unwrap(), "refresh-secret")
+            .err()
+            .unwrap()
+            .to_string();
+        assert!(error.contains("auth login --web"));
+        assert!(!error.contains("secret-error-body"));
+        assert!(!error.contains("refresh-secret"));
+        assert_eq!(server.finish().len(), 1);
     }
 }

@@ -39,7 +39,7 @@ Options:
           Use a hidden personal-access-token prompt instead of browser SSO
 
       --web
-          Use browser SSO explicitly (the default login method)
+          Open browser sign-in instead of refreshing the saved session
 
   -h, --help
           Print help (see a summary with '-h')

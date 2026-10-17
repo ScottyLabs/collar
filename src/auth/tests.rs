@@ -97,7 +97,7 @@ fn saved_token_skips_unregistered_hosts_and_errors_for_missing_credentials() {
 }
 
 #[test]
-fn oauth_bundle_round_trips_refresh_token_and_rejects_expired_access() {
+fn oauth_bundle_round_trips_refresh_token_and_rejects_expiry_without_refresh() {
     let temp = tempfile::tempdir().unwrap();
     let origin = origin("forge.example");
     let mut config = config(temp.path().join("config.toml"));
@@ -120,8 +120,16 @@ fn oauth_bundle_round_trips_refresh_token_and_rejects_expired_access() {
             .as_deref(),
         Some("refresh-secret")
     );
+    let bundle = OAuthBundle {
+        refresh_token: None,
+        ..bundle
+    };
+    store
+        .credentials
+        .borrow_mut()
+        .insert(origin.to_string(), encode_oauth(&bundle).unwrap());
     let error = saved_token(&origin, &config, &store)
-        .expect_err("expired access token is rejected")
+        .expect_err("expired access token without refresh is rejected")
         .to_string();
     assert!(error.contains("run collar auth login"));
     assert!(!error.contains("access-secret"));
@@ -194,4 +202,57 @@ fn rollback_failure_preserves_metadata_error_and_recovery_guidance() {
     assert!(message.contains("could not save login metadata"));
     assert!(message.contains("credential rollback also failed"));
     assert!(message.contains("run auth logout for this host"));
+}
+
+#[test]
+fn expired_oauth_is_refreshed_once_and_rotated_credentials_are_saved() {
+    use std::io::{Read, Write};
+    use std::net::TcpListener;
+
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let origin = Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
+    let server = std::thread::spawn(move || {
+        let (mut stream, _) = listener.accept().unwrap();
+        stream
+            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
+            .unwrap();
+        let mut request = [0; 4096];
+        let _ = stream.read(&mut request).unwrap();
+        let body =
+            r#"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}"#;
+        write!(
+            stream,
+            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        )
+        .unwrap();
+    });
+    let temp = tempfile::tempdir().unwrap();
+    let mut config = config(temp.path().join("config.toml"));
+    let store = FakeStore::default();
+    let expired = OAuthBundle {
+        access_token: "old-access".into(),
+        refresh_token: Some("old-refresh".into()),
+        expires_at: Some(1),
+    };
+    store
+        .set(&origin, &encode_oauth(&expired).unwrap())
+        .unwrap();
+    config.set_login(&origin, true).unwrap();
+    assert_eq!(
+        saved_token(&origin, &config, &store).unwrap().as_deref(),
+        Some("new-access")
+    );
+    server.join().unwrap();
+    // The listener is now closed: this read must reuse the unexpired token.
+    assert_eq!(
+        saved_token(&origin, &config, &store).unwrap().as_deref(),
+        Some("new-access")
+    );
+    assert_eq!(
+        saved_refresh_token(&origin, &config, &store)
+            .unwrap()
+            .as_deref(),
+        Some("new-refresh")
+    );
 }

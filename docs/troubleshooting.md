@@ -22,9 +22,11 @@ its callback.
 
 ## A saved credential has expired
 
-Run `collar auth login` again, then `collar auth status`. Other commands do not
-start login automatically. For an environment token, update the runner's secret
-and check the host binding.
+Ordinary commands refresh an expired OAuth access token silently using the saved
+refresh token. You do not need to run `auth login` after restarting your computer.
+If the refresh token has expired or been revoked, run `collar auth login --web`,
+then `collar auth status`. Commands never open a browser automatically. For an
+environment token, update the runner's secret and check the host binding.
 
 ## Repository or host selection fails
 

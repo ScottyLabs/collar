@@ -1,7 +1,7 @@
 use std::io::Read;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use url::Url;
@@ -78,11 +78,22 @@ fn saved_token(
         .context("saved forge credential is missing; run collar auth login again")?;
     match decode_credential(&stored)? {
         StoredCredential::Token(token) => Ok(Some(token)),
-        StoredCredential::OAuth(bundle) => {
+        StoredCredential::OAuth(mut bundle) => {
             if let Some(expires_at) = bundle.expires_at
                 && expires_at <= unix_time()?
             {
-                bail!("saved OAuth access token expired; run collar auth login to refresh it");
+                let refresh = bundle.refresh_token.as_deref().context(
+                    "saved OAuth access token expired without a refresh token; run collar auth login --web",
+                )?;
+                let credential = crate::oauth::refresh(origin, refresh)?;
+                bundle = OAuthBundle {
+                    access_token: credential.access_token,
+                    refresh_token: credential.refresh_token,
+                    expires_at: credential.expires_at,
+                };
+                store
+                    .set(origin, &encode_oauth(&bundle)?)
+                    .context("could not save refreshed credential; run collar auth login --web")?;
             }
             Ok(Some(bundle.access_token))
         }
@@ -233,7 +244,11 @@ pub fn login(
                 "browser sign-in requires a terminal; pass --web to explicitly start it or use --with-token for token input",
             )?;
         }
-        let previous_refresh = saved_refresh_token(&origin, config, &OsStore)?;
+        let previous_refresh = if web {
+            None
+        } else {
+            saved_refresh_token(&origin, config, &OsStore)?
+        };
         let mut credential = crate::oauth::browser_login(&origin, previous_refresh.as_deref())?;
         if credential.refresh_token.is_none() {
             credential.refresh_token = previous_refresh;

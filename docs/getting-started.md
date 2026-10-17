@@ -57,8 +57,11 @@ collar auth login
 collar auth status
 ```
 
-Login opens the Forgejo sign-in page in your browser. Choose university SSO
-there. Collar verifies the credential and saves it in your operating system's
+The first login opens Forgejo in your browser. Choose university SSO there.
+Ordinary commands silently refresh expired OAuth access tokens using the saved
+refresh token. `auth login` can also refresh an existing session without opening
+a browser. Use `collar auth login --web` to start a fresh browser sign-in; an
+existing Forgejo or university browser session may sign you in automatically. Collar verifies the credential and saves it in your operating system's
 credential store. Browser login runs on the same machine as the browser.
 
 SSH authenticates Git clone, fetch, and push. PR reviews and other API writes

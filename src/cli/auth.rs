@@ -17,7 +17,7 @@ pub(super) enum AuthCommand {
         /// Use a hidden personal-access-token prompt instead of browser SSO.
         #[arg(long, conflicts_with_all = ["with_token", "web"])]
         token: bool,
-        /// Use browser SSO explicitly (the default login method).
+        /// Open browser sign-in instead of refreshing the saved session.
         #[arg(long, conflicts_with_all = ["with_token", "token"])]
         web: bool,
     },

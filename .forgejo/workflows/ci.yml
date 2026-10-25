@@ -6,15 +6,20 @@ on:
 
 jobs:
   check:
-    uses: ScottyLabs/kennel/.forgejo/workflows/ci.yml@main
-    enable-openid-connect: true
-    with:
-      build: false
-      secretspec-profile: dev
+    runs-on: native
+    env:
+      SECRETSPEC_PROFILE: dev
+    steps:
+      - uses: https://code.forgejo.org/actions/checkout@v7
+      # Match flake.lock; Kennel main now requires the flake-parts CI interface.
+      - uses: https://git.cmu.dev/ScottyLabs/kennel/.forgejo/actions/prepare@bce28b707f144b30548f683e6052fc598c022e4b
+      - name: Run checks
+        run: devenv shell -- prek run --all-files
+      - name: Run security scans
+        run: devenv tasks run security
   package:
     runs-on: native
     steps:
       - uses: https://code.forgejo.org/actions/checkout@v7
-      - uses: https://git.cmu.dev/ScottyLabs/kennel/.forgejo/actions/prepare@main
       - name: Build CLI and documentation
         run: nix build .#collar .#docs

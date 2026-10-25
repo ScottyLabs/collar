@@ -1,0 +1,14 @@
+# keyring 4.2's Linux Secret Service backend still requires zbus 5. These
+# informational advisories concern crates merged into zbus 6, not known
+# vulnerabilities. Remove the exceptions when the backend migrates to zbus 6.
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0370"
+reason = "Unmaintained zvariant is required by keyring's zbus 5 backend."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0371"
+reason = "Unmaintained zbus_names is required by keyring's zbus 5 backend."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2026-0372"
+reason = "Unmaintained zvariant_derive is required by keyring's zbus 5 backend."

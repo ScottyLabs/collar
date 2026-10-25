@@ -91,7 +91,6 @@ There is no plaintext fallback when the OS store is unavailable.
 | `COLLAR_CONFIG` | Alternate settings file |
 | `COLLAR_CACHE_DIR` | Canonical source cache directory |
 | `COLLAR_GOVERNANCE` | Optional local governance inspection override |
-| `COLLAR_INFRASTRUCTURE` | Optional local infrastructure inspection override |
 | `SECRETSPEC_PROFILE` | Profile for development and secret commands |
 | `SECRETSPEC_PROVIDER` | Provider selection for development and secret commands |
 | `SECRETSPEC_REASON` | Access reason forwarded to the underlying tool |

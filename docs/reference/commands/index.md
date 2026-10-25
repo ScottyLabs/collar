@@ -27,7 +27,6 @@ listed here and apply to every subcommand.
 - [`collar api`](api.md)
 - [`collar governance`](governance.md)
 - [`collar kennel`](kennel.md)
-- [`collar infra`](infra.md)
 
 ## Global options
 
@@ -60,7 +59,6 @@ Commands:
   api         Send a request to this forge's REST API
   governance  Discover declared ownership and service access without a clone
   kennel      Inspect Kennel deployment reports and retry branch builds
-  infra       Inspect canonical infrastructure and build pinned Nix configurations
   help        Print this message or the help of the given subcommand(s)
 
 Options:

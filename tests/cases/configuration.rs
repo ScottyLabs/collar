@@ -157,32 +157,10 @@ fn inferred_remote_overrides_saved_host_without_receiving_its_token() {
 }
 
 #[test]
-fn explicit_checkouts_and_host_environment_are_respected() {
+fn host_environment_is_respected() {
     let temp = TempDir::new().unwrap();
     let path = temp.path().join("config.toml");
     std::fs::write(&path, "host = 'saved.example'\n").unwrap();
-    let checkout = temp.path().join("infra");
-    std::fs::create_dir_all(checkout.join("modules/hosts/test")).unwrap();
-    std::fs::create_dir_all(checkout.join("modules/roles")).unwrap();
-    std::fs::write(checkout.join("modules/hosts/test/configuration.nix"), "{}").unwrap();
-    std::fs::write(checkout.join("modules/roles/test.nix"), "{}").unwrap();
-    let output = isolated_command()
-        .env("COLLAR_CONFIG", &path)
-        .env("COLLAR_INFRASTRUCTURE", &checkout)
-        .args(["infra", "hosts", "--json", "name"])
-        .output()
-        .unwrap();
-    success(&output);
-    let output = isolated_command()
-        .arg("--config")
-        .arg(&path)
-        .env("COLLAR_INFRASTRUCTURE", "missing")
-        .args(["infra", "hosts", "--checkout"])
-        .arg(&checkout)
-        .args(["--json", "name"])
-        .output()
-        .unwrap();
-    success(&output);
     let server = Server::new(vec![Response::json(json!({"version": "test"}))]);
     let output = isolated_command()
         .arg("--config")
@@ -203,7 +181,7 @@ fn explicit_checkouts_and_host_environment_are_respected() {
         .arg("--config")
         .arg(&path)
         .args(["config", "set", "governance"])
-        .arg(&checkout)
+        .arg(temp.path())
         .output()
         .unwrap();
     failure(&output, "invalid value 'governance'");

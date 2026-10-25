@@ -1,7 +1,6 @@
 mod api;
 mod auth;
 mod completion;
-mod infrastructure;
 mod input;
 mod kennel;
 mod pr_args;
@@ -17,7 +16,6 @@ use clap::{Parser, Subcommand};
 use self::api::ApiArgs;
 use self::auth::AuthCommand;
 use self::completion::CompletionShell;
-use self::infrastructure::InfraCommand;
 use self::kennel::KennelCommand;
 use self::pr_args::PrCommand;
 use self::projects::{ContextCommand, GovernanceCommand};
@@ -221,12 +219,6 @@ enum Command {
         #[command(subcommand)]
         command: KennelCommand,
     },
-    /// Inspect canonical infrastructure and build pinned Nix configurations.
-    #[command(after_long_help = "Examples:\n  collar infra hosts\n  collar infra service kennel")]
-    Infra {
-        #[command(subcommand)]
-        command: InfraCommand,
-    },
 }
 
 pub fn run(cli: Cli) -> Result<()> {
@@ -307,7 +299,6 @@ pub fn run(cli: Cli) -> Result<()> {
         Command::Governance { command } => {
             projects::run_governance(command, &sources, cli.repo.as_deref(), cli.host.as_deref())
         }
-        Command::Infra { command } => infrastructure::run(command, &sources),
         Command::Repo { command } => {
             repositories::run(command, &config, cli.repo.as_deref(), cli.host.as_deref())
         }

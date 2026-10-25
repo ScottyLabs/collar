@@ -14,7 +14,7 @@ use crate::config::Config;
 use crate::output::Output;
 use crate::repo::Repo;
 use crate::source::{Kind, Source, Sources};
-use crate::{auth, infra, pr, process, project, repo};
+use crate::{auth, pr, process, project, repo};
 
 const LOGIN: &str = "nix run git+https://git.cmu.dev/ScottyLabs/kennel#login";
 const ACCOUNTS: &str =
@@ -27,8 +27,6 @@ pub struct Args {
     offline: bool,
     #[arg(long, env = "COLLAR_GOVERNANCE")]
     governance: Option<PathBuf>,
-    #[arg(long, env = "COLLAR_INFRASTRUCTURE")]
-    infrastructure: Option<PathBuf>,
     /// Secretspec profile to inspect without reading its secret values.
     #[arg(long, default_value = "dev")]
     profile: String,
@@ -185,33 +183,6 @@ fn check_governance(
         );
     }
     context
-}
-
-fn check_infrastructure(checks: &mut Vec<Check>, infrastructure: Result<Source>) {
-    let action =
-        "Refresh the canonical infrastructure snapshot online or provide --infrastructure PATH.";
-    match infrastructure {
-        Ok(source) => {
-            record(
-                checks,
-                "infrastructure",
-                infra::hosts(&source.directory).map(|hosts| {
-                    format!(
-                        "{} host source configurations; evaluation and health are not verified",
-                        hosts.len()
-                    )
-                }),
-                action,
-            );
-            check_revision(
-                checks,
-                &source,
-                "infrastructure-revision",
-                "Inspect local changes and fetch/rebase the infrastructure checkout; doctor never updates it.",
-            );
-        }
-        Err(error) => record(checks, "infrastructure", Err(error), action),
-    }
 }
 
 fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
@@ -383,10 +354,6 @@ pub fn run(
             "requires a local project checkout and resolved governance namespace",
         );
     }
-    check_infrastructure(
-        &mut checks,
-        sources.load(Kind::Infrastructure, args.infrastructure, args.offline),
-    );
     checks.push(Check {
         name: "linked-accounts".into(),
         status: Status::Manual,

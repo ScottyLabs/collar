@@ -14,9 +14,6 @@ Options:
       --governance <GOVERNANCE>
           [env: COLLAR_GOVERNANCE]
 
-      --infrastructure <INFRASTRUCTURE>
-          [env: COLLAR_INFRASTRUCTURE]
-
       --profile <PROFILE>
           Secretspec profile to inspect without reading its secret values
 

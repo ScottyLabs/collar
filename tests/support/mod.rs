@@ -41,8 +41,7 @@ pub(crate) fn isolated_command() -> Command {
         .env_remove("COLLAR_CONFIG")
         .env_remove("COLLAR_HOST")
         .env_remove("COLLAR_TOKEN")
-        .env_remove("COLLAR_GOVERNANCE")
-        .env_remove("COLLAR_INFRASTRUCTURE");
+        .env_remove("COLLAR_GOVERNANCE");
     command
 }
 
@@ -201,7 +200,6 @@ pub(crate) fn doctor_fixture(temp: &std::path::Path) -> (std::path::PathBuf, std
     }
     let project = temp.join("project");
     let governance = temp.join("governance");
-    let infrastructure = temp.join("infrastructure");
     std::fs::create_dir(&project).unwrap();
     for file in ["devenv.nix", "devenv.yaml", "flake.nix"] {
         std::fs::write(project.join(file), "{}").unwrap();
@@ -212,15 +210,7 @@ pub(crate) fn doctor_fixture(temp: &std::path::Path) -> (std::path::PathBuf, std
     )
     .unwrap();
     project_governance(&governance);
-    std::fs::create_dir_all(infrastructure.join("modules/hosts/test")).unwrap();
-    std::fs::create_dir_all(infrastructure.join("modules/roles")).unwrap();
-    std::fs::write(
-        infrastructure.join("modules/hosts/test/configuration.nix"),
-        "{}",
-    )
-    .unwrap();
-    std::fs::write(infrastructure.join("modules/roles/test.nix"), "{}").unwrap();
-    for checkout in [&project, &governance, &infrastructure] {
+    for checkout in [&project, &governance] {
         for args in [
             vec!["init", "--quiet", "--initial-branch=main"],
             vec!["config", "core.hooksPath", "/dev/null"],
@@ -261,8 +251,6 @@ pub(crate) fn doctor_command(
         .env("COLLAR_TEST_LOG", temp.join("commands.log"))
         .arg("--governance")
         .arg(temp.join("governance"))
-        .arg("--infrastructure")
-        .arg(temp.join("infrastructure"))
         .current_dir(project);
     command
 }

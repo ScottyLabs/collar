@@ -33,7 +33,6 @@
   - [Kennel](reference/commands/kennel.md)
   - [Projects](reference/commands/project.md)
   - [Governance](reference/commands/governance.md)
-  - [Infrastructure](reference/commands/infra.md)
   - [Documentation](reference/commands/docs.md)
   - [Changelog](reference/commands/changelog.md)
   - [Development](reference/commands/dev.md)

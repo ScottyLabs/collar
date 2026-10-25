@@ -129,46 +129,6 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
 }
 
 #[test]
-fn canonical_infrastructure_snapshots_expose_source_inventory_without_git() {
-    let temp = TempDir::new().unwrap();
-    let files = [
-        ("flake.nix", "{}"),
-        ("modules/hosts/infra/configuration.nix", "{}"),
-        ("modules/hosts/infra/kennel.nix", "{}"),
-        ("modules/roles/infra.nix", "{}"),
-    ];
-    let mut responses = source_head();
-    responses.push(Response::json(json!({"page": 1, "total_count": files.len(), "truncated": false, "tree": files.iter().map(|(path, content)| tree_entry(path,content)).collect::<Vec<_>>()})));
-    responses.extend(files.iter().map(|(_, content)| Response {
-        status: 200,
-        body: (*content).into(),
-        headers: String::new(),
-    }));
-    let server = Server::new(responses);
-    let output = command()
-        .args(["--host", &server.origin, "--cache-dir"])
-        .arg(temp.path())
-        .args(["infra", "service", "kennel", "--json", "host,dataSource"])
-        .output()
-        .unwrap();
-    success(&output);
-    let value: Value = serde_json::from_slice(&output.stdout).unwrap();
-    assert_eq!(value[0]["host"], "infra");
-    assert_eq!(
-        value[0]["dataSource"]["repository"],
-        "ScottyLabs/infrastructure"
-    );
-    let output = command()
-        .args(["--host", &server.origin, "--cache-dir"])
-        .arg(temp.path())
-        .args(["infra", "hosts", "--offline", "--json", "name,dataSource"])
-        .output()
-        .unwrap();
-    success(&output);
-    assert_eq!(server.finish().len(), 7);
-}
-
-#[test]
 fn source_snapshots_reject_unsafe_incomplete_and_symlink_trees_before_raw_reads() {
     for (entry, total, message) in [
         (

@@ -27,34 +27,6 @@ fn governance_uses_nested_project_namespace_and_inherited_leads() {
 }
 
 #[test]
-fn infrastructure_discovers_configurations_and_refuses_missing_services() {
-    let checkout = TempDir::new().unwrap();
-    let host = checkout.path().join("modules/hosts/deploy-01");
-    std::fs::create_dir_all(&host).unwrap();
-    std::fs::create_dir_all(checkout.path().join("modules/roles")).unwrap();
-    std::fs::write(host.join("configuration.nix"), "{}").unwrap();
-    std::fs::write(host.join("kennel.nix"), "{}").unwrap();
-    std::fs::write(checkout.path().join("modules/roles/deploy-01.nix"), "{}").unwrap();
-    let output = command()
-        .args(["infra", "service", "kennel", "--checkout"])
-        .arg(checkout.path())
-        .args(["--json", "host"])
-        .output()
-        .unwrap();
-    success(&output);
-    assert_eq!(
-        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
-        json!([{ "host": "deploy-01" }])
-    );
-    let output = command()
-        .args(["infra", "service", "missing", "--checkout"])
-        .arg(checkout.path())
-        .output()
-        .unwrap();
-    failure(&output, "no host configuration");
-}
-
-#[test]
 fn project_context_uses_canonical_ownership_and_repository_specific_features() {
     let temp = TempDir::new().unwrap();
     project_governance(temp.path());

@@ -22,8 +22,6 @@ mod document;
 mod environment;
 mod governance;
 mod governance_ops;
-mod infra;
-mod infra_ops;
 mod issues;
 mod kennel;
 mod oauth;

@@ -33,9 +33,6 @@ mod checkout;
 mod auth;
 
 #[cfg(unix)]
-#[path = "cases/infra_ops.rs"]
-mod infra_ops;
-
 #[cfg(unix)]
 #[path = "cases/governance_ops.rs"]
 mod governance_ops;

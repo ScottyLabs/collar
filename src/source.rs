@@ -51,6 +51,7 @@ impl Kind {
                 path == "README.md"
                     || (path.starts_with("sites/docs/src/") && path.ends_with(".md"))
             }
+            Self::Infrastructure => path.starts_with("docs/src/") && path.ends_with(".md"),
             Self::Changelog => {
                 matches!(path, "kennel.md" | "governance.md" | "infrastructure.md")
                     || path
@@ -63,13 +64,6 @@ impl Kind {
                     || path
                         .strip_prefix("data/teams/")
                         .is_some_and(|name| !name.contains('/') && name.ends_with(".toml"))
-            }
-            Self::Infrastructure => {
-                path == "flake.nix"
-                    || (path.starts_with("docs/src/") && path.ends_with(".md"))
-                    || (path.ends_with(".nix")
-                        && (path.starts_with("modules/hosts/")
-                            || path.starts_with("modules/roles/")))
             }
         }
     }
@@ -491,13 +485,7 @@ fn validate_snapshot(
             );
             crate::governance::projects(directory)?;
         }
-        Kind::Infrastructure => {
-            ensure!(
-                directory.join("flake.nix").is_file(),
-                "infrastructure snapshot is missing flake.nix"
-            );
-            crate::infra::hosts(directory)?;
-        }
+        Kind::Infrastructure => {}
         Kind::Changelog => {
             for name in ["kennel.md", "governance.md", "infrastructure.md"] {
                 ensure!(

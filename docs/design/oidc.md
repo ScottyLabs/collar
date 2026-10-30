@@ -5,11 +5,11 @@
 ## Overview
 
 Extend `collar auth login` to authenticate with Forgejo and Grafana. Use a public
-Keycloak client for Grafana and retain `git-credential-oauth` for Forgejo. Store
-separate credentials for each service.
+Keycloak client for Grafana. Forgejo can use direct OAuth or Keycloak broker
+retrieval as described below. Store separate credentials for each service.
 
-This lets Collar read deployment logs through Grafana without adding a Kennel
-API. Current builds run through nixbot; build-log access is separate work.
+Read deployment logs through Grafana; no Kennel API is needed. Builds run
+through nixbot and are outside this proposal.
 
 ## Authentication flow
 
@@ -19,35 +19,64 @@ API. Current builds run through nixbot; build-log access is separate work.
 1. Keycloak returns a code to `http://127.0.0.1:<port>/callback`. Collar validates
    state, exchanges the code, checks Grafana access with `GET /api/user`, and
    saves the access and refresh tokens.
-1. If Forgejo login is needed, Collar starts its existing OAuth flow. Forgejo's
-   linked Keycloak login should reuse the browser session, avoiding another
-   credential entry. The user may still need to approve Collar's access in
-   Forgejo on first use: Keycloak sign-in does not grant Forgejo OAuth consent.
-   Verify session reuse after deployment.
-1. Collar reports status for both services. A failure for one service does not
-   discard the other's credentials.
+1. Obtain the Forgejo credential using either option below.
+1. Report status for both services. A failure for one does not discard the
+   other's credentials.
 
-One login command can involve two browser flows. Implementing Forgejo OAuth
-directly in Collar instead of using `git-credential-oauth` would not remove the
-consent step.
+## Forgejo authentication options
+
+### Direct OAuth
+
+Retain `git-credential-oauth`. Forgejo requires approval for every fresh
+public-client authorization, including on a new machine. Saved refresh tokens
+avoid repeating it on the same machine. This needs no additional service.
+
+### Keycloak broker
+
+Infrastructure already declares a confidential Forgejo connector, `cmu-dev`,
+with stored tokens. Link and approve Forgejo once through Keycloak; later Collar
+logins can retrieve its token across machines. Revoked grants require relinking.
+
+Infrastructure pins Keycloak 26.8.1; verify the running version.
+Its [V1 API](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/services/resources/IdentityBrokerService.java)
+accepts public clients with `broker/read-token`, but that role also exposes the
+user's other linked providers' stored tokens. Do not grant it to Collar.
+[V1 is deprecated; V2 requires confidential clients](https://www.keycloak.org/docs/latest/server_development/#retrieving-external-idp-tokens).
+
+For V2, infrastructure must:
+
+- Enable `identity-brokering-api:v2` and provision a confidential `collar-broker`
+  client. Enable external-token retrieval with an allowlist containing only
+  `cmu-dev`; keep its secret server-side.
+- Provide an authenticated token relay. Add `collar-broker` to Collar's token
+  audience. The relay submits that user token as the `token` form field to
+  `POST /realms/scottylabs/broker/cmu-dev/token`, authenticating as `collar-broker`.
+  Return only the Forgejo access token and expiry to Collar.
+- Keep refresh tokens in Keycloak. Fix or upgrade V2 stored-token refresh before
+  rollout: [26.8.1's V2 path](https://github.com/keycloak/keycloak/blob/26.8.1/services/src/main/java/org/keycloak/broker/oidc/AbstractOAuth2IdentityProvider.java)
+  returns the stored access token without V1's refresh handling. Test expired
+  access tokens and rotated refresh tokens. Missing/revoked grants require
+  explicit relinking.
+
+The relay must validate the user token, accept only client `collar`, and expose
+only `cmu-dev`. This option avoids per-machine consent but adds a server component
+and requires working V2 refresh. Neither option is selected yet.
 
 ## Governance
 
 Register Collar under DevOps and enable `oidc_client.public`. Extend
 [`OidcClientFeature`](https://git.cmu.dev/ScottyLabs/governance/src/branch/main/crates/governance-schema/src/team.rs)
-with optional `redirect_uris` and `audiences` lists. Keep existing defaults when
-omitted; update the generator, schema, tests, and feature documentation.
+with optional `redirect_uris` and `audiences` lists, preserving defaults. Update
+the generator, schema, tests, and documentation.
 
 For Collar, override the shared web callback with `http://127.0.0.1/callback`.
 The CLI binds an available loopback port before opening the browser. Keycloak
 [matches loopback callbacks independently of the port](https://github.com/keycloak/keycloak/blob/main/services/src/main/java/org/keycloak/protocol/oidc/utils/RedirectUtils.java).
-Use client ID `collar` for the installed CLI; staging/dev clients are not needed
-for normal use.
+Use client ID `collar` for the installed CLI.
 
-Set `audiences: [grafana]`. Generate an audience mapper on the client that adds
-`grafana` to access tokens only. Retain the existing full-path `groups` mapper
-and include `sub`, `email`, and `preferred_username`. Use normal Keycloak refresh
-sessions, without requesting offline access or changing realm session limits.
+Add `grafana` to access-token audiences; include `collar-broker` for the broker
+option. Retain full-path `groups`, `sub`, `email`, and `preferred_username`. Use
+normal refresh sessions without offline access or realm timeout changes.
 
 ## Infrastructure
 
@@ -66,24 +95,21 @@ enable JWT authentication with:
 Copy the existing role expression: `/projects/devops/admins` maps to
 `GrafanaAdmin`; everyone else gets `Viewer`. Set browser OAuth's
 `login_attribute_path` to `email` as well, making the existing email fallback
-explicit. Verify both methods resolve to the same account before rollout.
+explicit. Verify both methods use the same account.
 [Grafana JWT authentication](https://grafana.com/docs/grafana/latest/setup-grafana/configure-access/configure-authentication/jwt/)
 validates tokens; Collar handles refresh and sends the raw access token in the
 configured header. Keep browser OAuth, its client, and existing status links.
-No Forgejo configuration change is required.
 
 ## Collar and Kennel
 
-Implement the Keycloak flow with state validation, PKCE, and a five-minute
-callback timeout. Store credentials in the OS credential store by service,
-issuer, and client. Refresh before expiry; require explicit login when refresh
-fails. Extend status/logout to both services, revoking the Keycloak refresh
-session on logout. Preserve Forgejo token input and headless authentication.
+Use a five-minute callback timeout. Store credentials in the OS credential store
+by service, issuer, and client. Extend status/logout to both services; revoke
+Collar's Keycloak session on logout, leaving shared account links intact. Preserve
+Forgejo token input and headless authentication. Refresh failures require login.
 
-For logs, read the current commit's `kennel/deploy` status. Its Grafana URL
-already carries `project`, `branch`, and full `commit` filters. Validate these
-against the selected revision and configured Grafana origin; never infer the
-project from the repository name. Kennel needs no report changes.
+Read `project`, `branch`, and full `commit` from the current `kennel/deploy`
+status URL. Validate the revision and Grafana origin; never infer the project
+from the repository name. Kennel needs no report changes.
 
 Query `GET /api/datasources/proxy/uid/loki/loki/api/v1/query_range` on Grafana.
 Use `{project="..."} | branch="..." | commit="..."`, escaping filter values.
@@ -96,9 +122,10 @@ Project-level isolation would require server-side authorization.
 
 ## Implementation
 
-1. Merge governance support and provision the client, then deploy Grafana JWT
-   authentication.
+1. Select the Forgejo option. Provision the Keycloak client and Grafana JWT
+   settings; deploy the relay and V2 permissions only for the broker option.
 1. Implement Collar authentication and deployment-log reads with fixtures.
 1. Verify SSO reuse, account matching, role mapping, refresh/logout, and rejection
-   of wrong-issuer, wrong-audience, wrong-client, and expired tokens. Confirm a
-   bounded deployment-log read without changing live resources.
+   of invalid tokens. For the broker option, also test cross-user denial,
+   provider restrictions, refresh rotation, and missing/revoked links. Verify a
+   bounded deployment-log read.

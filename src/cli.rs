@@ -30,7 +30,7 @@ use crate::{changelog, config, doctor, environment, rfc};
     version,
     about = "ScottyLabs development workflows from your terminal",
     long_about = "Review Forgejo pull requests, inspect CI and previews, find project documentation, and run local development tools.",
-    after_help = "Examples:\n  collar auth login\n  collar pr list -R ScottyLabs/collar\n  collar pr review 42 --approve\n  collar docs search secrets\n  collar check --all\n\nUse collar <command> --help for arguments and examples.\nDocumentation: https://docs.scottylabs.org/collar/"
+    after_help = "Examples:\n  collar auth login\n  collar pr list -R ScottyLabs/collar\n  collar pr review 42 --approve\n  collar docs search secrets\n  collar check --all\n\nUse collar <command> --help for arguments and examples.\nDocumentation: https://docs.collar.scottylabs.org"
 )]
 pub struct Cli {
     /// Forge origin; defaults to git.cmu.dev or the Git remote.
@@ -140,7 +140,7 @@ enum Command {
         #[command(subcommand)]
         command: environment::SecretCommand,
     },
-    /// Run project shells, processes, and tasks through devenv.
+    /// Run project shells, commands, and local processes through nix develop
     #[command(
         after_long_help = "Examples:\n  collar dev shell\n  collar dev run -- cargo test\n  collar dev up"
     )]

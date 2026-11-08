@@ -9,7 +9,7 @@ development tools.
 From this repository, enter the ScottyLabs development environment:
 
 ```sh
-devenv shell
+nix develop
 collar --help
 collar repo view collar
 ```
@@ -20,11 +20,11 @@ To install the CLI from this checkout:
 nix profile add .#collar
 ```
 
-See [installation and first steps](https://docs.scottylabs.org/collar/getting-started.html) for Cargo installation,
+See [installation and first steps](https://docs.collar.scottylabs.org/getting-started/) for Cargo installation,
 authentication, and requirements.
 
 For coding agents, start with `collar skill install` and the
-[agent setup guide](https://docs.scottylabs.org/collar/agents.html).
+[agent setup guide](https://docs.collar.scottylabs.org/agents/).
 
 ## Everyday commands
 
@@ -43,14 +43,12 @@ private reads and writes; public reads work without it.
 
 ## Documentation
 
-- [User guide](https://docs.scottylabs.org/collar/)
-- [Command reference](https://docs.scottylabs.org/collar/reference/commands/index.html), generated from CLI help
-- [Install the agent skill](https://docs.scottylabs.org/collar/agents.html#install-the-skill)
+- [User guide](https://docs.collar.scottylabs.org)
+- [Command reference](https://docs.collar.scottylabs.org/reference/commands/), generated from CLI help
+- [Install the agent skill](https://docs.collar.scottylabs.org/agents/#install-the-skill)
 - [Contributing](CONTRIBUTING.md)
 
-The [ScottyLabs documentation hub](https://docs.scottylabs.org) publishes the
-`docs/` directory through the repository's enabled governance `docs` feature.
-All documentation source stays in this repository.
+Kennel builds the `docs/` directory with Zensical and deploys it as the `docs` site in `flake.nix`.
 
 ## License
 

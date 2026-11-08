@@ -193,7 +193,7 @@ pub(crate) fn doctor_fixture(temp: &std::path::Path) -> (std::path::PathBuf, std
         .find(|path| path.is_file())
         .unwrap();
     symlink(git, bin.join("git")).unwrap();
-    for tool in ["nix", "devenv", "bao", "secretspec", "ssh-add"] {
+    for tool in ["nix", "pitchfork", "bao", "secretspec", "ssh-add"] {
         let file = bin.join(tool);
         std::fs::write(&file, format!("#!/bin/sh\nprintf '%s %s\\n' '{tool}' \"$*\" >> \"$COLLAR_TEST_LOG\"\nprintf '%s\\n' 'never-print-tool-secret'\nexit 0\n")).unwrap();
         std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -201,9 +201,7 @@ pub(crate) fn doctor_fixture(temp: &std::path::Path) -> (std::path::PathBuf, std
     let project = temp.join("project");
     let governance = temp.join("governance");
     std::fs::create_dir(&project).unwrap();
-    for file in ["devenv.nix", "devenv.yaml", "flake.nix"] {
-        std::fs::write(project.join(file), "{}").unwrap();
-    }
+    std::fs::write(project.join("flake.nix"), "{}").unwrap();
     std::fs::write(
         project.join("secretspec.toml"),
         "[project]\nname = 'collie'\nrevision = '1.0'\n[profiles.dev]\n",

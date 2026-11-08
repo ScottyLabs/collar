@@ -54,7 +54,7 @@ silently fall back to cached data.
 
 ## A local wrapper reports a tool failure
 
-Collar forwards devenv, prek, and secretspec output and exit status. Fix the
+Collar forwards nix, prek, and secretspec output and exit status. Fix the
 reported project configuration or tool error. Local development commands do not
 need a governance clone or a project secret namespace merely to start.
 

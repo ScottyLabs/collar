@@ -131,11 +131,12 @@ fn secretspec(root: &Path, namespace: Option<&str>, profile: &str) -> Result<Str
     ))
 }
 
-fn devenv_files(root: &Path) -> Result<String> {
-    for file in ["devenv.nix", "devenv.yaml", "flake.nix"] {
-        ensure!(root.join(file).is_file(), "project is missing {file}");
-    }
-    Ok("project files present; evaluation and shell readiness are not verified".into())
+fn flake(root: &Path) -> Result<String> {
+    ensure!(
+        root.join("flake.nix").is_file(),
+        "project is missing flake.nix"
+    );
+    Ok("flake.nix present; evaluation and shell readiness are not verified".into())
 }
 
 fn check_revision(checks: &mut Vec<Check>, source: &Source, name: &str, action: &str) {
@@ -189,7 +190,7 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
     for (tool, version) in [
         ("git", "--version"),
         ("nix", "--version"),
-        ("devenv", "--version"),
+        ("pitchfork", "--version"),
         ("bao", "version"),
         ("secretspec", "--version"),
     ] {
@@ -198,7 +199,7 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
             &format!("tool:{tool}"),
             process::check(Command::new(tool).arg(version), Duration::from_secs(5))
                 .map(|()| "available".into()),
-            "Install Nix/devenv and enter the project's devenv shell; ScottyLabs shared tooling supplies Bao and secretspec.",
+            "Install Lix and enter the project's dev shell with nix develop; ScottyLabs shared tooling supplies pitchfork, Bao, and secretspec.",
         );
     }
     let root = repo::root();
@@ -222,9 +223,9 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
         }
         record(
             checks,
-            "devenv",
-            devenv_files(root),
-            "Follow the Kennel devenv setup guide: https://docs.kennel.scottylabs.org/guides/deploying.html",
+            "flake",
+            flake(root),
+            "Follow the Kennel local development guide: https://docs.kennel.scottylabs.org/guides/local-development/",
         );
     }
     record(

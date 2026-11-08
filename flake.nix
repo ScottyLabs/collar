@@ -9,37 +9,43 @@
   };
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
-    scottylabs = {
-      url = "git+https://git.cmu.dev/ScottyLabs/kennel";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+    scottylabs.url = "git+https://git.cmu.dev/ScottyLabs/kennel";
+    nixpkgs.follows = "scottylabs/nixpkgs";
+    flake-parts.follows = "scottylabs/flake-parts";
   };
 
   outputs =
-    { nixpkgs, scottylabs, ... }:
-    let
+    inputs:
+    inputs.flake-parts.lib.mkFlake { inherit inputs; } {
+      imports = [ inputs.scottylabs.flakeModules.default ];
       systems = [
         "x86_64-linux"
         "aarch64-linux"
         "aarch64-darwin"
       ];
-      forAllSystems = nixpkgs.lib.genAttrs systems;
-    in
-    {
-      packages = forAllSystems (
-        system:
+
+      perSystem =
+        {
+          pkgs,
+          lib,
+          helpers,
+          ...
+        }:
         let
-          pkgs = nixpkgs.legacyPackages.${system};
-          helpers = scottylabs.mkLib pkgs;
-          docs = helpers.buildMdbook {
-            src = ./.;
+          docs = helpers.buildZensical {
+            src = lib.fileset.toSource {
+              root = ./.;
+              fileset = lib.fileset.unions [
+                ./zensical.toml
+                ./docs
+              ];
+            };
             name = "collar-docs";
           };
           # Keep the skill in the source for src/skill.rs's include_str!
-          collarSrc = pkgs.lib.fileset.toSource {
+          collarSrc = lib.fileset.toSource {
             root = ./.;
-            fileset = pkgs.lib.fileset.unions [
+            fileset = lib.fileset.unions [
               ./Cargo.toml
               ./Cargo.lock
               ./src
@@ -52,7 +58,7 @@
             buildArgs.src = collarSrc;
             buildArgs.postInstall = ''
               wrapProgram $out/bin/collar --prefix PATH : ${
-                pkgs.lib.makeBinPath [
+                lib.makeBinPath [
                   pkgs.git
                   pkgs.git-credential-oauth
                 ]
@@ -61,9 +67,41 @@
           };
         in
         {
-          inherit collar docs;
-          default = collar;
-        }
-      );
+          scottylabs = {
+            project.name = "collar";
+            rust.enable = true;
+
+            shell = {
+              packages = with pkgs; [
+                fd
+                git
+                git-credential-oauth
+                jq
+                zensical
+                ripgrep
+              ];
+
+              scripts = {
+                docs = ''cd "$SCOTTYLABS_ROOT" && exec zensical serve "$@"'';
+                collar = ''exec cargo run --quiet --manifest-path "$SCOTTYLABS_ROOT/Cargo.toml" -- "$@"'';
+              };
+            };
+          };
+
+          # Agent Skills require YAML frontmatter, which plain mdformat rewrites
+          treefmt.settings.formatter.mdformat.excludes = [ "**/SKILL.md" ];
+
+          packages = {
+            inherit collar docs;
+            default = collar;
+          };
+
+          sites.docs = {
+            package = docs;
+            customDomain = "docs.collar.scottylabs.org";
+          };
+
+          checks = collar.passthru.checks;
+        };
     };
 }

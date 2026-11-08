@@ -24,7 +24,7 @@ Options:
           [env: SECRETSPEC_PROFILE]
 
       --reason <REASON>
-          Audit reason, forwarded unchanged to secretspec and devenv
+          Audit reason forwarded unchanged to secretspec
 
           [env: SECRETSPEC_REASON]
 

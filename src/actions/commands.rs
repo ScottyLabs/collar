@@ -68,7 +68,7 @@ pub struct Logs {
 
 #[derive(Subcommand, Debug)]
 pub enum WorkflowCommand {
-    /// List workflow files in .forgejo/workflows and .github/workflows.
+    /// List workflow files in .forgejo/workflows.
     List(WorkflowList),
     /// View workflow file metadata returned by Forgejo.
     View(WorkflowView),
@@ -84,7 +84,7 @@ pub struct WorkflowList {
 
 #[derive(Args, Debug)]
 pub struct WorkflowView {
-    /// Path or filename under .forgejo/workflows or .github/workflows.
+    /// Path or filename under .forgejo/workflows.
     pub(super) workflow: String,
     #[command(flatten)]
     pub(super) output: Output,
@@ -92,7 +92,7 @@ pub struct WorkflowView {
 
 #[derive(Args, Debug)]
 pub struct Dispatch {
-    /// Workflow filename or path under .forgejo/workflows or .github/workflows.
+    /// Workflow filename or path under .forgejo/workflows.
     pub(super) workflow: String,
     /// Git ref to dispatch.
     #[arg(long)]

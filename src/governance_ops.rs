@@ -58,7 +58,7 @@ const FEATURES: &[(&str, &str, Option<&str>, &str)] = &[
     (
         "kennel",
         "Kennel deployment",
-        Some("https://docs.kennel.scottylabs.org/guides/previews.html"),
+        Some("https://docs.kennel.scottylabs.org/guides/previews/"),
         "Run collar kennel status for a pull request; Kennel reports preview URLs in its Forgejo PR comment.",
     ),
     (

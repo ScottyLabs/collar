@@ -5,18 +5,8 @@ on:
   pull_request:
 
 jobs:
-  check:
-    runs-on: native
-    env:
-      SECRETSPEC_PROFILE: dev
-    steps:
-      - uses: https://code.forgejo.org/actions/checkout@v7
-      # Match flake.lock; Kennel main now requires the flake-parts CI interface.
-      - uses: https://git.cmu.dev/ScottyLabs/kennel/.forgejo/actions/prepare@bce28b707f144b30548f683e6052fc598c022e4b
-      - name: Run checks
-        run: devenv shell -- prek run --all-files
-      - name: Run security scans
-        run: devenv tasks run security
+  checks:
+    uses: ScottyLabs/kennel/.forgejo/workflows/checks.yml@main
   package:
     runs-on: native
     steps:

@@ -15,21 +15,20 @@ pub fn run_workflow(command: WorkflowCommand, api: &Api, repo: &Repo) -> Result<
                 .json(Method::GET, &repo_path, &[], None)
                 .context("verify repository before reading workflow directories")?;
             let mut workflows = Vec::new();
-            for directory in [".forgejo/workflows", ".github/workflows"] {
-                let path = contents_path(repo, directory);
-                match api.json::<Value>(
-                    Method::GET,
-                    &path.iter().map(String::as_str).collect::<Vec<_>>(),
-                    &[],
-                    None,
-                ) {
-                    Ok(Value::Array(entries)) => {
-                        workflows.extend(entries.into_iter().filter(is_workflow_file))
-                    }
-                    Ok(_) => bail!("Forgejo workflow directory response is not an array"),
-                    Err(error) if is_missing_workflow_directory(&error.to_string(), directory) => {}
-                    Err(error) => return Err(error),
+            let directory = ".forgejo/workflows";
+            let path = contents_path(repo, directory);
+            match api.json::<Value>(
+                Method::GET,
+                &path.iter().map(String::as_str).collect::<Vec<_>>(),
+                &[],
+                None,
+            ) {
+                Ok(Value::Array(entries)) => {
+                    workflows.extend(entries.into_iter().filter(is_workflow_file))
                 }
+                Ok(_) => bail!("Forgejo workflow directory response is not an array"),
+                Err(error) if is_missing_workflow_directory(&error.to_string(), directory) => {}
+                Err(error) => return Err(error),
             }
             args.output.print(&workflows, || {
                 ui::heading("Workflow files");
@@ -176,16 +175,15 @@ fn is_workflow_file(value: &Value) -> bool {
 
 fn workflow_path(value: &str) -> Result<String> {
     let value = value.trim_start_matches('/');
-    let value =
-        if value.starts_with(".forgejo/workflows/") || value.starts_with(".github/workflows/") {
-            value.to_owned()
-        } else {
-            ensure!(
-                !value.contains('/'),
-                "workflow must be a filename or path under a workflow directory"
-            );
-            format!(".forgejo/workflows/{value}")
-        };
+    let value = if value.starts_with(".forgejo/workflows/") {
+        value.to_owned()
+    } else {
+        ensure!(
+            !value.contains('/'),
+            "workflow must be a filename or path under a workflow directory"
+        );
+        format!(".forgejo/workflows/{value}")
+    };
     ensure!(
         value.ends_with(".yml") || value.ends_with(".yaml"),
         "workflow path must end in .yml or .yaml"

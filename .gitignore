@@ -1,4 +1,3 @@
-.devenv/
 .pre-commit-config.yaml
 target/
 result
@@ -8,7 +7,5 @@ rustc-ice-*.txt
 .DS_Store
 
 .cargo/
-.claude/
-.mcp.json
 
-book/
+site/

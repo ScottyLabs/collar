@@ -2,13 +2,12 @@
 
 ## Install from source
 
-Install [Nix](https://nixos.org/download/) and
-[devenv](https://devenv.sh/getting-started/), then clone Collar:
+Install Lix by following kennel's [local development guide](https://docs.kennel.scottylabs.org/guides/local-development/#installing-nix), then clone Collar:
 
 ```sh
 git clone ssh://forgejo@git.cmu.dev/ScottyLabs/collar.git
 cd collar
-devenv shell
+nix develop
 collar --version
 ```
 
@@ -33,7 +32,7 @@ cargo install --path . --locked
 
 Cargo installs Collar itself. Provide `git` and `git-credential-oauth` on `PATH`
 for Git operations and browser login. Local development commands additionally
-need devenv, secretspec, or OpenBao as appropriate. Use `collar doctor` inside a
+need Nix, secretspec, or OpenBao as appropriate. Use `collar doctor` inside a
 project to inspect the full setup.
 
 ## Read a repository

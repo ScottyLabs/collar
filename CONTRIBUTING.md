@@ -5,16 +5,15 @@ focused on useful ScottyLabs workflows and test the behavior users will see.
 
 ## Development
 
-Use `devenv shell` from the repository root, or prefix a command with
-`devenv shell --`. The shared ScottyLabs module supplies Rust, formatting, and
-commit hooks. Declare additional tools in `devenv.nix`; do not edit generated
-hook configuration.
+Use `nix develop` from the repository root, or prefix a command with
+`nix develop --command`. The shared ScottyLabs module supplies Rust, formatting, and
+the [commit hooks](https://docs.kennel.scottylabs.org/guides/local-development/#git-hooks).
+Declare additional tools in `flake.nix`; do not edit generated hook configuration.
 
 ```sh
 cargo test
 cargo clippy --all-targets -- -D warnings
 cargo fmt
-prek run --all-files
 ```
 
 Keep small unit tests inline. Larger test modules use Rust's standard module
@@ -40,17 +39,17 @@ statuses. Governance owns repository provisioning, membership, and features.
 
 ## Documentation
 
-User documentation lives in `docs/`. The governance `docs` feature publishes that
-directory at [docs.scottylabs.org/collar](https://docs.scottylabs.org/collar/).
-Governance manages the rebuild webhook; publication needs no Kennel site
-configuration in this repository. Preview the same content:
+User documentation lives in `docs/`, and kennel deploys it to
+[docs.collar.scottylabs.org](https://docs.collar.scottylabs.org) as the `docs`
+site in `flake.nix`. Preview the same content:
 
 ```sh
 docs
 ```
 
-The `docs` shell helper runs `mdbook serve`. `mdbook build` builds locally, and
-`nix build .#docs` checks the packaged documentation. The root README stays short;
+The `docs` shell helper runs `zensical serve`, and `nix build .#docs` checks the
+packaged documentation. The navigation is set in `zensical.toml`, so add new pages
+there. The root README stays short;
 put task guides and explanations in the documentation. Agent-use guidance belongs
 in `docs/agents.md`; repository maintenance instructions belong in `AGENTS.md`.
 

@@ -8,7 +8,7 @@ Inspect or dispatch existing workflows
 Usage: collar workflow <COMMAND>
 
 Commands:
-  list      List workflow files in .forgejo/workflows and .github/workflows
+  list      List workflow files in .forgejo/workflows
   view      View workflow file metadata returned by Forgejo
   dispatch  Dispatch an existing workflow with optional NAME=VALUE inputs
   help      Print this message or the help of the given subcommand(s)
@@ -24,7 +24,7 @@ Examples:
 ## `collar workflow list`
 
 ```text
-List workflow files in .forgejo/workflows and .github/workflows
+List workflow files in .forgejo/workflows
 
 Usage: collar workflow list [OPTIONS]
 
@@ -45,7 +45,7 @@ Usage: collar workflow view [OPTIONS] <WORKFLOW>
 
 Arguments:
   <WORKFLOW>
-          Path or filename under .forgejo/workflows or .github/workflows
+          Path or filename under .forgejo/workflows
 
 Options:
       --json [<FIELDS>]
@@ -64,7 +64,7 @@ Usage: collar workflow dispatch [OPTIONS] --ref <REF> <WORKFLOW>
 
 Arguments:
   <WORKFLOW>
-          Workflow filename or path under .forgejo/workflows or .github/workflows
+          Workflow filename or path under .forgejo/workflows
 
 Options:
       --ref <REF>

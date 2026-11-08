@@ -64,4 +64,4 @@ source revision or local working tree.
 
 For current service configuration, consult the
 [governance repository](https://git.cmu.dev/ScottyLabs/governance) and
-[Kennel feature guide](https://docs.kennel.scottylabs.org/guides/features.html).
+[governance feature guide](https://docs.governance.scottylabs.org/features/).

@@ -10,7 +10,7 @@ collar doctor
 collar doctor --offline
 ```
 
-Doctor checks tools, Git identity, SSH-agent keys, devenv files, declared project
+Doctor checks tools, Git identity, SSH-agent keys, the project flake, declared project
 ownership, secretspec configuration, infrastructure sources, and authentication.
 It prints the whole report before returning a failure status. Checks can pass,
 fail, require a manual step, or be skipped.
@@ -29,14 +29,13 @@ Follow the suggested actions for failed checks. Account linking is manual:
 collar dev shell
 collar dev run -- cargo test
 collar dev up
-collar dev up --detach
-collar dev task security:
 collar dev down
 ```
 
-Collar delegates to the project's devenv configuration and preserves tool output
+Collar runs commands through `nix develop` in the project root and preserves tool output
 and exit codes. Arguments after `dev run --` are passed literally, without a
 shell expansion step. `dev shell` requires a terminal; scripts should use `dev run`.
+`dev up` starts the project's local processes in the background with `pitchfork start --local`, and `dev down` stops them with `pitchfork stop --local`.
 
 ## Run checks
 

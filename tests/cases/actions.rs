@@ -217,11 +217,6 @@ fn workflow_list_ignores_only_missing_directories_after_repository_is_verified()
             body: "{}".into(),
             headers: String::new(),
         },
-        Response {
-            status: 404,
-            body: "{}".into(),
-            headers: String::new(),
-        },
     ]);
     let output = server
         .command(false)
@@ -233,7 +228,7 @@ fn workflow_list_ignores_only_missing_directories_after_repository_is_verified()
         serde_json::from_slice::<Value>(&output.stdout).unwrap(),
         json!([])
     );
-    assert_eq!(server.finish().len(), 3);
+    assert_eq!(server.finish().len(), 2);
 
     let missing = Server::new(vec![Response {
         status: 404,

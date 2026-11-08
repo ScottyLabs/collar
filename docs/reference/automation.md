@@ -34,7 +34,7 @@ logins for a reproducible run. It does not clear environment variables.
 | `2` | Invalid command syntax or arguments |
 | `130` | An interactive selection was cancelled |
 
-Wrapped tools preserve their exit status, so devenv, prek, and secretspec can
+Wrapped tools preserve their exit status, so nix, prek, and secretspec can
 return codes beyond this table. SIGPIPE uses normal Unix behavior when a
 consumer closes a pipe.
 

@@ -51,6 +51,6 @@ are for developers at a terminal; agents should use explicit selectors.
 Local checks use `collar check --all`; commands in the development environment
 use `collar dev run -- COMMAND`. Preserve exit statuses and literal arguments.
 
-See [Using Collar with agents](https://docs.scottylabs.org/collar/agents.html) for authentication, review
+See [Using Collar with agents](https://docs.collar.scottylabs.org/agents/) for authentication, review
 examples, and automation guidance. Keep this skill focused on using Collar;
 repository maintenance follows the target project's own instructions.

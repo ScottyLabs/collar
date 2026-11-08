@@ -47,7 +47,7 @@ Commands:
   workflow    Inspect or dispatch existing workflows
   changelog   Read ScottyLabs changelogs and tech-lead announcements
   secrets     Check or update project secrets through secretspec
-  dev         Run project shells, processes, and tasks through devenv
+  dev         Run project shells, commands, and local processes through nix develop
   check       Run repository hooks inside the project's development shell
   rfc         Search RFCs or create a draft
   doctor      Diagnose local setup and ScottyLabs login readiness
@@ -97,5 +97,5 @@ Examples:
   collar check --all
 
 Use collar <command> --help for arguments and examples.
-Documentation: https://docs.scottylabs.org/collar/
+Documentation: https://docs.collar.scottylabs.org
 ```

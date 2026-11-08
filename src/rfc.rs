@@ -373,7 +373,7 @@ fn search(directory: &Path, status: &str, terms: &[String]) -> Result<String> {
 pub fn run(args: Args) -> Result<()> {
     let directory = match args.directory {
         Some(directory) => directory,
-        None => match env::var_os("DEVENV_ROOT") {
+        None => match env::var_os("SCOTTYLABS_ROOT") {
             Some(root) => PathBuf::from(root).join("rfcs"),
             None => crate::repo::root()
                 .context("find RFC root; use --directory PATH outside a Git checkout")?

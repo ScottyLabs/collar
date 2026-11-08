@@ -14,7 +14,7 @@ Build Collar, an independent Rust CLI for git.cmu.dev with GitHub CLI command co
 
 Contributors currently move between Forgejo, governance TOML, Kennel status comments, and infrastructure configuration to understand a project. A common CLI can expose these relationships and provide familiar pull request review commands. Implement the client directly against Forgejo rather than depending on fj.
 
-The implementation follows the [link-shortener reference project](https://git.cmu.dev/ScottyLabs/link-shortener): a standalone Rust package, a small entry point, focused modules, contextual errors, behavior tests, shared Kennel build helpers, and devenv scripts. Application OIDC and database setup are not requirements for this local CLI. Its user token is separate from deployed service credentials.
+The implementation follows the [link-shortener reference project](https://git.cmu.dev/ScottyLabs/link-shortener): a standalone Rust package, a small entry point, focused modules, contextual errors, behavior tests, shared Kennel build helpers, and dev shell scripts. Application OIDC and database setup are not requirements for this local CLI. Its user token is separate from deployed service credentials.
 
 ## Goals
 
@@ -44,7 +44,7 @@ Collar implements these workflows:
 | Governance | project list/view, service-access | Inspect canonical ownership and declared service access without a clone. |
 | Kennel | status, preview, logs, wait | Inspect commit-bound checks and preview/log links; wait with bounded polling. |
 | Infrastructure | hosts, service, check, build, atlantis-config | Discover canonical configuration and delegate explicit Nix builds. |
-| Environment | auth bao login/status, secrets check/set, dev shell/run/up/down/task, check | Delegate to Bao, secretspec, devenv, and prek with native tool validation and original exit codes. |
+| Environment | auth bao login/status, secrets check/set, dev shell/run/up/down, check | Delegate to Bao, secretspec, nix develop, pitchfork, and prek with native tool validation and original exit codes. |
 | Changelog | view, updates, update | Read latest canonical generated summaries and announcements without a clone. |
 | RFC | rfc | Complete Fetch search and draft creation within Collar. |
 | Documentation | docs list/view/search | Read and search latest canonical organization and service guides, with explicit offline snapshots. |
@@ -95,7 +95,7 @@ The minimum supported Forgejo version remains an adoption decision. The standalo
 
 ### Expanded developer workflow
 
-Fold Fetch's complete search and creation implementation into `collar rfc`, including its regression tests. Remove the separate crate and development-shell command. Resolve RFC directories from an explicit `--directory`, the active devenv root, or the current Git checkout rather than a compiled-in Terrier source path. Crate-local `RFC.md` files are searchable when their directory is selected.
+Fold Fetch's complete search and creation implementation into `collar rfc`, including its regression tests. Remove the separate crate and development-shell command. Resolve RFC directories from an explicit `--directory`, the active dev shell's `SCOTTYLABS_ROOT`, or the current Git checkout rather than a compiled-in Terrier source path. Crate-local `RFC.md` files are searchable when their directory is selected.
 
 Read-only governance and infrastructure discovery should not require user-maintained clones. Prefer versioned canonical API snapshots cached under Collar's user cache directory, with explicit refresh/offline behavior and source revision in output. Keep optional checkout overrides for local inspection, validation, and Nix evaluation. Never silently substitute cached data for a failed refresh. Changes still use canonical review pipelines.
 
@@ -103,4 +103,4 @@ Terminal interaction should help selection and inspection: an opt-in project pic
 
 ### Environment tools
 
-Expose Bao login/status, secretspec check/set, devenv shell/run/up/down/tasks, and repository hooks as typed commands. Let devenv and secretspec validate their own configuration; development commands must not require governance or secretspec preflight. Delegate validation and provisioning to the existing tools, preserve the user's access reason, inherit interactive I/O only for intentional interactive operations, and propagate tool exit codes. Secret checks use no-prompt/value-free reporting; secret updates accept a prompt or file/stdin input, never a secret value argument. Bootstrap Bao through Nix with `login -method=oidc -no-print` so a new machine can authenticate before entering the development shell without displaying its token. Stopping local processes must remain possible without governance or secret preflight.
+Expose Bao login/status, secretspec check/set, dev shell/run/up/down through `nix develop` and pitchfork, and repository hooks as typed commands. Let Nix and secretspec validate their own configuration; development commands must not require governance or secretspec preflight. Delegate validation and provisioning to the existing tools, preserve the user's access reason, inherit interactive I/O only for intentional interactive operations, and propagate tool exit codes. Secret checks use no-prompt/value-free reporting; secret updates accept a prompt or file/stdin input, never a secret value argument. Bootstrap Bao through Nix with `login -method=oidc -no-print` so a new machine can authenticate before entering the development shell without displaying its token. Stopping local processes must remain possible without governance or secret preflight.

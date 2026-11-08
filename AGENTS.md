@@ -10,14 +10,14 @@ and blocking reqwest. Use
 - `src/client.rs`, `src/auth.rs`, `src/oauth.rs`: host-bound API access and credentials.
 - `src/pr/`, `src/actions/`, `src/kennel.rs`: forge and deployment-report workflows.
 - `src/source.rs`: canonical API snapshots; `src/project.rs` and `src/governance.rs`: discovery.
-- `src/environment.rs`: wrappers around devenv, secretspec, OpenBao, and prek.
+- `src/environment.rs`: wrappers around nix develop, pitchfork, secretspec, OpenBao, and prek.
 - `tests/cli.rs`, `tests/support/`, and `tests/cases/`: CLI fixtures; no live writes for verification.
 - `docs/`: user guides, agent-use guidance, generated command reference, and the accepted RFC.
 
 ## Work efficiently
 
 Use `rg` for focused searches. Read source and manifests to establish current
-behavior; the RFC records design intent. Use `devenv shell -- <command>` or enter
+behavior; the RFC records design intent. Use `nix develop --command <command>` or enter
 the shell once. Run focused tests during development and the required hooks
 before committing. Keep warnings at zero.
 

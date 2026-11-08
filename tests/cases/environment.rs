@@ -8,9 +8,9 @@ fn fixture() -> (TempDir, PathBuf, PathBuf) {
     let temp = TempDir::new().unwrap();
     let (project, bin) = doctor_fixture(temp.path());
     std::fs::write(project.join("secretspec.toml"), "[project]\nname = 'collie'\nrevision = '1.0'\n[providers]\nlocal = 'dotenv://.env'\n[profiles.default]\nSHARED = {description = 'Shared secret'}\n[profiles.dev]\nDEV_ONLY = {description = 'Development secret'}\n[profiles.dev.defaults]\nproviders = ['local']\n[scopes.build]\nsecrets = ['SHARED']\n").unwrap();
-    for tool in ["nix", "bao", "secretspec", "devenv"] {
+    for tool in ["nix", "bao", "secretspec"] {
         let file = bin.join(tool);
-        std::fs::write(&file, "#!/bin/sh\nprintf 'cwd:%s\\nreason:%s\\nbao:%s\\n' \"$PWD\" \"${SECRETSPEC_REASON-}\" \"${BAO_ADDR-}\" >> \"$COLLAR_TEST_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_TEST_LOG\"; done\nif [ \"${1-}\" = set ]; then IFS= read -r secret; printf 'stdin:received\\n' >> \"$COLLAR_TEST_LOG\"; fi\nprintf '%s\\n' 'tool-output'\nexit \"${COLLAR_TEST_EXIT:-0}\"\n").unwrap();
+        std::fs::write(&file, "#!/bin/sh\nprintf 'cwd:%s\\nreason:%s\\nprofile:%s\\nprovider:%s\\nbao:%s\\n' \"$PWD\" \"${SECRETSPEC_REASON-}\" \"${SECRETSPEC_PROFILE-}\" \"${SECRETSPEC_PROVIDER-}\" \"${BAO_ADDR-}\" >> \"$COLLAR_TEST_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_TEST_LOG\"; done\nif [ \"${1-}\" = set ]; then IFS= read -r secret; printf 'stdin:received\\n' >> \"$COLLAR_TEST_LOG\"; fi\nprintf '%s\\n' 'tool-output'\nexit \"${COLLAR_TEST_EXIT:-0}\"\n").unwrap();
         std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o755)).unwrap();
     }
     (temp, project, bin)
@@ -187,7 +187,6 @@ fn development_wrappers_work_without_governance_remotes_or_secrets() {
     for args in [
         vec!["dev", "run", "--", "true"],
         vec!["dev", "up"],
-        vec!["dev", "task", "build"],
         vec!["check", "--all"],
     ] {
         let output = cli(temp.path(), &project, &bin)
@@ -199,12 +198,13 @@ fn development_wrappers_work_without_governance_remotes_or_secrets() {
         success(&output);
     }
     let args = log(temp.path());
-    assert!(!args.contains("--secretspec-profile"));
+    assert!(args.contains("profile:\n"));
+    assert!(!args.contains("profile:dev"));
     assert!(args.contains("arg:prek\narg:run\narg:--all-files\n"));
 }
 
 #[test]
-fn devenv_preserves_literal_arguments_secret_profiles_and_access_reasons() {
+fn dev_run_preserves_literal_arguments_secret_profiles_and_access_reasons() {
     let (temp, project, bin) = fixture();
     let output = cli(temp.path(), &project, &bin)
         .args([
@@ -212,6 +212,8 @@ fn devenv_preserves_literal_arguments_secret_profiles_and_access_reasons() {
             "run",
             "--profile",
             "dev",
+            "--provider",
+            "local",
             "--reason",
             "test project command",
             "--",
@@ -224,22 +226,26 @@ fn devenv_preserves_literal_arguments_secret_profiles_and_access_reasons() {
         .unwrap();
     success(&output);
     let args = log(temp.path());
-    assert!(args.contains("arg:--secretspec-profile\narg:dev\narg:shell\narg:--\narg:printf\narg:%s\narg:two words\narg:$(touch should-not-exist)\n"));
-    assert!(args.contains("reason:test project command\n"));
-    for action in [
-        vec!["dev", "up", "--detach"],
-        vec!["dev", "task", "security:"],
+    assert!(args.contains("arg:develop\narg:--command\narg:printf\narg:%s\narg:two words\narg:$(touch should-not-exist)\n"));
+    assert!(args.contains("reason:test project command\nprofile:dev\nprovider:local\n"));
+    for (action, expected) in [
+        (
+            "up",
+            "arg:develop\narg:--command\narg:pitchfork\narg:start\narg:--local\n",
+        ),
+        (
+            "down",
+            "arg:develop\narg:--command\narg:pitchfork\narg:stop\narg:--local\n",
+        ),
     ] {
         success(
             &cli(temp.path(), &project, &bin)
-                .args(action)
+                .args(["dev", action])
                 .output()
                 .unwrap(),
         );
+        assert!(log(temp.path()).contains(expected));
     }
-    let args = log(temp.path());
-    assert!(args.contains("arg:up\narg:-d\n"));
-    assert!(args.contains("arg:tasks\narg:run\narg:--\narg:security:\n"));
 }
 
 #[test]
@@ -252,11 +258,11 @@ fn stopping_processes_does_not_require_governance_or_secret_preflight() {
         .output()
         .unwrap();
     success(&output);
-    assert!(log(temp.path()).contains("arg:processes\narg:down\n"));
+    assert!(log(temp.path()).contains("arg:pitchfork\narg:stop\narg:--local\n"));
 }
 
 #[test]
-fn repository_checks_run_prek_in_devenv_and_resolve_caller_relative_files() {
+fn repository_checks_run_prek_in_the_dev_shell_and_resolve_caller_relative_files() {
     let (temp, project, bin) = fixture();
     let nested = project.join("nested");
     std::fs::create_dir(&nested).unwrap();
@@ -269,7 +275,7 @@ fn repository_checks_run_prek_in_devenv_and_resolve_caller_relative_files() {
     success(&output);
     let args = log(temp.path());
     assert!(args.contains(
-        "arg:shell\narg:--\narg:prek\narg:run\narg:treefmt\narg:--files\narg:./nested/input.rs\n"
+        "arg:develop\narg:--command\narg:prek\narg:run\narg:treefmt\narg:--files\narg:./nested/input.rs\n"
     ));
     assert!(args.contains(&format!("cwd:{}\n", project.display())));
     success(

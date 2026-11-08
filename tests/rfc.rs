@@ -41,7 +41,7 @@ fn searches_sections_with_status_defaults_and_plain_piped_output() {
         let output = command()
             .args(["--no-config", "rfc"])
             .args(args)
-            .env("DEVENV_ROOT", &root)
+            .env("SCOTTYLABS_ROOT", &root)
             .env("CLICOLOR", "0")
             .env_remove("CLICOLOR_FORCE")
             .current_dir(std::env::temp_dir())
@@ -97,7 +97,7 @@ fn searches_repository_code_blocks_in_their_markdown_section() {
     .unwrap();
     let output = command()
         .args(["NixOS", "configuration"])
-        .env("DEVENV_ROOT", root.path())
+        .env("SCOTTYLABS_ROOT", root.path())
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -122,7 +122,7 @@ fn new_picks_the_next_number_and_slugifies_the_title() {
 
     let output = command()
         .args(["--new", "Rate Limiting!"])
-        .env("DEVENV_ROOT", &root)
+        .env("SCOTTYLABS_ROOT", &root)
         .output()
         .unwrap();
     assert!(
@@ -142,7 +142,7 @@ fn new_picks_the_next_number_and_slugifies_the_title() {
     // Running it again picks the next number rather than clobbering 0008.
     let second = command()
         .args(["--new", "Rate Limiting!"])
-        .env("DEVENV_ROOT", &root)
+        .env("SCOTTYLABS_ROOT", &root)
         .output()
         .unwrap();
     assert!(second.status.success());
@@ -172,7 +172,7 @@ fn surfaces_relations_and_warns_on_missing_status() {
 
     let output = command()
         .args(["--status", "all", "redis"])
-        .env("DEVENV_ROOT", directory.parent().unwrap())
+        .env("SCOTTYLABS_ROOT", directory.parent().unwrap())
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -201,7 +201,7 @@ fn ranks_title_matches_above_body_only_matches() {
 
     let output = command()
         .args(["caching"])
-        .env("DEVENV_ROOT", directory.parent().unwrap())
+        .env("SCOTTYLABS_ROOT", directory.parent().unwrap())
         .output()
         .unwrap();
     assert!(output.status.success());
@@ -216,7 +216,7 @@ fn ranks_title_matches_above_body_only_matches() {
 }
 
 #[test]
-fn explicit_directory_searches_standalone_design_and_overrides_devenv() {
+fn explicit_directory_searches_standalone_design_and_overrides_shell_root() {
     let temp = tempfile::tempdir().unwrap();
     fs::write(
         temp.path().join("RFC.md"),
@@ -227,7 +227,7 @@ fn explicit_directory_searches_standalone_design_and_overrides_devenv() {
         .arg("--directory")
         .arg(temp.path())
         .args(["--status", "all", "namespace"])
-        .env("DEVENV_ROOT", "/missing")
+        .env("SCOTTYLABS_ROOT", "/missing")
         .current_dir("/")
         .output()
         .unwrap();
@@ -242,7 +242,7 @@ fn explicit_directory_searches_standalone_design_and_overrides_devenv() {
 }
 
 #[test]
-fn finds_git_root_without_devenv_and_rejects_unsafe_creation() {
+fn finds_git_root_outside_the_dev_shell_and_rejects_unsafe_creation() {
     let temp = tempfile::tempdir().unwrap();
     let directory = temp.path().join("rfcs");
     fs::create_dir(&directory).unwrap();
@@ -264,7 +264,7 @@ fn finds_git_root_without_devenv_and_rejects_unsafe_creation() {
             .success()
     );
     let output = command()
-        .env_remove("DEVENV_ROOT")
+        .env_remove("SCOTTYLABS_ROOT")
         .current_dir(&directory)
         .output()
         .unwrap();

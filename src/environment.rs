@@ -27,7 +27,7 @@ pub struct ContextArgs {
     /// Secret profile; uses the underlying tool default when omitted.
     #[arg(long, env = "SECRETSPEC_PROFILE")]
     profile: Option<String>,
-    /// Audit reason, forwarded unchanged to secretspec and devenv.
+    /// Audit reason forwarded unchanged to secretspec
     #[arg(long, env = "SECRETSPEC_REASON")]
     reason: Option<String>,
     /// Select a provider alias declared in secretspec.toml.
@@ -69,25 +69,10 @@ pub enum DevCommand {
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<OsString>,
     },
-    /// Start the project's configured processes.
-    Up {
-        /// Start configured processes in the background.
-        #[arg(short = 'd', long)]
-        detach: bool,
-        #[command(flatten)]
-        context: ContextArgs,
-    },
-    /// Stop local processes without resolving project ownership or secrets.
-    Down {
-        #[arg(long, env = "SECRETSPEC_REASON")]
-        reason: Option<String>,
-    },
-    /// Run a named devenv task or namespace.
-    Task {
-        name: String,
-        #[command(flatten)]
-        context: ContextArgs,
-    },
+    /// Start the project's local processes in the background with pitchfork
+    Up(ContextArgs),
+    /// Stop the project's local processes
+    Down(ContextArgs),
 }
 
 #[derive(Args)]
@@ -136,18 +121,20 @@ pub fn validate(root: &Path, namespace: Option<&str>, profile: &str) -> Result<S
     Ok(spec)
 }
 
-fn devenv(root: &Path, args: &ContextArgs) -> Command {
-    let mut command = Command::new("devenv");
-    command.current_dir(root);
-    if let Some(profile) = &args.profile {
-        command.args(["--secretspec-profile", profile]);
+fn develop(root: &Path, args: &ContextArgs) -> Command {
+    let mut command = Command::new("nix");
+    command.current_dir(root).arg("develop");
+
+    for (name, value) in [
+        ("SECRETSPEC_PROFILE", &args.profile),
+        ("SECRETSPEC_PROVIDER", &args.provider),
+        ("SECRETSPEC_REASON", &args.reason),
+    ] {
+        if let Some(value) = value {
+            command.env(name, value);
+        }
     }
-    if let Some(provider) = &args.provider {
-        command.args(["--secretspec-provider", provider]);
-    }
-    if let Some(reason) = &args.reason {
-        command.env("SECRETSPEC_REASON", reason);
-    }
+
     command
 }
 
@@ -256,9 +243,8 @@ pub fn dev(command: DevCommand) -> Result<()> {
     match command {
         DevCommand::Shell(context) => dev_shell(&context),
         DevCommand::Run { context, command } => dev_run(&context, command),
-        DevCommand::Up { detach, context } => dev_up(&context, detach),
-        DevCommand::Task { name, context } => dev_task(&context, &name),
-        DevCommand::Down { reason } => dev_down(reason.as_deref()),
+        DevCommand::Up(context) => dev_run(&context, pitchfork("start")),
+        DevCommand::Down(context) => dev_run(&context, pitchfork("stop")),
     }
 }
 
@@ -267,48 +253,25 @@ fn dev_shell(context: &ContextArgs) -> Result<()> {
         io::stdin().is_terminal(),
         "interactive shell requires a terminal; use collar dev run -- COMMAND for scripts"
     );
-    run_devenv(context, vec!["shell".into()])
+    process::run(&mut develop(&repo::root()?, context))
 }
 
 fn dev_run(context: &ContextArgs, command: Vec<OsString>) -> Result<()> {
-    let mut args = vec!["shell".into(), "--".into()];
-    args.extend(command);
-    run_devenv(context, args)
+    process::run(
+        develop(&repo::root()?, context)
+            .arg("--command")
+            .args(command),
+    )
 }
 
-fn dev_up(context: &ContextArgs, detach: bool) -> Result<()> {
-    let mut args = vec!["up".into()];
-    if detach {
-        args.push("-d".into());
-    }
-    run_devenv(context, args)
-}
-
-fn dev_task(context: &ContextArgs, name: &str) -> Result<()> {
-    let root = repo::root()?;
-    ensure!(!name.is_empty(), "task name must be nonempty");
-    process::run(devenv(&root, context).args(["tasks", "run", "--", name]))
-}
-
-fn dev_down(reason: Option<&str>) -> Result<()> {
-    let mut command = Command::new("devenv");
-    command
-        .current_dir(repo::root()?)
-        .args(["processes", "down"]);
-    if let Some(reason) = reason {
-        command.env("SECRETSPEC_REASON", reason);
-    }
-    process::run(&mut command)
-}
-
-fn run_devenv(context: &ContextArgs, args: Vec<OsString>) -> Result<()> {
-    process::run(devenv(&repo::root()?, context).args(args))
+fn pitchfork(action: &str) -> Vec<OsString> {
+    vec!["pitchfork".into(), action.into(), "--local".into()]
 }
 
 pub fn checks(args: CheckArgs) -> Result<()> {
     let root = repo::root()?;
-    let mut child = devenv(&root, &args.context);
-    child.args(["shell", "--", "prek", "run"]);
+    let mut child = develop(&root, &args.context);
+    child.args(["--command", "prek", "run"]);
     if let Some(hook) = args.hook {
         ensure!(
             !hook.is_empty() && !hook.starts_with('-'),

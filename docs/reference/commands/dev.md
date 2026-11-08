@@ -3,16 +3,15 @@
 Global options apply to every command below; see the [command index](index.md).
 
 ```text
-Run project shells, processes, and tasks through devenv
+Run project shells, commands, and local processes through nix develop
 
 Usage: collar dev <COMMAND>
 
 Commands:
   shell  Enter an interactive project shell
   run    Run a command inside the project shell, preserving literal arguments
-  up     Start the project's configured processes
-  down   Stop local processes without resolving project ownership or secrets
-  task   Run a named devenv task or namespace
+  up     Start the project's local processes in the background with pitchfork
+  down   Stop the project's local processes
   help   Print this message or the help of the given subcommand(s)
 
 Options:
@@ -39,7 +38,7 @@ Options:
           [env: SECRETSPEC_PROFILE]
 
       --reason <REASON>
-          Audit reason, forwarded unchanged to secretspec and devenv
+          Audit reason forwarded unchanged to secretspec
 
           [env: SECRETSPEC_REASON]
 
@@ -70,7 +69,7 @@ Options:
           [env: SECRETSPEC_PROFILE]
 
       --reason <REASON>
-          Audit reason, forwarded unchanged to secretspec and devenv
+          Audit reason forwarded unchanged to secretspec
 
           [env: SECRETSPEC_REASON]
 
@@ -86,21 +85,18 @@ Options:
 ## `collar dev up`
 
 ```text
-Start the project's configured processes
+Start the project's local processes in the background with pitchfork
 
 Usage: collar dev up [OPTIONS]
 
 Options:
-  -d, --detach
-          Start configured processes in the background
-
       --profile <PROFILE>
           Secret profile; uses the underlying tool default when omitted
 
           [env: SECRETSPEC_PROFILE]
 
       --reason <REASON>
-          Audit reason, forwarded unchanged to secretspec and devenv
+          Audit reason forwarded unchanged to secretspec
 
           [env: SECRETSPEC_REASON]
 
@@ -116,28 +112,9 @@ Options:
 ## `collar dev down`
 
 ```text
-Stop local processes without resolving project ownership or secrets
+Stop the project's local processes
 
 Usage: collar dev down [OPTIONS]
-
-Options:
-      --reason <REASON>
-          [env: SECRETSPEC_REASON]
-
-  -h, --help
-          Print help
-```
-
-## `collar dev task`
-
-```text
-Run a named devenv task or namespace
-
-Usage: collar dev task [OPTIONS] <NAME>
-
-Arguments:
-  <NAME>
-
 
 Options:
       --profile <PROFILE>
@@ -146,7 +123,7 @@ Options:
           [env: SECRETSPEC_PROFILE]
 
       --reason <REASON>
-          Audit reason, forwarded unchanged to secretspec and devenv
+          Audit reason forwarded unchanged to secretspec
 
           [env: SECRETSPEC_REASON]
 

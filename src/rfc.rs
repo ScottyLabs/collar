@@ -356,8 +356,7 @@ fn search(directory: &Path, status: &str, terms: &[String]) -> Result<String> {
         rendered.push('\n');
         hits.push(Hit { score, rendered });
     }
-    // Stable sort: ties (including the "no query" listing, where every
-    // score is equal) keep the original filename order.
+    // Stable sort: ties (including the "no query" listing, where every score is equal) keep the original filename order.
     hits.sort_by_key(|hit| std::cmp::Reverse(hit.score));
 
     let mut output = String::new();

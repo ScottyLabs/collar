@@ -47,7 +47,7 @@ fn command_reference_is_current() {
     let directory = Path::new(env!("CARGO_MANIFEST_DIR")).join("docs/reference/commands");
     let mut pages = BTreeMap::new();
     let mut index = String::from(
-        "# Command reference\n\nThese pages are generated from Collar's Clap definitions. Use the help shipped\nwith your installed version when it differs from this site. Global options are\nlisted here and apply to every subcommand.\n\n",
+        "# Command reference\n\nThese pages are generated from Collar's Clap definitions. Use the help shipped with your installed version when it differs from this site. Global options are listed here and apply to every subcommand.\n\n",
     );
     for child in command.get_subcommands() {
         if child.get_name() == "help" || child.is_hide_set() {

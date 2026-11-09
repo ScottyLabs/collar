@@ -31,10 +31,7 @@ collar repo view collar
 collar pr list -R collar
 ```
 
-Inside a project checkout, Collar uses `upstream` if present, otherwise `origin`.
-This makes work in a fork target the canonical repository when an upstream is
-configured. Bare names such as `collar` default to the `ScottyLabs` owner. Use
-`OWNER/REPO` to select another owner.
+Inside a project checkout, Collar uses `upstream` if present, otherwise `origin`. This makes work in a fork target the canonical repository when an upstream is configured. Bare names such as `collar` default to the `ScottyLabs` owner. Use `OWNER/REPO` to select another owner.
 
 ## Sign in
 
@@ -43,20 +40,11 @@ collar auth login
 collar auth status
 ```
 
-The first login opens Forgejo in your browser. Choose university SSO there.
-Ordinary commands silently refresh expired OAuth access tokens using the saved
-refresh token. `auth login` can also refresh an existing session without opening
-a browser. Use `collar auth login --web` to start a fresh browser sign-in; an
-existing Forgejo or university browser session may sign you in automatically. Collar verifies the credential and saves it in your operating system's
-credential store. Browser login runs on the same machine as the browser.
+The first login opens Forgejo in your browser. Choose university SSO there. Ordinary commands silently refresh expired OAuth access tokens using the saved refresh token. `auth login` can also refresh an existing session without opening a browser. Use `collar auth login --web` to start a fresh browser sign-in; an existing Forgejo or university browser session may sign you in automatically. Collar verifies the credential and saves it in your operating system's credential store. Browser login runs on the same machine as the browser.
 
-SSH authenticates Git clone, fetch, and push. PR reviews and other API writes
-use the separate credential from `collar auth login`; an SSH key alone does not
-authenticate API requests.
+SSH authenticates Git clone, fetch, and push. PR reviews and other API writes use the separate credential from `collar auth login`; an SSH key alone does not authenticate API requests.
 
-For headless sessions, see [environment tokens](reference/configuration.md#headless-authentication).
-For secrets access, use `collar auth bao login`; Forgejo and OpenBao logins are
-separate.
+For headless sessions, see [environment tokens](reference/configuration.md#headless-authentication). For secrets access, use `collar auth bao login`; Forgejo and OpenBao logins are separate.
 
 ## Set up a coding agent
 
@@ -64,8 +52,7 @@ separate.
 collar skill install
 ```
 
-The CLI bundles the skill; no checkout or download is needed. See
-[agent setup](agents.md) for other clients, updates, and headless authentication.
+The CLI bundles the skill; no checkout or download is needed. See [agent setup](agents.md) for other clients, updates, and headless authentication.
 
 ## Review a pull request
 
@@ -75,6 +62,4 @@ collar pr diff 42 -R ScottyLabs/collar
 collar pr review 42 --comment --body 'Could you add a regression test?' -R ScottyLabs/collar
 ```
 
-Review commands submit immediately. Use `--approve` or `--request-changes` when
-you intend those verdicts. See the [pull request guide](guides/pull-requests.md)
-for inline comments, checkout, and merging.
+Review commands submit immediately. Use `--approve` or `--request-changes` when you intend those verdicts. See the [pull request guide](guides/pull-requests.md) for inline comments, checkout, and merging.

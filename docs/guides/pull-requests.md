@@ -9,14 +9,7 @@ collar status --interactive
 collar status --json reviewRequests
 ```
 
-`status` requires sign-in and lists your requested reviews, authored open PRs,
-and assigned open issues across the selected forge. It needs no checkout and
-shows up to ten recently updated items per category. Use `--limit` to change
-that bound, up to 50. Narrow it with `--owner`; `-R` applies to repository
-commands, not this inbox. Inspect an item's checks separately with `pr checks`.
-`--interactive` opens a read-only inbox picker; choose a PR to inspect details,
-diffs, or checks, or an issue to read its body. Back returns to the picker and
-Done exits. It requires a terminal and cannot accompany `--json`.
+`status` requires sign-in and lists your requested reviews, authored open PRs, and assigned open issues across the selected forge. It needs no checkout and shows up to ten recently updated items per category. Use `--limit` to change that bound, up to 50. Narrow it with `--owner`; `-R` applies to repository commands, not this inbox. Inspect an item's checks separately with `pr checks`. `--interactive` opens a read-only inbox picker; choose a PR to inspect details, diffs, or checks, or an issue to read its body. Back returns to the picker and Done exits. It requires a terminal and cannot accompany `--json`.
 
 ## Find and inspect a PR
 
@@ -28,15 +21,9 @@ collar pr diff 42
 collar pr checks 42
 ```
 
-PR selectors accept a number, a URL in the selected repository, or a branch
-name. Omit the selector inside a checkout to find the open PR for the current
-branch. If more than one PR matches, select a number explicitly. Pass `-R OWNER/REPO` for remote work without a clone.
+PR selectors accept a number, a URL in the selected repository, or a branch name. Omit the selector inside a checkout to find the open PR for the current branch. If more than one PR matches, select a number explicitly. Pass `-R OWNER/REPO` for remote work without a clone.
 
-`pr view --comments` includes discussion comments, submitted reviews, and inline
-review comments. Use `--json` to read the same conversation as structured data. Add `--compact`
-with `--comments --json` to keep text, authors, URLs, dates, and inline context
-while omitting unrelated provider metadata. Discussion and inline comments are
-paginated; default JSON remains unchanged.
+`pr view --comments` includes discussion comments, submitted reviews, and inline review comments. Use `--json` to read the same conversation as structured data. Add `--compact` with `--comments --json` to keep text, authors, URLs, dates, and inline context while omitting unrelated provider metadata. Discussion and inline comments are paginated; default JSON remains unchanged.
 
 Filter lists without a local checkout:
 
@@ -45,18 +32,11 @@ collar pr list -R ScottyLabs/collar --author @me
 collar pr list -R ScottyLabs/collar --base main --head feature/health
 ```
 
-`@me` resolves the signed-in Forgejo account and requires authentication. Other
-author logins and branch filters are sent directly to Forgejo.
+`@me` resolves the signed-in Forgejo account and requires authentication. Other author logins and branch filters are sent directly to Forgejo.
 
-`pr checks` reports commit statuses and fails when none exist or any are not
-successful. It does not determine whether every required check has reported;
-Forgejo enforces merge requirements.
+`pr checks` reports commit statuses and fails when none exist or any are not successful. It does not determine whether every required check has reported; Forgejo enforces merge requirements.
 
-For a terminal picker, use `collar pr browse`. Type to filter, choose a PR, then
-inspect details, its diff, or checks. Back returns to the PR list; Done exits
-successfully and Escape cancels. This is read-only and requires terminal input
-and stderr. With `--json`, the picker prints the selected PR without opening
-the inspection menu.
+For a terminal picker, use `collar pr browse`. Type to filter, choose a PR, then inspect details, its diff, or checks. Back returns to the PR list; Done exits successfully and Escape cancels. This is read-only and requires terminal input and stderr. With `--json`, the picker prints the selected PR without opening the inspection menu.
 
 ## Request reviewers
 
@@ -67,16 +47,9 @@ collar pr reviewers 42 --remove anish
 collar pr reviewers 42 --pick
 ```
 
-With no changes, this lists requested users and teams. `--add` and `--remove`
-write immediately, require sign-in and an open PR, and cannot be combined.
-Usernames are supplied directly; no files or local clones are needed. Team
-requests are displayed but are not modified by these options. An uncertain
-failure after a write requires inspecting the list before retrying.
+With no changes, this lists requested users and teams. `--add` and `--remove` write immediately, require sign-in and an open PR, and cannot be combined. Usernames are supplied directly; no files or local clones are needed. Team requests are displayed but are not modified by these options. An uncertain failure after a write requires inspecting the list before retrying.
 
-`--pick` loads eligible reviewers from Forgejo and opens a filtered picker.
-Pressing Enter requests the selected user's review immediately; Escape cancels
-without writing. The picker excludes the PR author and currently requested
-reviewers. It cannot accompany `--add`, `--remove`, or `--json`.
+`--pick` loads eligible reviewers from Forgejo and opens a filtered picker. Pressing Enter requests the selected user's review immediately; Escape cancels without writing. The picker excludes the PR author and currently requested reviewers. It cannot accompany `--add`, `--remove`, or `--json`.
 
 ## Submit a review
 
@@ -86,24 +59,18 @@ collar pr review 42 --request-changes --body 'Please cover the timeout case.'
 collar pr review 42 --comment --body 'The migration looks good.'
 ```
 
-Choose exactly one verdict. Comments and change requests need text or inline
-comments. A review writes immediately and requires sign-in.
+Choose exactly one verdict. Comments and change requests need text or inline comments. A review writes immediately and requires sign-in.
 
-Add an inline comment directly with `PATH LINE SIDE BODY`; repeat the option for
-more comments:
+Add an inline comment directly with `PATH LINE SIDE BODY`; repeat the option for more comments:
 
 ```sh
 collar pr review 42 --request-changes \
   --inline-comment src/main.rs 12 new 'Return an error here instead of panicking.'
 ```
 
-Use `new` for the PR's version and `old` for the base version. Lines must occur
-in the diff. For renamed files, use the new path on either side. Collar checks
-line anchors and verifies the PR's head before submitting one review pinned to
-that commit. If the head changes, inspect the new diff before reviewing again.
+Use `new` for the PR's version and `old` for the base version. Lines must occur in the diff. For renamed files, use the new path on either side. Collar checks line anchors and verifies the PR's head before submitting one review pinned to that commit. If the head changes, inspect the new diff before reviewing again.
 
-For longer text, `--body-file review.md` reads a Markdown file and `--body-file -`
-reads stdin. A file is optional; use `--body` for short messages.
+For longer text, `--body-file review.md` reads a Markdown file and `--body-file -` reads stdin. A file is optional; use `--body` for short messages.
 
 ## Create and update a PR
 
@@ -117,10 +84,7 @@ collar pr close 42
 collar pr reopen 42
 ```
 
-Creation defaults to the current branch and the repository's default target
-branch. `--head owner:branch` selects a fork branch; `--base main` selects a target.
-Collar does not push commits. An edit sends only supplied fields; `--body ''`
-clears the description.
+Creation defaults to the current branch and the repository's default target branch. `--head owner:branch` selects a fork branch; `--base main` selects a target. Collar does not push commits. An edit sends only supplied fields; `--body ''` clears the description.
 
 ## Check out a PR
 
@@ -128,13 +92,9 @@ clears the description.
 collar pr checkout 42
 ```
 
-This is a local Git operation. Collar fetches the PR head through `upstream`,
-then `origin`, and switches to `pr/42`. Use `--branch NAME` or `--remote NAME` to
-override those choices. Git handles SSH or HTTPS authentication.
+This is a local Git operation. Collar fetches the PR head through `upstream`, then `origin`, and switches to `pr/42`. Use `--branch NAME` or `--remote NAME` to override those choices. Git handles SSH or HTTPS authentication.
 
-Commit or stash local changes first, including untracked files and changed
-submodules. Collar verifies the fetched commit before switching branches and
-never resets an existing branch to a different commit.
+Commit or stash local changes first, including untracked files and changed submodules. Collar verifies the fetched commit before switching branches and never resets an existing branch to a different commit.
 
 ## Update or merge
 
@@ -143,17 +103,10 @@ collar pr update-branch 42
 collar pr merge 42 --squash
 ```
 
-`update-branch` merges the target into the PR branch; `--rebase` requests a
-rebase. Its optional `--match-head-commit SHA` checks the head before submission,
-but Forgejo does not make that check atomic with the update.
+`update-branch` merges the target into the PR branch; `--rebase` requests a rebase. Its optional `--match-head-commit SHA` checks the head before submission, but Forgejo does not make that check atomic with the update.
 
-Merge requires one of `--merge`, `--squash`, or `--rebase`. Immediate merging
-checks the inspected head on the server. Use `--delete-branch` to request source
-branch deletion and `--match-head-commit SHA` to require a specific head.
+Merge requires one of `--merge`, `--squash`, or `--rebase`. Immediate merging checks the inspected head on the server. Use `--delete-branch` to request source branch deletion and `--match-head-commit SHA` to require a specific head.
 
-`--auto` schedules a merge when server checks pass. It can merge a later head
-and cannot be combined with `--match-head-commit`. A successful response confirms
-the request was accepted; inspect the PR to determine whether it has merged.
+`--auto` schedules a merge when server checks pass. It can merge a later head and cannot be combined with `--match-head-commit`. A successful response confirms the request was accepted; inspect the PR to determine whether it has merged.
 
-If a write fails after submission, inspect the PR before retrying. Collar does
-not retry writes automatically.
+If a write fails after submission, inspect the PR before retrying. Collar does not retry writes automatically.

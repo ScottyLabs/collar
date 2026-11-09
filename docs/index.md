@@ -1,12 +1,8 @@
 # Collar
 
-Collar brings ScottyLabs development workflows into one CLI: pull requests,
-issues, CI, previews, project ownership, documentation, and local development.
-It uses Forgejo APIs for remote reads and calls the existing ScottyLabs tools
-for local operations.
+Collar brings ScottyLabs development workflows into one CLI: pull requests, issues, CI, previews, project ownership, documentation, and local development. It uses Forgejo APIs for remote reads and calls the existing ScottyLabs tools for local operations.
 
-Check `collar --version` and use the help
-shipped with your installed version when a command differs from this guide.
+Check `collar --version` and use the help shipped with your installed version when a command differs from this guide.
 
 ## Start here
 
@@ -19,7 +15,7 @@ shipped with your installed version when a command differs from this guide.
 ## Find a task
 
 | Task | Guide |
-| --- | --- |
+| -- | -- |
 | Find ownership, services, documentation, or changes | [ScottyLabs projects](guides/scottylabs.md) |
 | Manage issues, labels, releases, or forks | [Repository work](guides/repository-work.md) |
 | Enable shell completions or use Nushell | [Shell completions](guides/completions.md) |
@@ -29,5 +25,4 @@ shipped with your installed version when a command differs from this guide.
 | Diagnose a problem | [Troubleshooting](troubleshooting.md) |
 | Look up arguments and defaults | [Command reference](reference/commands/index.md) |
 
-Run `collar --help` to see command groups and `collar pr review --help` to inspect
-a specific command. `-h` gives brief help; `--help` includes extended descriptions.
+Run `collar --help` to see command groups and `collar pr review --help` to inspect a specific command. `-h` gives brief help; `--help` includes extended descriptions.

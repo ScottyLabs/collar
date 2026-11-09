@@ -70,8 +70,7 @@ pub fn choose(prompt: &str, labels: &[String]) -> Result<usize> {
         .max_length(usize::from(term.size().0.saturating_sub(7)).clamp(3, 12))
         .report(false)
         .interact_on_opt(&term)?;
-    // The picker erases its own lines; erase the hint too so that repeated
-    // pickers do not leave one stale copy each in the scrollback.
+    // The picker erases its own lines; erase the hint too so that repeated pickers do not leave one stale copy each in the scrollback.
     term.clear_last_lines(rows)?;
     match selection {
         Some(index) => Ok(index),

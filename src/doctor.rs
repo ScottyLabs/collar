@@ -187,13 +187,30 @@ fn check_governance(
 }
 
 fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
-    for (tool, version) in [
-        ("git", "--version"),
-        ("nix", "--version"),
-        ("pitchfork", "--version"),
-        ("bao", "version"),
-        ("secretspec", "--version"),
+    let root = repo::root();
+    let processes = root.as_ref().is_ok_and(|root| {
+        ["pitchfork.toml", ".config/pitchfork.toml"]
+            .iter()
+            .any(|path| root.join(path).symlink_metadata().is_ok())
+    });
+    let secrets = root
+        .as_ref()
+        .is_ok_and(|root| root.join("secretspec.toml").symlink_metadata().is_ok());
+    for (tool, version, required) in [
+        ("git", "--version", true),
+        ("nix", "--version", true),
+        ("pitchfork", "--version", processes),
+        ("bao", "version", secrets),
+        ("secretspec", "--version", secrets),
     ] {
+        if !required {
+            skipped(
+                checks,
+                &format!("tool:{tool}"),
+                "no corresponding project configuration; enter nix develop to generate local process configuration",
+            );
+            continue;
+        }
         record(
             checks,
             &format!("tool:{tool}"),
@@ -202,7 +219,6 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
             "Install Lix and enter the project's dev shell with nix develop; ScottyLabs shared tooling supplies pitchfork, Bao, and secretspec.",
         );
     }
-    let root = repo::root();
     record(
         checks,
         "checkout",
@@ -238,7 +254,13 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
     root
 }
 
-fn check_remote(checks: &mut Vec<Check>, selected: Result<Repo>, config: &Config, offline: bool) {
+fn check_remote(
+    checks: &mut Vec<Check>,
+    selected: Result<Repo>,
+    config: &Config,
+    offline: bool,
+    secrets: bool,
+) {
     if offline {
         for name in ["forge", "forge-auth", "bao-auth"] {
             skipped(checks, name, "offline mode; remote access was not checked");
@@ -272,6 +294,10 @@ fn check_remote(checks: &mut Vec<Check>, selected: Result<Repo>, config: &Config
                 Err(error),
                 "Fix repository selection and host-bound authentication configuration.",
             ),
+        }
+        if !secrets {
+            skipped(checks, "bao-auth", "project has no secretspec.toml");
+            return;
         }
         record(
             checks,
@@ -327,6 +353,9 @@ pub fn run(
         .validate_fields(&["name", "status", "detail", "action"])?;
     let mut checks = Vec::new();
     let root = check_local(&mut checks);
+    let secrets = root
+        .as_ref()
+        .is_ok_and(|root| root.join("secretspec.toml").symlink_metadata().is_ok());
     let selected = config.repo(selection, host);
     record(
         &mut checks,
@@ -341,7 +370,9 @@ pub fn run(
         sources.load(Kind::Governance, args.governance, args.offline),
         &selected,
     );
-    if let (Ok(root), Some(project)) = (&root, &context) {
+    if !secrets {
+        skipped(&mut checks, "secretspec", "project has no secretspec.toml");
+    } else if let (Ok(root), Some(project)) = (&root, &context) {
         record(
             &mut checks,
             "secretspec",
@@ -366,7 +397,7 @@ pub fn run(
                 .unwrap_or_else(|| ACCOUNTS.into()),
         ),
     });
-    check_remote(&mut checks, selected, config, args.offline);
+    check_remote(&mut checks, selected, config, args.offline, secrets);
     print_checks(&checks, &args.output)
 }
 

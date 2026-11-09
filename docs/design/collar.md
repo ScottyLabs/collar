@@ -37,7 +37,7 @@ Collar does not implement every gh command or add Kennel server endpoints. Provi
 Collar implements these workflows:
 
 | Group | Commands | Behavior |
-| --- | --- | --- |
+| -- | -- | -- |
 | Onboarding | doctor, project view/select | Aggregate local/login diagnostics and join canonical ownership, features, and secret namespace; explicit offline mode and optional terminal selection. |
 | Configuration | config get/set/unset | Nonsecret host defaults; canonical sources resolve the latest revision automatically. |
 | Forge | auth status, repo view/fork, pr create/checkout/edit/comment/close/reopen/merge/update-branch/list/view/browse/diff/checks/review, api | Direct Forgejo requests; explicit writes require a token. Terminal inspection stays read-only. |

@@ -2,6 +2,96 @@ use super::*;
 
 #[cfg(unix)]
 #[test]
+fn doctor_skips_optional_tools_and_auth_without_project_configuration() {
+    let temp = TempDir::new().unwrap();
+    let (project, bin) = doctor_fixture(temp.path());
+    std::fs::remove_file(project.join("secretspec.toml")).unwrap();
+    for tool in ["pitchfork", "bao", "secretspec"] {
+        std::fs::remove_file(bin.join(tool)).unwrap();
+    }
+    assert!(
+        git_command()
+            .args(["add", "."])
+            .current_dir(&project)
+            .status()
+            .unwrap()
+            .success()
+    );
+    assert!(
+        git_command()
+            .args(["commit", "--quiet", "-m", "remove optional configuration"])
+            .current_dir(&project)
+            .status()
+            .unwrap()
+            .success()
+    );
+    let output = doctor_command(temp.path(), &project, &bin)
+        .arg("--offline")
+        .output()
+        .unwrap();
+    success(&output);
+    let server = Server::new(vec![
+        Response::json(json!({"version": "16.0.5"})),
+        Response::json(json!({"login": "member"})),
+    ]);
+    let data_path = temp.path().join("governance/data/tech.yaml");
+    let data = std::fs::read_to_string(&data_path)
+        .unwrap()
+        .replace("https://git.cmu.dev", &server.origin);
+    std::fs::write(data_path, data).unwrap();
+    let output = doctor_command(temp.path(), &project, &bin)
+        .env("COLLAR_HOST", &server.origin)
+        .env("COLLAR_TOKEN", "test-token")
+        .output()
+        .unwrap();
+    let checks: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
+    for name in [
+        "tool:pitchfork",
+        "tool:bao",
+        "tool:secretspec",
+        "secretspec",
+        "bao-auth",
+    ] {
+        assert!(
+            checks
+                .iter()
+                .any(|check| check["name"] == name && check["status"] == "skipped"),
+            "{checks:?}"
+        );
+    }
+    assert_eq!(server.finish().len(), 2);
+    let commands = std::fs::read_to_string(temp.path().join("commands.log")).unwrap();
+    assert!(!commands.contains("bao "));
+    assert!(!commands.contains("secretspec "));
+}
+
+#[cfg(unix)]
+#[test]
+fn doctor_requires_pitchfork_when_process_configuration_exists() {
+    let temp = TempDir::new().unwrap();
+    let (project, bin) = doctor_fixture(temp.path());
+    std::fs::remove_file(bin.join("pitchfork")).unwrap();
+    for path in ["pitchfork.toml", ".config/pitchfork.toml"] {
+        let path = project.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(&path, "[daemons.web]\nrun = 'web'\n").unwrap();
+        let output = doctor_command(temp.path(), &project, &bin)
+            .arg("--offline")
+            .output()
+            .unwrap();
+        failure(&output, "diagnostics failed");
+        let checks: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
+        assert!(
+            checks
+                .iter()
+                .any(|check| check["name"] == "tool:pitchfork" && check["status"] == "fail")
+        );
+        std::fs::remove_file(path).unwrap();
+    }
+}
+
+#[cfg(unix)]
+#[test]
 fn offline_doctor_reports_manual_checks_and_never_resolves_secrets() {
     let temp = TempDir::new().unwrap();
     let (project, bin) = doctor_fixture(temp.path());

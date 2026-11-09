@@ -78,8 +78,7 @@ impl DiffStyles {
     }
 }
 
-/// Styles sanitized diff text; file headers and paths stay legible while
-/// modes and hashes recede, and files are separated by a blank line.
+/// Styles sanitized diff text; file headers and paths stay legible while modes and hashes recede, and files are separated by a blank line.
 fn render_diff(text: &str, styles: &DiffStyles) -> String {
     if text.trim().is_empty() {
         return format!("\n{}", styles.muted.apply_to("No changes."));

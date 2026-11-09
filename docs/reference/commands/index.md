@@ -1,8 +1,6 @@
 # Command reference
 
-These pages are generated from Collar's Clap definitions. Use the help shipped
-with your installed version when it differs from this site. Global options are
-listed here and apply to every subcommand.
+These pages are generated from Collar's Clap definitions. Use the help shipped with your installed version when it differs from this site. Global options are listed here and apply to every subcommand.
 
 - [`collar skill`](skill.md)
 - [`collar status`](status.md)

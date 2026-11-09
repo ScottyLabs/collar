@@ -1,8 +1,6 @@
 # Collar
 
-Collar is the ScottyLabs development CLI. Use it to review Forgejo pull requests,
-inspect CI and Kennel previews, find project documentation, and run local
-development tools.
+Collar is the ScottyLabs development CLI. Use it to review Forgejo pull requests, inspect CI and Kennel previews, find project documentation, and run local development tools.
 
 ## Get started
 
@@ -16,8 +14,7 @@ collar repo view collar
 
 See [installation and first steps](https://docs.collar.scottylabs.org/getting-started/) to sign in.
 
-For coding agents, start with `collar skill install` and the
-[agent setup guide](https://docs.collar.scottylabs.org/agents/).
+For coding agents, start with `collar skill install` and the [agent setup guide](https://docs.collar.scottylabs.org/agents/).
 
 ## Everyday commands
 
@@ -30,9 +27,7 @@ collar docs search secrets
 collar check --all
 ```
 
-Repository commands use the current checkout's `upstream` remote, then `origin`.
-Pass `-R collar` to work without a checkout; bare names default to `ScottyLabs`. Sign-in is required for
-private reads and writes; public reads work without it.
+Repository commands use the current checkout's `upstream` remote, then `origin`. Pass `-R collar` to work without a checkout; bare names default to `ScottyLabs`. Sign-in is required for private reads and writes; public reads work without it.
 
 ## Documentation
 

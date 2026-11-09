@@ -1,5 +1,4 @@
-//! Parses unified Git diffs to validate inline review anchors on either side
-//! and to classify lines for display.
+//! Parses unified Git diffs to validate inline review anchors on either side and to classify lines for display.
 
 use std::collections::BTreeSet;
 
@@ -83,10 +82,7 @@ pub enum LineKind {
 
 /// Classifies each line of `diff` for display, in order.
 ///
-/// Unlike [`anchors`] this never fails, so any diff can still be shown. Hunk
-/// line counts decide where content ends, which keeps a removed line such as
-/// `--- text` from being read as a file header. A truncated hunk cannot swallow
-/// the next file because `diff ` and `@@ ` never begin hunk content.
+/// Unlike [`anchors`] this never fails, so any diff can still be shown. Hunk line counts decide where content ends, which keeps a removed line such as `--- text` from being read as a file header. A truncated hunk cannot swallow the next file because `diff ` and `@@ ` never begin hunk content.
 pub fn line_kinds(diff: &str) -> Vec<LineKind> {
     let mut open: Option<Hunk> = None;
     diff.lines()

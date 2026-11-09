@@ -213,7 +213,7 @@ enum Command {
         #[command(subcommand)]
         command: GovernanceCommand,
     },
-    /// Inspect Kennel deployment reports and retry branch builds.
+    /// Inspect nixbot builds, Kennel deployments, and previews
     #[command(after_long_help = "Examples:\n  collar kennel preview 42\n  collar kennel wait 42")]
     Kennel {
         #[command(subcommand)]

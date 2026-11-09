@@ -13,16 +13,12 @@ collar governance project view collar
 collar governance service-access -R ScottyLabs/collar
 ```
 
-Project views show the owning team, inherited leads and members, enabled
-features, and secret namespace. The namespace is the governance slug, which can
-differ from the repository name. A team-owned repository may have no namespace.
+Project views read governance's generated `data.json` and show the owning team, the team's leads, the members, enabled features, and secret namespace. The namespace is the governance slug, which can differ from the repository name. A team-owned repository may have no namespace.
 
 `project select` is a terminal picker that prints the selected project's context.
 It does not save a repository selection for later commands.
 
-These are declarations, not proof that access has been provisioned. Repository
-settings, membership, and feature changes belong in governance's review and
-Atlantis workflow.
+These are declarations, not proof that access has been provisioned. Repository settings, membership, and feature changes go through [governance](https://git.cmu.dev/ScottyLabs/governance).
 
 ## Read documentation
 

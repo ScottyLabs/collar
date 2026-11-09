@@ -3,19 +3,30 @@ use super::*;
 #[test]
 fn service_access_resolves_selected_repository_and_declared_feature_families() {
     let temp = TempDir::new().unwrap();
-    project_governance(temp.path());
-    let team = temp.path().join("data/teams/team.toml");
-    std::fs::write(
-        team,
-        "[team]\nslug = 'tech'\nname = 'Tech'\nleads = ['Lead']\nmembers = ['member']\n[[team.projects]]\nslug = 'collie'\nname = 'Collie'\n[[team.projects.repos]]\nname = 'collie-api'\n[team.projects.repos.features]\nai_gateway = {}\ncdn = {}\ndocs = {}\nkennel = {}\nmobile_app = {}\noidc_client = {}\nposthog = {}\nsentry = {}\n",
-    )
-    .unwrap();
-    let org = temp.path().join("data/org.toml");
-    std::fs::write(
-        org,
-        "[org.forgejo]\norg = 'ScottyLabs'\nurl = 'https://git.cmu.dev'\n[org.keycloak]\nurl = 'https://identity.example.test'\nrealm = 'custom-realm'\n",
-    )
-    .unwrap();
+    let declared = json!({
+        "ai_gateway": {
+            "prod_monthly_budget": 10.0, "dev_monthly_budget": 1.0,
+            "prod_rpm_limit": 60, "dev_rpm_limit": 10, "prod_tpm_limit": 1000, "dev_tpm_limit": 100,
+            "prod_max_parallel_requests": 4, "dev_max_parallel_requests": 1
+        },
+        "cdn": {},
+        "docs": {},
+        "kennel": {},
+        "mobile_app": {"google_play": "org.scottylabs.collie", "app_store": null},
+        "oidc_client": {"admin": false, "public": false, "groups": []},
+        "posthog": {"server_side": false},
+        "sentry": {}
+    });
+    let team = json!({"team": {
+        "slug": "tech", "name": "Tech", "leads": ["Lead"], "members": ["member"],
+        "projects": [{"slug": "collie", "name": "Collie", "repos": [
+            {"name": "collie-api", "features": declared.clone()}
+        ]}]
+    }});
+    let mut tech = tech("https://git.cmu.dev");
+    tech["keycloak"]["url"] = json!("https://identity.example.test");
+    tech["keycloak"]["realm"] = json!("custom-realm");
+    write_governance(temp.path(), tech, json!([team]));
 
     let output = command()
         .args([
@@ -43,25 +54,12 @@ fn service_access_resolves_selected_repository_and_declared_feature_families() {
         value["linkedAccountsUrl"],
         "https://identity.example.test/realms/custom-realm/account/account-security/linked-accounts"
     );
-    let features = value["features"].as_array().unwrap();
-    assert_eq!(features.len(), 8);
-    for name in [
-        "ai_gateway",
-        "cdn",
-        "docs",
-        "kennel",
-        "mobile_app",
-        "oidc_client",
-        "posthog",
-        "sentry",
-    ] {
-        assert!(features.iter().any(|feature| feature["name"] == name));
+    let reported = value["features"].as_array().unwrap();
+    assert_eq!(reported.len(), 8);
+    for feature in reported {
+        let name = feature["name"].as_str().unwrap();
+        assert_eq!(feature["declaration"], declared[name], "{name}");
     }
-    assert!(
-        features
-            .iter()
-            .all(|feature| feature["declaration"] == json!({}))
-    );
 }
 
 #[test]

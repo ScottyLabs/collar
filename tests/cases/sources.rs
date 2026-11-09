@@ -4,17 +4,17 @@ use super::*;
 fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offline() {
     let temp = TempDir::new().unwrap();
     let server = Server::with_responses(|origin| {
-        let org = format!(
-            "[org.forgejo]\norg = 'ScottyLabs'\nurl = '{origin}'\n[org.keycloak]\nurl = 'https://idp.scottylabs.org'\nrealm = 'scottylabs'\n"
+        let readme = "# Governance\n";
+        let data = governance_data(
+            tech(origin),
+            json!([{"team": {"slug": "collie", "name": "Collie", "repos": [{"name": "collie-api"}]}}]),
         );
-        let team =
-            "[team]\nslug = 'collie'\nname = 'Collie'\n[[team.repos]]\nname = 'collie-api'\n";
         let mut responses = source_head();
         responses.extend([
-            Response::json(json!({"page": 1, "total_count": 2, "truncated": true, "tree": [tree_entry("data/org.toml", &org)]})),
-            Response::json(json!({"page": 2, "total_count": 2, "truncated": false, "tree": [tree_entry("data/teams/collie.toml", team)]})),
-            Response {status: 200, body: org, headers: String::new()},
-            Response {status: 200, body: team.into(), headers: String::new()},
+            Response::json(json!({"page": 1, "total_count": 2, "truncated": true, "tree": [tree_entry("README.md", readme)]})),
+            Response::json(json!({"page": 2, "total_count": 2, "truncated": false, "tree": [tree_entry("generated/data.json", &data)]})),
+            Response {status: 200, body: readme.into(), headers: String::new()},
+            Response {status: 200, body: data, headers: String::new()},
         ]);
         responses.extend(source_head());
         responses.push(Response {
@@ -50,8 +50,8 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     assert_eq!(value["dataSource"]["offline"], false);
     success(&run(true));
     let source_file = std::path::Path::new(value["source"].as_str().unwrap());
-    // The fixture is stored at REVISION/data/teams/collie.toml.
-    let cache = source_file.ancestors().nth(4).unwrap();
+    // The fixture is stored at REVISION/generated/data.json.
+    let cache = source_file.ancestors().nth(3).unwrap();
     let obsolete = cache.join("2".repeat(40));
     std::fs::create_dir(&obsolete).unwrap();
     std::fs::write(obsolete.join("old-content"), "obsolete").unwrap();
@@ -137,17 +137,17 @@ fn source_snapshots_reject_unsafe_incomplete_and_symlink_trees_before_raw_reads(
             "unsafe path",
         ),
         (
-            json!({"path":"data/org.toml", "type":"blob", "mode":"120000", "size":2, "sha":SOURCE_REVISION}),
+            json!({"path":"generated/data.json", "type":"blob", "mode":"120000", "size":2, "sha":SOURCE_REVISION}),
             1,
             "symlinks",
         ),
         (
-            json!({"path":"data/org.toml", "type":"blob", "mode":"100644", "size":2, "sha":SOURCE_REVISION}),
+            json!({"path":"generated/data.json", "type":"blob", "mode":"100644", "size":2, "sha":SOURCE_REVISION}),
             2,
             "incomplete",
         ),
         (
-            json!({"path":"data/org.toml", "type":"blob", "mode":"100644", "size":u64::MAX, "sha":SOURCE_REVISION}),
+            json!({"path":"generated/data.json", "type":"blob", "mode":"100644", "size":u64::MAX, "sha":SOURCE_REVISION}),
             1,
             "exceeds 8 MiB",
         ),
@@ -175,7 +175,7 @@ fn failed_snapshot_download_does_not_publish_an_offline_source() {
     let temp = TempDir::new().unwrap();
     let mut responses = source_head();
     responses.extend([
-        Response::json(json!({"page":1,"total_count":1,"truncated":false,"tree":[tree_entry("data/org.toml", "{}")]})),
+        Response::json(json!({"page":1,"total_count":1,"truncated":false,"tree":[tree_entry("generated/data.json", "{}")]})),
         Response {status:403,body:"never-print-server-secret".into(),headers:String::new()},
     ]);
     let server = Server::new(responses);

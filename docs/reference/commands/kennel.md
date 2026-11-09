@@ -3,16 +3,15 @@
 Global options apply to every command below; see the [command index](index.md).
 
 ```text
-Inspect Kennel deployment reports and retry branch builds
+Inspect nixbot builds, Kennel deployments, and previews
 
 Usage: collar kennel <COMMAND>
 
 Commands:
-  retry    Retry a Kennel branch build through its verified Forgejo webhook
-  preview  Find preview links reported in marked Kennel PR comments
-  logs     Print Kennel build and deploy report links for a PR head
-  wait     Wait for Kennel build and deployment statuses on the current PR head
-  status   Show build/deploy reports for a PR and historical preview comments
+  preview  Show the preview URLs Kennel serves for a PR
+  logs     Print nixbot's statuses and failure logs and Kennel's deploy outcome for a PR head
+  wait     Wait for the nixbot build and Kennel deployment on the current PR head
+  status   Show nixbot's checks and Kennel's deploy and deployments for a PR
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -24,42 +23,10 @@ Examples:
   collar kennel wait 42
 ```
 
-## `collar kennel retry`
-
-```text
-Retry a Kennel branch build through its verified Forgejo webhook
-
-Usage: collar kennel retry [OPTIONS] [BRANCH]
-
-Arguments:
-  [BRANCH]
-          Branch to retry; omitted selects the repository's default branch
-
-Options:
-      --pr <PR>
-          PR selector; currently rejected because push tests cannot retry previews
-
-      --hook <HOOK>
-          Select a Kennel webhook when more than one is configured
-
-      --json [<FIELDS>]
-          Output selected JSON fields (comma-separated); omit fields for all
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-Examples:
-  collar kennel retry
-  collar kennel retry staging
-  collar kennel retry dev --hook 12
-
-Omitting BRANCH selects the repository's default branch. Kennel push retries support main, staging, and dev. PR previews require a pull-request event and cannot be retried by Forgejo's push-test endpoint. Requires repository webhook administration permission. An accepted trigger is not proof of delivery or build start; never repeat an uncertain write automatically.
-```
-
 ## `collar kennel preview`
 
 ```text
-Find preview links reported in marked Kennel PR comments
+Show the preview URLs Kennel serves for a PR
 
 Usage: collar kennel preview [OPTIONS] [SELECTOR]
 
@@ -78,7 +45,7 @@ Options:
 ## `collar kennel logs`
 
 ```text
-Print Kennel build and deploy report links for a PR head
+Print nixbot's statuses and failure logs and Kennel's deploy outcome for a PR head
 
 Usage: collar kennel logs [OPTIONS] [SELECTOR]
 
@@ -87,6 +54,11 @@ Arguments:
 
 
 Options:
+      --tail <TAIL>
+          Log lines to print for each failed check
+
+          [default: 50]
+
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all
 
@@ -97,7 +69,7 @@ Options:
 ## `collar kennel wait`
 
 ```text
-Wait for Kennel build and deployment statuses on the current PR head
+Wait for the nixbot build and Kennel deployment on the current PR head
 
 Usage: collar kennel wait [OPTIONS] [SELECTOR]
 
@@ -122,7 +94,7 @@ Options:
 ## `collar kennel status`
 
 ```text
-Show build/deploy reports for a PR and historical preview comments
+Show nixbot's checks and Kennel's deploy and deployments for a PR
 
 Usage: collar kennel status [OPTIONS] [SELECTOR]
 

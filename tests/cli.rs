@@ -40,9 +40,6 @@ mod governance_ops;
 #[path = "cases/kennel.rs"]
 mod kennel;
 
-#[path = "cases/kennel_retry.rs"]
-mod kennel_retry;
-
 #[path = "cases/issues.rs"]
 mod issues;
 

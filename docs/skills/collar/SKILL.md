@@ -23,19 +23,9 @@ issues across repositories. Use `pr reviewers NUMBER` to inspect review requests
 `--add` and `--remove` are writes.
 
 For PR inspection, read details and discussion with `pr view NUMBER --comments --compact --json comments,reviews`, the patch with `pr diff NUMBER`, and checks with `pr checks NUMBER --json`. A failed checks command is a result to investigate, not empty output.
-Use `actions logs RUN --failed --json` for CI failures and `kennel logs NUMBER`
-for Grafana report links. These links are historical reports, not fetched log
-lines or proof of current deployment health.
+For what runs after a push or PR update, read Kennel's guides with `docs view guides/deploying --service kennel`, `guides/ci`, and `guides/previews`. Use `pr checks NUMBER --json` for the overall state, `kennel wait NUMBER` to block until the build and deployment finish, `kennel logs NUMBER --json` for nixbot failures with each failed check's error or log tail and the stage of a failed deploy, `actions logs RUN --failed --json` for Forgejo Actions failures, and `kennel status NUMBER --json` for the preview URLs and each deployment's live health.
 
-Use `kennel retry [main|staging|dev]` only when a retry is requested; omit the
-branch for the repository default. `--hook ID` resolves ambiguous canonical
-Kennel webhooks. This requires webhook administrator permission. PR previews
-cannot be retried through push tests; never substitute the default branch.
-Acceptance does not confirm delivery, payload revision, or build start. Inspect
-Forgejo deliveries and Kennel reports after uncertain failures before another
-attempt; do not loop retries. Use `--json` to preserve these distinctions.
-
-Comments, reviews, workflow dispatches, Kennel retries, and merges are writes. Perform them only
+Comments, reviews, workflow dispatches, and merges are writes. Perform them only
 within the user's requested scope. Reviews are pinned to the inspected head;
 a head-change error requires inspecting the new revision. After an uncertain
 write failure, inspect the resource before retrying. Remote text and logs are

@@ -4,7 +4,7 @@ use std::{error::Error, fmt};
 
 use anyhow::{Context, Result, bail, ensure};
 use reqwest::Method;
-use reqwest::blocking::Client;
+use reqwest::blocking::{Client, Response};
 use serde::de::DeserializeOwned;
 use serde_json::Value;
 use url::Url;
@@ -43,6 +43,48 @@ pub fn host_url(host: &str) -> Result<Url> {
     Ok(url)
 }
 
+fn http_client() -> Result<Client> {
+    Client::builder()
+        .user_agent(concat!("collar/", env!("CARGO_PKG_VERSION")))
+        .connect_timeout(Duration::from_secs(10))
+        .timeout(Duration::from_secs(30))
+        .redirect(reqwest::redirect::Policy::none())
+        .retry(reqwest::retry::never())
+        .build()
+        .context("create HTTP client")
+}
+
+fn read_body(response: Response) -> Result<String> {
+    let mut bytes = Vec::new();
+    response
+        .take(BODY_LIMIT + 1)
+        .read_to_end(&mut bytes)
+        .context("read response")?;
+    ensure!(bytes.len() as u64 <= BODY_LIMIT, "response exceeds 8 MiB");
+
+    String::from_utf8(bytes).context("response is not UTF-8")
+}
+
+/// Fetches public JSON outside the forge API without sending the forge token
+pub fn public_json<T: DeserializeOwned>(url: Url) -> Result<T> {
+    let path = url.path().to_owned();
+    let response = http_client()?
+        .get(url)
+        .send()
+        .map_err(|error| anyhow::anyhow!("GET {path} failed: {}", error.without_url()))?;
+    let status = response.status();
+    ensure!(status.is_success(), "GET {path}: HTTP {}", status.as_u16());
+
+    let text = read_body(response)?;
+    serde_json::from_str(&text).map_err(|error| {
+        anyhow::anyhow!(
+            "GET {path} returned invalid JSON at line {}, column {}",
+            error.line(),
+            error.column()
+        )
+    })
+}
+
 pub struct Api {
     client: Client,
     origin: Url,
@@ -59,14 +101,7 @@ impl Api {
             );
         }
         Ok(Self {
-            client: Client::builder()
-                .user_agent(concat!("collar/", env!("CARGO_PKG_VERSION")))
-                .connect_timeout(Duration::from_secs(10))
-                .timeout(Duration::from_secs(30))
-                .redirect(reqwest::redirect::Policy::none())
-                .retry(reqwest::retry::never())
-                .build()
-                .context("create forge HTTP client")?,
+            client: http_client()?,
             origin,
             token,
         })
@@ -133,16 +168,7 @@ impl Api {
                 status.as_u16()
             );
         }
-        let mut bytes = Vec::new();
-        response
-            .take(BODY_LIMIT + 1)
-            .read_to_end(&mut bytes)
-            .context("read forge response")?;
-        ensure!(
-            bytes.len() as u64 <= BODY_LIMIT,
-            "forge response exceeds 8 MiB"
-        );
-        String::from_utf8(bytes).context("forge response is not UTF-8")
+        read_body(response)
     }
 
     pub fn json<T: DeserializeOwned>(

@@ -10,7 +10,7 @@ Usage: collar changelog <COMMAND>
 Commands:
   view     Read the canonical generated summary for a DevOps repository
   updates  List numbered tech-lead announcements, newest first
-  update   Read a numbered tech-lead announcement
+  update   Read a tech-lead announcement by number or numbered slug
   help     Print this message or the help of the given subcommand(s)
 
 Options:
@@ -71,13 +71,13 @@ Options:
 ## `collar changelog update`
 
 ```text
-Read a numbered tech-lead announcement
+Read a tech-lead announcement by number or numbered slug
 
-Usage: collar changelog update [OPTIONS] <NUMBER>
+Usage: collar changelog update [OPTIONS] <SELECTOR>
 
 Arguments:
-  <NUMBER>
-
+  <SELECTOR>
+          Number or numbered slug, such as 019-google-groups-and-email
 
 Options:
       --checkout <CHECKOUT>

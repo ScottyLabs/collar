@@ -107,5 +107,66 @@ fn changelog_reads_numbered_announcements_and_rejects_ambiguity() {
         .arg(temp.path())
         .output()
         .unwrap();
-    failure(&output, "duplicate announcement number");
+    failure(&output, "announcement number 17 is ambiguous");
+    failure(&output, "017-current, 017-duplicate");
+    let output = command()
+        .args(["changelog", "updates", "--checkout"])
+        .arg(temp.path())
+        .args(["--json", "number,title"])
+        .output()
+        .unwrap();
+    success(&output);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        json!([
+            {"number":17,"title":"Current"},{"number":17,"title":"Duplicate"},{"number":1,"title":"First"}
+        ])
+    );
+    for selector in ["017-current", "017-current.md", "updates/017-current.md"] {
+        let output = command()
+            .args(["changelog", "update", selector, "--checkout"])
+            .arg(temp.path())
+            .args(["--json", "number,title"])
+            .output()
+            .unwrap();
+        success(&output);
+        assert_eq!(
+            serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+            json!({"number":17,"title":"Current"})
+        );
+    }
+    let output = command()
+        .args(["changelog", "update", "1", "--checkout"])
+        .arg(temp.path())
+        .args(["--json", "title"])
+        .output()
+        .unwrap();
+    success(&output);
+    assert_eq!(
+        serde_json::from_slice::<Value>(&output.stdout).unwrap(),
+        json!({"title":"First"})
+    );
+}
+
+#[test]
+fn changelog_rejects_unsafe_selectors_before_loading_sources() {
+    for selector in [
+        "../019-outside",
+        "updates/../../019-outside.md",
+        "019-upperCase",
+        "019-bad/slug",
+        "9999999999999999999999999",
+    ] {
+        let output = command()
+            .args([
+                "--host",
+                "http://127.0.0.1:1",
+                "changelog",
+                "update",
+                selector,
+            ])
+            .output()
+            .unwrap();
+        failure(&output, "select an announcement number or numbered slug");
+    }
 }

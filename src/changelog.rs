@@ -23,9 +23,10 @@ pub enum Command {
         #[command(flatten)]
         source: SourceArgs,
     },
-    /// Read a numbered tech-lead announcement.
+    /// Read a tech-lead announcement by number or numbered slug.
     Update {
-        number: u32,
+        /// Number or numbered slug, such as 019-google-groups-and-email.
+        selector: String,
         #[command(flatten)]
         source: SourceArgs,
     },
@@ -86,10 +87,22 @@ struct Entry {
 }
 
 pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
-    let (args, file, number) = match command {
+    let (args, file, selector) = match command {
         Command::View { repository, source } => (source, Some(repository.file()), None),
         Command::Updates { source } => (source, None, None),
-        Command::Update { number, source } => (source, None, Some(number)),
+        Command::Update { selector, source } => (source, None, Some(selector)),
+    };
+    let selection = if let Some(selector) = selector {
+        let number = selector.parse::<u32>().ok();
+        let filename = selector.strip_prefix("updates/").unwrap_or(&selector);
+        let filename = format!("{}.md", filename.strip_suffix(".md").unwrap_or(filename));
+        ensure!(
+            number.is_some() || update_number(&filename).is_some(),
+            "select an announcement number or numbered slug from collar changelog updates"
+        );
+        Some((selector, number, format!("updates/{filename}")))
+    } else {
+        None
     };
     args.output
         .validate_fields(&["path", "title", "body", "number", "dataSource"])?;
@@ -128,17 +141,28 @@ pub fn run(command: Command, sources: &Sources<'_>) -> Result<()> {
             updates.push((number, format!("updates/{name}")));
         }
     }
-    updates.sort_by_key(|update| std::cmp::Reverse(update.0));
-    ensure!(
-        !updates.windows(2).any(|pair| pair[0].0 == pair[1].0),
-        "duplicate announcement number"
-    );
-    if let Some(number) = number {
-        let (_, path) = updates
+    updates.sort_by(|a, b| b.0.cmp(&a.0).then_with(|| a.1.cmp(&b.1)));
+    if let Some((selector, number, selected_path)) = selection {
+        let matches: Vec<_> = updates
             .iter()
-            .find(|(candidate, _)| *candidate == number)
-            .with_context(|| format!("announcement {number} does not exist"))?;
-        let entry = read(path, Some(number))?;
+            .filter(|(candidate, path)| match number {
+                Some(number) => *candidate == number,
+                None => path == &selected_path,
+            })
+            .collect();
+        let (number, path) = matches
+            .first()
+            .with_context(|| format!("announcement {selector} does not exist"))?;
+        ensure!(
+            matches.len() == 1,
+            "announcement number {selector} is ambiguous; select a numbered slug: {}",
+            matches
+                .iter()
+                .map(|(_, path)| path.trim_start_matches("updates/").trim_end_matches(".md"))
+                .collect::<Vec<_>>()
+                .join(", ")
+        );
+        let entry = read(path, Some(*number))?;
         let value = source.attach(&entry)?;
         return args
             .output

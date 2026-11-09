@@ -23,10 +23,22 @@ Follow the suggested actions for failed checks. Doctor can't verify that your ac
 collar dev shell
 collar dev run -- cargo test
 collar dev up
+collar dev up web
+collar dev status --json
+collar dev logs web --tail 50
+collar dev restart web
 collar dev down
 ```
 
-Collar runs commands through `nix develop` in the project root and preserves tool output and exit codes. Arguments after `dev run --` are passed literally, without a shell expansion step. `dev shell` requires a terminal; scripts should use `dev run`. `dev up` starts the project's local processes in the background with `pitchfork start --local`, and `dev down` stops them with `pitchfork stop --local`. Kennel's [local development guide](https://docs.kennel.scottylabs.org/guides/local-development/) describes the shell, the local services, and the processes a project declares.
+Shell entry, `dev run`, startup, and restart use `nix develop` in the project root. All process commands preserve tool output and exit codes. Arguments after `dev run --` are passed literally, without a shell expansion step. `dev shell` requires a terminal; scripts should use `dev run`.
+
+`dev up` starts local processes in the background and waits for Pitchfork's readiness checks and dependencies. Give process names to start a subset, or omit them to start every local process. `dev restart` accepts the same selectors. `dev down` stops selected processes, or every local process when names are omitted.
+
+`dev status` lists this project's processes. Give a name for a detailed status. `dev logs` reads one process's last 50 lines by default; `--follow` streams new output. Both commands support Pitchfork's native `--json` output. Logs use no pager, and `--json` cannot be combined with `--follow`.
+
+Status, logs, and stopping require Pitchfork on `PATH` and run it directly, without entering a shell or loading secrets. Enter the project's `nix develop` shell first to make Pitchfork available.
+
+Kennel's [local development guide](https://docs.kennel.scottylabs.org/guides/local-development/) describes the shell, the local services, and the processes a project declares.
 
 ## Run checks
 
@@ -63,4 +75,6 @@ collar secrets set JWT_SECRET --profile dev --from-file ./private-secret-file
 
 Use `--from-file -` to read a value from stdin. Keep secret values out of command arguments, shell history, logs, and agent conversations.
 
-`--profile` honors `SECRETSPEC_PROFILE`; when neither is set, the underlying tool uses its configured default. `--provider` selects a secretspec provider. `--reason` or `SECRETSPEC_REASON` forwards an access reason unchanged. Provider policy still applies. Secrets commands require secretspec 0.21 or newer.
+`--profile` honors `SECRETSPEC_PROFILE`. Secret commands use secretspec's configured default when neither is set; Kennel's project shell defaults to `dev`. `--provider` selects a secretspec provider. `--reason` or `SECRETSPEC_REASON` forwards an access reason to the underlying tool; project hooks may supply their own reason. Provider policy still applies. Secrets commands require secretspec 0.21 or newer.
+
+Shell options are forwarded to the project environment. They do not override a process script that explicitly selects its own profile or provider, such as `secretspec run -P dev`. Declare process secrets in the project's `scottylabs.processes` scripts.

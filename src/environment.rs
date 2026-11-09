@@ -24,7 +24,7 @@ pub enum BaoCommand {
 
 #[derive(Args)]
 pub struct ContextArgs {
-    /// Secret profile; uses the underlying tool default when omitted.
+    /// Secret profile; the shared project shell defaults to dev.
     #[arg(long, env = "SECRETSPEC_PROFILE")]
     profile: Option<String>,
     /// Audit reason forwarded unchanged to secretspec
@@ -69,10 +69,63 @@ pub enum DevCommand {
         #[arg(required = true, trailing_var_arg = true, allow_hyphen_values = true)]
         command: Vec<OsString>,
     },
-    /// Start the project's local processes in the background with pitchfork
-    Up(ContextArgs),
-    /// Stop the project's local processes
-    Down(ContextArgs),
+    /// Start local processes and wait for readiness.
+    #[command(
+        long_about = "Start local processes through Pitchfork, waiting for readiness and dependencies. Omit names to start every project process. Shell secret options do not override profiles selected by process scripts."
+    )]
+    Up(ProcessArgs),
+    /// Stop local processes in reverse dependency order.
+    Down {
+        /// Project process names; omit to select every local process.
+        #[arg(value_parser = process_name)]
+        names: Vec<String>,
+    },
+    /// Restart local processes through Pitchfork.
+    Restart(ProcessArgs),
+    /// List this project's processes or inspect one process.
+    Status {
+        #[arg(value_parser = process_name)]
+        name: Option<String>,
+        /// Emit Pitchfork's native JSON.
+        #[arg(long)]
+        json: bool,
+    },
+    /// Read a local process's logs.
+    Logs {
+        #[arg(value_parser = process_name)]
+        name: String,
+        /// Maximum log lines to read before following, if requested.
+        #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u64).range(1..=10000))]
+        tail: u64,
+        /// Follow new output until interrupted.
+        #[arg(long, conflicts_with = "json")]
+        follow: bool,
+        /// Emit Pitchfork's native JSON.
+        #[arg(long)]
+        json: bool,
+    },
+}
+
+#[derive(Args)]
+pub struct ProcessArgs {
+    /// Project process names; omit to select every local process.
+    #[arg(value_parser = process_name)]
+    names: Vec<String>,
+    #[command(flatten)]
+    context: ContextArgs,
+}
+
+fn process_name(value: &str) -> std::result::Result<String, String> {
+    if !value.is_empty()
+        && !value.starts_with('-')
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || b"_.-".contains(&byte))
+    {
+        Ok(value.into())
+    } else {
+        Err("use an unqualified project process name containing letters, digits, _, ., or -".into())
+    }
 }
 
 #[derive(Args)]
@@ -124,7 +177,6 @@ pub fn validate(root: &Path, namespace: Option<&str>, profile: &str) -> Result<S
 fn develop(root: &Path, args: &ContextArgs) -> Command {
     let mut command = Command::new("nix");
     command.current_dir(root).arg("develop");
-
     for (name, value) in [
         ("SECRETSPEC_PROFILE", &args.profile),
         ("SECRETSPEC_PROVIDER", &args.provider),
@@ -134,7 +186,6 @@ fn develop(root: &Path, args: &ContextArgs) -> Command {
             command.env(name, value);
         }
     }
-
     command
 }
 
@@ -243,8 +294,48 @@ pub fn dev(command: DevCommand) -> Result<()> {
     match command {
         DevCommand::Shell(context) => dev_shell(&context),
         DevCommand::Run { context, command } => dev_run(&context, command),
-        DevCommand::Up(context) => dev_run(&context, pitchfork("start")),
-        DevCommand::Down(context) => dev_run(&context, pitchfork("stop")),
+        DevCommand::Up(args) => {
+            let mut command = vec!["pitchfork".into()];
+            command.extend(pitchfork("start", args.names));
+            dev_run(&args.context, command)
+        }
+        DevCommand::Down { names } => local_process(pitchfork("stop", names)),
+        DevCommand::Restart(args) => {
+            let mut command = vec!["pitchfork".into()];
+            command.extend(pitchfork("restart", args.names));
+            dev_run(&args.context, command)
+        }
+        DevCommand::Status { name, json } => {
+            let mut args = match name {
+                Some(name) => vec!["status".into(), name.into()],
+                None => vec!["list".into(), "--project".into()],
+            };
+            if json {
+                args.push("--json".into());
+            }
+            local_process(args)
+        }
+        DevCommand::Logs {
+            name,
+            tail,
+            follow,
+            json,
+        } => {
+            let mut args = vec![
+                "logs".into(),
+                name.into(),
+                "-n".into(),
+                tail.to_string().into(),
+                "--no-pager".into(),
+            ];
+            if follow {
+                args.push("--follow".into());
+            }
+            if json {
+                args.push("--json".into());
+            }
+            local_process(args)
+        }
     }
 }
 
@@ -264,8 +355,22 @@ fn dev_run(context: &ContextArgs, command: Vec<OsString>) -> Result<()> {
     )
 }
 
-fn pitchfork(action: &str) -> Vec<OsString> {
-    vec!["pitchfork".into(), action.into(), "--local".into()]
+fn pitchfork(action: &str, names: Vec<String>) -> Vec<OsString> {
+    let mut args = vec![action.into()];
+    if names.is_empty() {
+        args.push("--local".into());
+    } else {
+        args.extend(names.into_iter().map(OsString::from));
+    }
+    args
+}
+
+fn local_process(args: Vec<OsString>) -> Result<()> {
+    process::run(
+        Command::new("pitchfork")
+            .current_dir(repo::root()?)
+            .args(args),
+    )
 }
 
 pub fn checks(args: CheckArgs) -> Result<()> {

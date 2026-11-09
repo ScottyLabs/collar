@@ -8,7 +8,7 @@ fn fixture() -> (TempDir, PathBuf, PathBuf) {
     let temp = TempDir::new().unwrap();
     let (project, bin) = doctor_fixture(temp.path());
     std::fs::write(project.join("secretspec.toml"), "[project]\nname = 'collie'\nrevision = '1.0'\n[providers]\nlocal = 'dotenv://.env'\n[profiles.default]\nSHARED = {description = 'Shared secret'}\n[profiles.dev]\nDEV_ONLY = {description = 'Development secret'}\n[profiles.dev.defaults]\nproviders = ['local']\n[scopes.build]\nsecrets = ['SHARED']\n").unwrap();
-    for tool in ["nix", "bao", "secretspec"] {
+    for tool in ["nix", "bao", "secretspec", "pitchfork"] {
         let file = bin.join(tool);
         std::fs::write(&file, "#!/bin/sh\nprintf 'cwd:%s\\nreason:%s\\nprofile:%s\\nprovider:%s\\nbao:%s\\n' \"$PWD\" \"${SECRETSPEC_REASON-}\" \"${SECRETSPEC_PROFILE-}\" \"${SECRETSPEC_PROVIDER-}\" \"${BAO_ADDR-}\" >> \"$COLLAR_TEST_LOG\"\nfor value in \"$@\"; do printf 'arg:%s\\n' \"$value\" >> \"$COLLAR_TEST_LOG\"; done\nif [ \"${1-}\" = set ]; then IFS= read -r secret; printf 'stdin:received\\n' >> \"$COLLAR_TEST_LOG\"; fi\nprintf '%s\\n' 'tool-output'\nexit \"${COLLAR_TEST_EXIT:-0}\"\n").unwrap();
         std::fs::set_permissions(file, std::fs::Permissions::from_mode(0o755)).unwrap();
@@ -233,10 +233,7 @@ fn dev_run_preserves_literal_arguments_secret_profiles_and_access_reasons() {
             "up",
             "arg:develop\narg:--command\narg:pitchfork\narg:start\narg:--local\n",
         ),
-        (
-            "down",
-            "arg:develop\narg:--command\narg:pitchfork\narg:stop\narg:--local\n",
-        ),
+        ("down", "arg:stop\narg:--local\n"),
     ] {
         success(
             &cli(temp.path(), &project, &bin)
@@ -258,7 +255,128 @@ fn stopping_processes_does_not_require_governance_or_secret_preflight() {
         .output()
         .unwrap();
     success(&output);
-    assert!(log(temp.path()).contains("arg:pitchfork\narg:stop\narg:--local\n"));
+    assert!(log(temp.path()).contains("arg:stop\narg:--local\n"));
+    assert!(!log(temp.path()).contains("arg:develop\n"));
+}
+
+#[test]
+fn local_process_commands_keep_project_scope_and_native_output_without_nix() {
+    let (temp, project, bin) = fixture();
+    std::fs::remove_file(bin.join("nix")).unwrap();
+    std::fs::remove_file(project.join("secretspec.toml")).unwrap();
+    let native = r#"[{"name":"postgres","status":"running"}]"#;
+    let script = std::fs::read_to_string(bin.join("pitchfork"))
+        .unwrap()
+        .replace("'tool-output'", &format!("'{native}'"));
+    std::fs::write(bin.join("pitchfork"), script).unwrap();
+    for (args, expected) in [
+        (
+            vec!["dev", "status", "--json"],
+            "arg:list\narg:--project\narg:--json\n",
+        ),
+        (
+            vec!["dev", "status", "postgres", "--json"],
+            "arg:status\narg:postgres\narg:--json\n",
+        ),
+        (
+            vec!["dev", "logs", "postgres", "--tail", "20", "--json"],
+            "arg:logs\narg:postgres\narg:-n\narg:20\narg:--no-pager\narg:--json\n",
+        ),
+        (
+            vec!["dev", "logs", "postgres", "--follow"],
+            "arg:logs\narg:postgres\narg:-n\narg:50\narg:--no-pager\narg:--follow\n",
+        ),
+        (
+            vec!["dev", "down", "web", "worker"],
+            "arg:stop\narg:web\narg:worker\n",
+        ),
+    ] {
+        let output = cli(temp.path(), &project, &bin)
+            .args(args)
+            .output()
+            .unwrap();
+        success(&output);
+        assert_eq!(
+            String::from_utf8(output.stdout).unwrap(),
+            format!("{native}\n")
+        );
+        assert!(log(temp.path()).contains(expected));
+    }
+    assert!(!log(temp.path()).contains("arg:develop\n"));
+    assert!(!log(temp.path()).contains("arg:--all\n"));
+}
+
+#[test]
+fn named_process_start_and_restart_leave_dependency_resolution_to_pitchfork() {
+    let (temp, project, bin) = fixture();
+    for (action, native) in [("up", "start"), ("restart", "restart")] {
+        let output = cli(temp.path(), &project, &bin)
+            .args(["dev", action, "web", "worker"])
+            .output()
+            .unwrap();
+        success(&output);
+        assert!(log(temp.path()).contains(&format!(
+            "arg:develop\narg:--command\narg:pitchfork\narg:{native}\narg:web\narg:worker\n"
+        )));
+    }
+    assert!(!log(temp.path()).contains("arg:--local\n"));
+    let output = cli(temp.path(), &project, &bin)
+        .args(["dev", "restart"])
+        .output()
+        .unwrap();
+    success(&output);
+    assert!(log(temp.path()).contains("arg:restart\narg:--local\n"));
+}
+
+#[test]
+fn local_process_failures_do_not_enter_a_shell_or_retry() {
+    let (temp, project, bin) = fixture();
+    let commands = [
+        vec!["dev", "down"],
+        vec!["dev", "status", "--json"],
+        vec!["dev", "logs", "web"],
+    ];
+    for args in &commands {
+        let output = cli(temp.path(), &project, &bin)
+            .env("COLLAR_TEST_EXIT", "7")
+            .args(args)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(7));
+    }
+    let original_log = log(temp.path());
+    assert!(!original_log.contains("arg:develop\n"));
+    std::fs::remove_file(bin.join("pitchfork")).unwrap();
+    for args in &commands {
+        let output = cli(temp.path(), &project, &bin)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(String::from_utf8_lossy(&output.stderr).contains("pitchfork"));
+    }
+    assert_eq!(log(temp.path()), original_log);
+}
+
+#[test]
+fn process_selectors_cannot_target_global_namespaces_or_inject_options() {
+    let (temp, project, bin) = fixture();
+    for args in [
+        vec!["dev", "up", "global/web"],
+        vec!["dev", "down", "--", "--all"],
+        vec!["dev", "status", "other-project/web"],
+        vec!["dev", "logs", "web", "--follow", "--json"],
+    ] {
+        assert!(
+            !cli(temp.path(), &project, &bin)
+                .args(args)
+                .output()
+                .unwrap()
+                .status
+                .success()
+        );
+    }
+    assert!(!temp.path().join("commands.log").exists());
 }
 
 #[test]

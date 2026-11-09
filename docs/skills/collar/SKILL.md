@@ -40,6 +40,10 @@ are for developers at a terminal; agents should use explicit selectors.
 
 Local checks use `collar check --all`; commands in the development environment
 use `collar dev run -- COMMAND`. Preserve exit statuses and literal arguments.
+Use `collar dev status --json` for project process state and
+`collar dev logs NAME --tail 50` for bounded local logs. `dev up NAME` starts a
+process and its dependencies; omit names for every local process. Process
+scripts own their secret profile, even when a shell option selects another one.
 
 See [Using Collar with agents](https://docs.collar.scottylabs.org/agents/) for authentication, review
 examples, and automation guidance. Keep this skill focused on using Collar;

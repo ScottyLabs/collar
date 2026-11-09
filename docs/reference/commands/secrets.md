@@ -30,7 +30,7 @@ Usage: collar secrets check [OPTIONS]
 
 Options:
       --profile <PROFILE>
-          Secret profile; uses the underlying tool default when omitted
+          Secret profile; the shared project shell defaults to dev
 
           [env: SECRETSPEC_PROFILE]
 
@@ -70,7 +70,7 @@ Options:
           Read exact bytes from a file, or - for stdin; no value arguments
 
       --profile <PROFILE>
-          Secret profile; uses the underlying tool default when omitted
+          Secret profile; the shared project shell defaults to dev
 
           [env: SECRETSPEC_PROFILE]
 

@@ -177,10 +177,48 @@ pub(crate) fn pull(sha: &str) -> Value {
     json!({ "number": 42, "title": "Review me", "body": null, "state": "open", "merged": false, "draft": false, "html_url": "https://git.cmu.dev/ScottyLabs/terrier/pulls/42", "user": { "login": "contributor" }, "head": { "ref": "feat/collar", "sha": sha }, "base": { "ref": "main", "sha": "base" } })
 }
 
+pub(crate) fn tech(forge: &str) -> Value {
+    json!({
+        "name": "ScottyLabs",
+        "forgejo": {"org": "ScottyLabs", "url": forge},
+        "keycloak": {
+            "url": "https://idp.scottylabs.org",
+            "realm": "scottylabs",
+            "redirect_uri": "https://oauth.scottylabs.org/oauth2/callback",
+            "dev_redirect_uri": "http://localhost:8090/oauth2/callback"
+        }
+    })
+}
+
+pub(crate) fn collie_team() -> Value {
+    json!({"team": {
+        "slug": "tech", "name": "Tech", "leads": ["Lead"],
+        "projects": [{"slug": "collie", "name": "Collie", "members": ["member"], "repos": [
+            {"name": "collie-api", "features": {"kennel": {}}},
+            {"name": "collie-web", "features": {"sentry": {}}}
+        ]}]
+    }})
+}
+
+pub(crate) fn governance_data(tech: Value, teams: Value) -> String {
+    json!({"tech": tech, "teams": teams}).to_string()
+}
+
+pub(crate) fn write_governance(checkout: &std::path::Path, tech: Value, teams: Value) {
+    std::fs::create_dir_all(checkout.join("generated")).unwrap();
+    std::fs::write(
+        checkout.join("generated/data.json"),
+        governance_data(tech, teams),
+    )
+    .unwrap();
+}
+
 pub(crate) fn project_governance(checkout: &std::path::Path) {
-    std::fs::create_dir_all(checkout.join("data/teams")).unwrap();
-    std::fs::write(checkout.join("data/org.toml"), "[org.forgejo]\norg = 'ScottyLabs'\nurl = 'https://git.cmu.dev'\n[org.keycloak]\nurl = 'https://idp.scottylabs.org'\nrealm = 'scottylabs'\n").unwrap();
-    std::fs::write(checkout.join("data/teams/team.toml"), "[team]\nslug = 'tech'\nname = 'Tech'\nleads = ['Lead']\n[[team.projects]]\nslug = 'collie'\nname = 'Collie'\nmembers = ['member']\n[[team.projects.repos]]\nname = 'collie-api'\n[team.projects.repos.features]\nkennel = {}\n[[team.projects.repos]]\nname = 'collie-web'\n[team.projects.repos.features]\nsentry = {}\n").unwrap();
+    write_governance(
+        checkout,
+        tech("https://git.cmu.dev"),
+        json!([collie_team()]),
+    );
 }
 
 #[cfg(unix)]

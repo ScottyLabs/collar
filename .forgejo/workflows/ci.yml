@@ -7,9 +7,3 @@ on:
 jobs:
   checks:
     uses: ScottyLabs/kennel/.forgejo/workflows/checks.yml@main
-  package:
-    runs-on: native
-    steps:
-      - uses: https://code.forgejo.org/actions/checkout@v7
-      - name: Build CLI and documentation
-        run: nix build .#collar .#docs

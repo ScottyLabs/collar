@@ -2,34 +2,11 @@ use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use url::Url;
 
 use crate::client::host_url;
 use crate::{governance, repo::Repo};
-
-#[derive(Deserialize)]
-struct OrganizationFile {
-    org: Organization,
-}
-
-#[derive(Deserialize)]
-struct Organization {
-    forgejo: Forge,
-    keycloak: Identity,
-}
-
-#[derive(Deserialize)]
-struct Forge {
-    org: String,
-    url: String,
-}
-
-#[derive(Deserialize)]
-struct Identity {
-    url: String,
-    realm: String,
-}
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +18,7 @@ pub struct Project {
     pub team: String,
     pub leads: Vec<String>,
     pub members: Vec<String>,
-    pub features: BTreeMap<String, toml::Value>,
+    pub features: BTreeMap<String, serde_json::Value>,
     pub secret_namespace: Option<String>,
     pub governance_source: PathBuf,
     pub organization_source: PathBuf,
@@ -95,22 +72,18 @@ impl Project {
 }
 
 pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
-    let organization_source = checkout.join("data/org.toml");
-    let text = std::fs::read_to_string(&organization_source)
-        .context("read governance organization at data/org.toml")?;
-    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")
-        .context(
-        "parse governance organization; expected org.forgejo org/url and org.keycloak url/realm",
-    )?;
-    let org = organization.org;
+    let organization_source = checkout.join(governance::DATA);
+    let data = governance::load(checkout)?;
+    let (forgejo, keycloak) = (data.forgejo()?, data.keycloak()?);
     ensure!(
-        repo.origin == host_url(&org.forgejo.url)?,
+        repo.origin == host_url(&forgejo.url)?,
         "selected repository is on a different forge from governance"
     );
     ensure!(
-        repo.owner.eq_ignore_ascii_case(&org.forgejo.org),
+        repo.owner.eq_ignore_ascii_case(&forgejo.org),
         "selected repository is outside the governance organization; select its canonical upstream with -R"
     );
+
     let mut projects = governance::projects(checkout)?;
     let index = projects.iter().position(|project| project.repos.iter().any(|entry| entry.name.eq_ignore_ascii_case(&repo.name)))
         .with_context(|| format!("repository {} is not declared in governance; check the checkout revision and canonical upstream", repo.name))?;
@@ -126,9 +99,9 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
         .map_err(|()| anyhow::anyhow!("repository origin cannot contain paths"))?
         .extend([&repo.owner, &repo.name]);
     let mut linked_accounts_url =
-        host_url(&org.keycloak.url).context("invalid governance identity host")?;
+        host_url(&keycloak.url).context("invalid governance identity host")?;
     ensure!(
-        !org.keycloak.realm.trim().is_empty(),
+        !keycloak.realm.trim().is_empty(),
         "governance identity realm must be nonempty"
     );
     linked_accounts_url
@@ -136,7 +109,7 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
         .map_err(|()| anyhow::anyhow!("identity origin cannot contain paths"))?
         .extend([
             "realms",
-            &org.keycloak.realm,
+            &keycloak.realm,
             "account",
             "account-security",
             "linked-accounts",
@@ -159,22 +132,18 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
 }
 
 pub fn organization_origin(checkout: &Path) -> Result<Url> {
-    let text = std::fs::read_to_string(checkout.join("data/org.toml"))
-        .context("read governance organization")?;
-    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")?;
+    let data = governance::load(checkout)?;
+    let forgejo = data.forgejo()?;
     ensure!(
-        !organization.org.forgejo.org.trim().is_empty(),
+        !forgejo.org.trim().is_empty(),
         "governance organization must be nonempty"
     );
-    host_url(&organization.org.forgejo.url)
+
+    host_url(&forgejo.url)
 }
 
 pub fn repository(checkout: &Path, name: &str) -> Result<Repo> {
-    let text = std::fs::read_to_string(checkout.join("data/org.toml"))
-        .context("read governance organization")?;
-    let organization: OrganizationFile = crate::document::parse(&text, "governance organization")?;
-    Repo::parse(
-        &format!("{}/{name}", organization.org.forgejo.org),
-        Some(&organization.org.forgejo.url),
-    )
+    let data = governance::load(checkout)?;
+    let forgejo = data.forgejo()?;
+    Repo::parse(&format!("{}/{name}", forgejo.org), Some(&forgejo.url))
 }

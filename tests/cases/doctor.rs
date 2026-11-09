@@ -33,11 +33,7 @@ fn offline_doctor_reports_manual_checks_and_never_resolves_secrets() {
         "[project]\nname = 'collie-api'\nrevision = '1.0'\n[profiles.dev]\n",
     )
     .unwrap();
-    std::fs::write(
-        temp.path().join("governance/data/teams/extra.toml"),
-        "broken = [",
-    )
-    .unwrap();
+    std::fs::write(temp.path().join("governance/generated/data.json"), "broken").unwrap();
     let output = doctor_command(temp.path(), &project, &bin)
         .arg("--offline")
         .output()
@@ -70,11 +66,11 @@ fn online_doctor_verifies_forge_and_bao_without_echoing_tool_output() {
         Response::json(json!({"version": "16.0.5"})),
         Response::json(json!({"login": "member"})),
     ]);
-    let org_path = temp.path().join("governance/data/org.toml");
-    let org = std::fs::read_to_string(&org_path)
+    let data_path = temp.path().join("governance/generated/data.json");
+    let data = std::fs::read_to_string(&data_path)
         .unwrap()
         .replace("https://git.cmu.dev", &server.origin);
-    std::fs::write(org_path, org).unwrap();
+    std::fs::write(data_path, data).unwrap();
     let output = doctor_command(temp.path(), &project, &bin)
         .env("COLLAR_HOST", &server.origin)
         .env("COLLAR_TOKEN", "test-token")

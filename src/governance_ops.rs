@@ -30,7 +30,7 @@ pub struct ServiceAccessArgs {
 #[serde(rename_all = "camelCase")]
 struct FeatureAccess {
     name: String,
-    declaration: toml::Value,
+    declaration: serde_json::Value,
     platform: &'static str,
     url: Option<&'static str>,
     guidance: &'static str,

@@ -19,7 +19,7 @@ Cloning uses SSH by default; `--https` selects HTTPS. Forking creates a copy in
 your account without changing the source repository. `--organization` and
 `--name` select a destination organization and name, subject to Forgejo permissions.
 
-ScottyLabs repository settings and provisioning are declared in governance.
+ScottyLabs repository settings and provisioning are declared in [governance](https://git.cmu.dev/ScottyLabs/governance).
 Collar does not expose repository creation, metadata editing, archiving,
 deletion, or mirror administration.
 

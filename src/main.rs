@@ -24,6 +24,8 @@ mod governance;
 mod governance_ops;
 mod issues;
 mod kennel;
+mod kennel_api;
+mod nixbot;
 mod oauth;
 mod output;
 mod pr;

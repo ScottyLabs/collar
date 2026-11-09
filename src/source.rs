@@ -58,13 +58,7 @@ impl Kind {
                         .strip_prefix("updates/")
                         .is_some_and(|name| crate::changelog::update_number(name).is_some())
             }
-            Self::Governance => {
-                path == "README.md"
-                    || path == "data/org.toml"
-                    || path
-                        .strip_prefix("data/teams/")
-                        .is_some_and(|name| !name.contains('/') && name.ends_with(".toml"))
-            }
+            Self::Governance => path == "README.md" || path == crate::governance::DATA,
         }
     }
 }
@@ -474,7 +468,7 @@ fn validate_snapshot(
         }
         Kind::Kennel => {
             ensure!(
-                directory.join("sites/docs/src/SUMMARY.md").is_file(),
+                directory.join("sites/docs/src/index.md").is_file(),
                 "Kennel snapshot is missing its documentation index"
             );
         }

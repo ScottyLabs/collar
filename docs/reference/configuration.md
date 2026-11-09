@@ -56,9 +56,7 @@ other commands do not refresh or open a browser implicitly. `auth logout`
 removes the selected origin's saved credential and marker, but does not revoke
 the server token or unset environment variables.
 
-Git's SSH authentication, Forgejo API authentication, and OpenBao login are
-separate. Account linking remains available through
-[Keycloak](https://idp.scottylabs.org/realms/scottylabs/account/account-security/linked-accounts).
+Git's SSH authentication, Forgejo API authentication, and OpenBao login are separate.
 
 ## Headless authentication
 
@@ -91,6 +89,7 @@ There is no plaintext fallback when the OS store is unavailable.
 | `COLLAR_CONFIG` | Alternate settings file |
 | `COLLAR_CACHE_DIR` | Canonical source cache directory |
 | `COLLAR_GOVERNANCE` | Optional local governance inspection override |
+| `COLLAR_KENNEL` | Kennel origin, `https://kennel.scottylabs.org` by default |
 | `SECRETSPEC_PROFILE` | Profile for development and secret commands |
 | `SECRETSPEC_PROVIDER` | Provider selection for development and secret commands |
 | `SECRETSPEC_REASON` | Access reason forwarded to the underlying tool |

@@ -1,5 +1,17 @@
 # CI and previews
 
+## Builds and deployments
+
+| Task | Command |
+| --- | --- |
+| Show every check on a PR | `collar pr checks NUMBER` |
+| Wait for the build and deployment | `collar kennel wait NUMBER` |
+| Show why a nixbot check failed | `collar kennel logs NUMBER` |
+| Show why an Actions job failed | `collar actions list`, then `collar actions logs RUN --failed` |
+| Find the preview URLs | `collar kennel preview NUMBER` |
+
+Kennel's [deploying](https://docs.kennel.scottylabs.org/guides/deploying/#4-push), [CI](https://docs.kennel.scottylabs.org/guides/ci/), and [preview](https://docs.kennel.scottylabs.org/guides/previews/) guides cover what runs on each push.
+
 ## Inspect Actions
 
 ```sh
@@ -49,60 +61,8 @@ collar kennel logs 42
 collar kennel wait 42
 ```
 
-Kennel inspection commands read commit statuses and marked PR comments. Omit the PR
-number inside a checkout to use the current branch's PR.
+These commands read nixbot's commit statuses and Kennel's [HTTP API](https://docs.kennel.scottylabs.org/reference/architecture/#http-api). Omit the PR number inside a checkout to use the current branch's PR.
 
-`preview` finds preview URLs reported by Kennel. `logs` prints build and deploy
-report links. `wait` polls checks for the inspected PR head with a timeout;
-inspect `collar kennel wait --help` for polling options.
+`status` shows nixbot's checks, Kennel's deploy of the PR, and each deployment with its URL and live health. `preview` lists only the deployments. `logs` prints nixbot's statuses, each failed check's evaluation error or the last `--tail` lines of its build log, and the stage where a failed Kennel deploy stopped. `wait` polls until nixbot has built the PR head and Kennel has deployed it, with a timeout; see `collar kennel wait --help` for polling options.
 
-Report links and historical comments are not live service-health checks.
-Check the reported commit when a PR has received new pushes.
-
-## Retry a Kennel branch build
-
-```sh
-collar kennel retry
-collar kennel retry staging -R terrier
-collar kennel retry dev --hook 7 --json
-```
-
-Omitting the branch selects the repository's default branch. Kennel accepts push
-retries only for `main`, `staging`, and `dev`; other branches are rejected without
-sending a trigger. Retrying requeues a failed or cancelled build at the same
-commit. Kennel does not rebuild an already successful or in-progress build.
-
-This command requires repository webhook administrator permission and Forgejo
-16 or newer. Collar discovers the canonical
-`https://kennel.scottylabs.org/webhook` destination, including namespace queries,
-and verifies an active Forgejo webhook with JSON payloads and push events.
-Missing hooks require enabling Kennel through governance. Multiple hooks require
-`--hook ID`; that option still validates the destination and configuration.
-Custom destinations and branch filters Collar cannot verify are rejected.
-
-Collar checks the branch and webhook again before sending exactly one webhook
-test with the requested branch ref. It never creates commits or reruns Actions.
-An accepted trigger means Forgejo queued a delivery, not that Kennel received it
-or started a build. Inspect the webhook delivery in Forgejo and Kennel's status
-reports before retrying after a timeout or server error. Collar never retries a
-write automatically.
-
-Forgejo uses one `ref` for both commit resolution and the push payload's branch;
-it cannot atomically pin a branch and expected SHA. Collar checks the branch
-before and after the trigger, but even unchanged observations cannot prove the
-payload revision. JSON therefore reports `triggerAccepted: true` while
-`revisionVerified`, `deliveryConfirmed`, and `buildStartConfirmed` remain false.
-`headUnchanged` is null if the final read failed. A changed or unreadable head
-returns an error after reporting acceptance; do not blindly repeat the command.
-The API returns no delivery ID or delivery result, so later delivery failures
-cannot be detected by this command.
-
-`--pr NUMBER` resolves the PR head, then explains why no trigger can be sent:
-Forgejo webhook tests always send push events, while Kennel previews require a
-pull-request event. A push test cannot reliably retry a preview, including one
-from a fork. Redeliver the matching pull-request event through Forgejo's delivery
-UI instead. Native PR retry and stronger revision/build verification need an
-authenticated Kennel retry endpoint; branch retry needs no Kennel change.
-
-These limits follow [Forgejo's webhook test implementation](https://codeberg.org/forgejo/forgejo/src/tag/v16.0.5/routers/api/v1/repo/hook.go)
-and [Kennel's webhook handler](https://git.cmu.dev/ScottyLabs/kennel/src/branch/main/crates/kennel/src/handlers/webhook.rs).
+A deployment that runs an older commit than the PR head is flagged, which happens while a new push is still building.

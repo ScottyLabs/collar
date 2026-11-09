@@ -6,7 +6,7 @@ development tools.
 
 ## Get started
 
-From this repository, enter the ScottyLabs development environment:
+Every ScottyLabs project's dev shell includes Collar:
 
 ```sh
 nix develop
@@ -14,14 +14,7 @@ collar --help
 collar repo view collar
 ```
 
-To install the CLI from this checkout:
-
-```sh
-nix profile add .#collar
-```
-
-See [installation and first steps](https://docs.collar.scottylabs.org/getting-started/) for Cargo installation,
-authentication, and requirements.
+See [installation and first steps](https://docs.collar.scottylabs.org/getting-started/) to sign in.
 
 For coding agents, start with `collar skill install` and the
 [agent setup guide](https://docs.collar.scottylabs.org/agents/).

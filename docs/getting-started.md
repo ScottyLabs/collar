@@ -1,8 +1,19 @@
 # Installation and first steps
 
-## Install from source
+## Use the dev shell
 
-Install Lix by following kennel's [local development guide](https://docs.kennel.scottylabs.org/guides/local-development/#installing-nix), then clone Collar:
+Every ScottyLabs project's dev shell includes Collar. Install Lix by following kennel's [local development guide](https://docs.kennel.scottylabs.org/guides/local-development/#installing-nix), then in a project checkout:
+
+```sh
+nix develop
+collar --version
+```
+
+If `collar` isn't found, make sure your project's kennel input is new enough (`nix flake update scottylabs`).
+
+## Work on Collar
+
+In Collar's own dev shell, the `collar` command runs the source checkout through `cargo run` and preserves your working directory:
 
 ```sh
 git clone ssh://forgejo@git.cmu.dev/ScottyLabs/collar.git
@@ -10,30 +21,6 @@ cd collar
 nix develop
 collar --version
 ```
-
-The development shell provides the Rust toolchain and runtime helpers. Its
-`collar` command runs the source checkout and preserves your working directory.
-
-For an installed binary with Git and the browser-login helper included:
-
-```sh
-nix profile add .#collar
-```
-
-The Nix package declares Linux x86-64, Linux ARM64, and Apple Silicon macOS.
-Linux x86-64 is the tested platform. Other systems have not received the same
-end-to-end validation.
-
-Cargo installation is also available from the repository root:
-
-```sh
-cargo install --path . --locked
-```
-
-Cargo installs Collar itself. Provide `git` and `git-credential-oauth` on `PATH`
-for Git operations and browser login. Local development commands additionally
-need Nix, secretspec, or OpenBao as appropriate. Use `collar doctor` inside a
-project to inspect the full setup.
 
 ## Read a repository
 

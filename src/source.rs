@@ -59,7 +59,9 @@ impl Kind {
                         .is_some_and(|name| crate::changelog::update_number(name).is_some())
             }
             Self::Governance => {
-                path == "README.md" || (path.starts_with("data/") && path.ends_with(".yaml"))
+                path == "README.md"
+                    || (path.starts_with("data/") && path.ends_with(".yaml"))
+                    || (path.starts_with("sites/docs/src/") && path.ends_with(".md"))
             }
         }
     }
@@ -141,7 +143,10 @@ impl Sources<'_> {
                 .cache_dir()
                 .to_owned(),
         };
-        let mut cache = cache.join("sources").join("v2");
+        let mut cache = cache.join("sources").join(match kind {
+            Kind::Governance => "v3",
+            _ => "v2",
+        });
         let encoded: String = origin
             .as_str()
             .bytes()
@@ -475,6 +480,10 @@ fn validate_snapshot(
             );
         }
         Kind::Governance => {
+            ensure!(
+                directory.join("sites/docs/src/index.md").is_file(),
+                "governance snapshot is missing its documentation index"
+            );
             ensure!(
                 crate::project::organization_origin(directory)? == *origin,
                 "governance snapshot declares a different forge"

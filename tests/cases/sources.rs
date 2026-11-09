@@ -5,15 +5,40 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     let temp = TempDir::new().unwrap();
     let server = Server::with_responses(|origin| {
         let readme = "# Governance\n";
+        let index = "# Governance guides\n";
         let data = governance_data(
             tech(origin),
             json!([{"team": {"slug": "collie", "name": "Collie", "repos": [{"name": "collie-api"}]}}]),
         );
-        let total = data.len() + 1;
-        let tree: Vec<Value> = data
-            .iter()
-            .map(|(path, content)| tree_entry(path, content))
+        let host = format!("{origin}/");
+        let encoded: String = host.bytes().map(|byte| format!("{byte:02x}")).collect();
+        let legacy = temp
+            .path()
+            .join("sources/v2")
+            .join(encoded)
+            .join("governance");
+        let snapshot = legacy.join(SOURCE_REVISION);
+        let files: Vec<_> = std::iter::once(("README.md", readme))
+            .chain(
+                data.iter()
+                    .map(|(path, body)| (path.as_str(), body.as_str())),
+            )
+            .map(|(path, body)| {
+                let file = snapshot.join(path);
+                std::fs::create_dir_all(file.parent().unwrap()).unwrap();
+                std::fs::write(file, body).unwrap();
+                let entry = tree_entry(path, body);
+                json!({"path":path,"size":body.len(),"sha":entry["sha"]})
+            })
             .collect();
+        std::fs::write(snapshot.join("manifest.toml"),toml::to_string(&json!({"kind":"governance","host":host,"revision":SOURCE_REVISION,"downloaded_at":1,"files":files})).unwrap()).unwrap();
+        std::fs::write(legacy.join("current"), SOURCE_REVISION).unwrap();
+        let total = data.len() + 2;
+        let mut tree: Vec<Value> = data
+            .iter()
+            .map(|(path, body)| tree_entry(path, body))
+            .collect();
+        tree.push(tree_entry("sites/docs/src/index.md", index));
         let mut responses = source_head();
         responses.extend([
             Response::json(json!({"page": 1, "total_count": total, "truncated": true, "tree": [tree_entry("README.md", readme)]})),
@@ -25,6 +50,11 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
             body,
             headers: String::new(),
         }));
+        responses.push(Response {
+            status: 200,
+            body: index.into(),
+            headers: String::new(),
+        });
         responses.extend(source_head());
         responses.push(Response {
             status: 503,
@@ -100,10 +130,10 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     let value: Value = serde_json::from_slice(&cached.stdout).unwrap();
     assert_eq!(value["dataSource"]["offline"], true);
     let requests = server.finish();
-    assert_eq!(requests.len(), 12);
+    assert_eq!(requests.len(), 13);
     assert!(requests[2].contains("recursive=true&page=1&per_page=1000"));
     assert!(requests[3].contains("page=2"));
-    for request in &requests[4..9] {
+    for request in &requests[4..10] {
         assert!(request.contains(&format!("ref={SOURCE_REVISION}")));
     }
     let mut source = command();

@@ -64,9 +64,8 @@ impl Service {
     fn docs_root(self) -> &'static str {
         match self {
             Self::Scottylabs => "org-docs/scottylabs",
-            Self::Kennel => "sites/docs/src",
+            Self::Kennel | Self::Governance => "sites/docs/src",
             Self::Infrastructure => "docs/src",
-            Self::Governance => "",
         }
     }
 }
@@ -239,25 +238,16 @@ fn search(checkout: &Path, service: Service, query: &str) -> Result<Vec<Match>> 
 fn markdown_files(checkout: &Path, service: Service) -> Result<Vec<PathBuf>> {
     let mut files = Vec::new();
     match service {
-        Service::Governance => {
-            let path = checkout.join("README.md");
-            ensure!(
-                path.symlink_metadata()
-                    .is_ok_and(|meta| meta.file_type().is_file()),
-                "governance checkout is missing README.md"
-            );
-            files.push(PathBuf::from("README.md"));
-        }
         Service::Scottylabs => {
             collect_markdown(&checkout.join(service.docs_root()), checkout, &mut files)?
         }
-        Service::Kennel => {
+        Service::Kennel | Service::Governance => {
             let readme = checkout.join("README.md");
             ensure!(
                 readme
                     .symlink_metadata()
                     .is_ok_and(|meta| meta.file_type().is_file()),
-                "Kennel checkout is missing README.md"
+                "{service:?} checkout is missing README.md"
             );
             files.push(PathBuf::from("README.md"));
             collect_markdown(&checkout.join(service.docs_root()), checkout, &mut files)?;
@@ -335,14 +325,7 @@ fn topic_from_path(service: Service, path: &Path) -> String {
     if path == Path::new("README.md") {
         return "README".into();
     }
-    let relative = if service == Service::Scottylabs
-        || service == Service::Kennel
-        || service == Service::Infrastructure
-    {
-        path.strip_prefix(service.docs_root()).unwrap_or(path)
-    } else {
-        path
-    };
+    let relative = path.strip_prefix(service.docs_root()).unwrap_or(path);
     let mut topic = slash_path(relative);
     if let Some(stem) = topic
         .strip_suffix(".md")

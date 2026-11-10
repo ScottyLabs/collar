@@ -55,3 +55,14 @@ These commands read nixbot's commit statuses and Kennel's [HTTP API](https://doc
 `status` shows nixbot's checks, Kennel's deploy of the PR, and each deployment with its URL and live health. `preview` lists only the deployments. `logs` prints nixbot's statuses, each failed check's evaluation error or the last `--tail` lines of its build log, and the stage where a failed Kennel deploy stopped. `wait` polls until nixbot has built the PR head and Kennel has deployed it, with a timeout; see `collar kennel wait --help` for polling options.
 
 A deployment that runs an older commit than the PR head is flagged, which happens while a new push is still building.
+
+## Deployment log lines
+
+The default `collar kennel logs 42` report retains its existing JSON fields and nixbot failure details. After SSO is configured, read deployment lines explicitly:
+
+```sh
+collar kennel logs 42 --lines --since 60 --tail 50
+collar kennel logs 42 --lines --json timestamp,line
+```
+
+`--since` is in minutes and is limited to 30 days; `--tail` allows up to 1,000 lines. The query uses Kennel's canonical project, branch, and matching commit. A changed PR head or mismatched deployment fails explicitly. Queries go through Grafana with your own SSO session and its existing permissions. Browser log links remain available in the ordinary report.

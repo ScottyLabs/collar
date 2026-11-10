@@ -47,6 +47,7 @@
             extraSources = [
               "docs/skills/collar/SKILL.md"
               "docs/reference/commands"
+              "tests/fixtures/sso"
             ];
             nativeBuildInputs = [
               pkgs.makeWrapper
@@ -54,10 +55,7 @@
             ];
             buildArgs.postInstall = ''
               wrapProgram $out/bin/collar --prefix PATH : ${
-                lib.makeBinPath [
-                  pkgs.git
-                  pkgs.git-credential-oauth
-                ]
+                lib.makeBinPath ([ pkgs.git ] ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.xdg-utils ])
               }
             '';
           };
@@ -77,11 +75,11 @@
               ++ (with pkgs; [
                 fd
                 git
-                git-credential-oauth
                 jq
                 zensical
                 ripgrep
-              ]);
+              ])
+              ++ lib.optionals pkgs.stdenv.hostPlatform.isLinux [ pkgs.xdg-utils ];
 
               scripts = {
                 docs = ''cd "$SCOTTYLABS_ROOT" && exec zensical serve "$@"'';

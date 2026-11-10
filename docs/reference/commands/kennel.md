@@ -54,8 +54,16 @@ Arguments:
 
 
 Options:
+      --lines
+          Read deployment log lines through authenticated Grafana instead of the report
+
+      --since <SINCE>
+          Minutes of deployment logs to query, up to the 30-day retention
+
+          [default: 60]
+
       --tail <TAIL>
-          Log lines to print for each failed check
+          Maximum log lines (per failed check in report mode)
 
           [default: 50]
 

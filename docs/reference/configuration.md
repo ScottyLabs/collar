@@ -28,11 +28,13 @@ collar auth status
 collar auth logout
 ```
 
-Login opens Forgejo, where you can choose university SSO. The browser helper `git-credential-oauth` uses Forgejo's registered application and loopback callback. It must be installed on `PATH`, and the browser must run on the same machine as Collar. The Nix package includes the helper.
+Browser login uses Keycloak client `collar` and its fixed-provider Forgejo broker. PKCE, callback state, ID-token signature, issuer, audience, authorized party, and nonce are verified. The browser must run on the same machine as Collar. Linux uses `xdg-open`, included in the Nix runtime; macOS uses `open`.
 
-Collar verifies the credential against `/api/v1/user` and stores access and refresh tokens in the OS credential store. Linux needs Secret Service and a session bus; macOS uses Keychain and Windows uses Credential Manager. These platform integrations come from the [keyring library](https://docs.rs/keyring/latest/keyring/v1/index.html); Linux is the platform exercised with a real store.
+Keycloak sessions are saved in the OS credential store under the forge origin, issuer, and client. Forgejo refresh tokens remain server-side. Linux needs Secret Service and a session bus; macOS uses Keychain. Personal access tokens and host-bound environment tokens remain available for automation and alternate forge hosts. No credential is stored in Collar's configuration file.
 
-If a token expires, run `auth login` again. Login can use the saved refresh token; other commands do not refresh or open a browser implicitly. `auth logout` removes the selected origin's saved credential and marker, but does not revoke the server token or unset environment variables.
+Ordinary commands refresh an expired SSO session and save rotated credentials before querying services. Commands never open a browser implicitly. `auth logout` attempts server-side revocation and removes the local session even if revocation cannot be confirmed; its error then directs you to revoke the session in Keycloak. Environment tokens and manually supplied server tokens are unchanged.
+
+The defaults are issuer `https://idp.scottylabs.org/realms/scottylabs`, broker `https://collar-broker.scottylabs.org/`, and Grafana `https://grafana.scottylabs.org/`. `COLLAR_SSO_ISSUER`, `COLLAR_SSO_BROKER`, and `COLLAR_GRAFANA` select explicitly trusted deployments. They require HTTPS except on loopback. Saved sessions are bound to all three endpoints and cannot be redirected by changing these settings. Use the original settings to log out before changing deployments.
 
 Git's SSH authentication, Forgejo API authentication, and OpenBao login are separate.
 

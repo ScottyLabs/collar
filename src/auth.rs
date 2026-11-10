@@ -1,27 +1,13 @@
 use std::io::Read;
-use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{Context, Result, anyhow, ensure};
 use reqwest::Method;
-use serde::{Deserialize, Serialize};
 use url::Url;
 
 use crate::client::{Api, host_url};
 use crate::config::Config;
 
-const OAUTH_BUNDLE_PREFIX: &str = "collar-oauth-v1:";
-
-#[derive(Serialize, Deserialize)]
-struct OAuthBundle {
-    access_token: String,
-    refresh_token: Option<String>,
-    expires_at: Option<u64>,
-}
-
-enum StoredCredential {
-    Token(String),
-    OAuth(OAuthBundle),
-}
+const SESSION_PREFIX: &str = "collar-sso-v1:";
 
 trait CredentialStore {
     fn get(&self, origin: &Url) -> Result<Option<String>>;
@@ -34,7 +20,7 @@ struct OsStore;
 fn store_error(error: keyring::Error) -> anyhow::Error {
     if matches!(error, keyring::Error::Ambiguous(_)) {
         return anyhow!(
-            "multiple OS credentials match this forge host; remove duplicate collar.forge entries from your credential manager"
+            "multiple OS credentials match this forge host; remove duplicate Collar entries from your credential manager"
         );
     }
     anyhow!(
@@ -73,76 +59,15 @@ fn saved_token(
     if !config.has_login(origin) {
         return Ok(None);
     }
-    let stored = store
-        .get(origin)?
-        .context("saved forge credential is missing; run collar auth login again")?;
-    match decode_credential(&stored)? {
-        StoredCredential::Token(token) => Ok(Some(token)),
-        StoredCredential::OAuth(mut bundle) => {
-            if let Some(expires_at) = bundle.expires_at
-                && expires_at <= unix_time()?
-            {
-                let refresh = bundle.refresh_token.as_deref().context(
-                    "saved OAuth access token expired without a refresh token; run collar auth login --web",
-                )?;
-                let credential = crate::oauth::refresh(origin, refresh)?;
-                bundle = OAuthBundle {
-                    access_token: credential.access_token,
-                    refresh_token: credential.refresh_token,
-                    expires_at: credential.expires_at,
-                };
-                store
-                    .set(origin, &encode_oauth(&bundle)?)
-                    .context("could not save refreshed credential; run collar auth login --web")?;
-            }
-            Ok(Some(bundle.access_token))
-        }
-    }
-}
-
-fn saved_refresh_token(
-    origin: &Url,
-    config: &Config,
-    store: &impl CredentialStore,
-) -> Result<Option<String>> {
-    if !config.has_login(origin) {
+    let Some(token) = store.get(origin)? else {
         return Ok(None);
-    }
-    let stored = store
-        .get(origin)?
-        .context("saved forge credential is missing; run collar auth login again")?;
-    match decode_credential(&stored)? {
-        StoredCredential::Token(_) => Ok(None),
-        StoredCredential::OAuth(bundle) => Ok(bundle.refresh_token),
-    }
-}
-
-fn decode_credential(stored: &str) -> Result<StoredCredential> {
-    let Some(encoded) = stored.strip_prefix(OAUTH_BUNDLE_PREFIX) else {
-        ensure!(
-            !stored.trim().is_empty() && !stored.contains(['\r', '\n']),
-            "saved forge credential is invalid; run collar auth login again"
-        );
-        return Ok(StoredCredential::Token(stored.to_owned()));
     };
-    let bundle: OAuthBundle = serde_json::from_str(encoded)
-        .context("saved OAuth credential is invalid; run collar auth login again")?;
-    validate_secret(&bundle.access_token, "saved OAuth access token")?;
-    if let Some(refresh_token) = &bundle.refresh_token {
-        validate_secret(refresh_token, "saved OAuth refresh token")?;
-    }
-    Ok(StoredCredential::OAuth(bundle))
-}
-
-fn encode_oauth(bundle: &OAuthBundle) -> Result<String> {
-    validate_secret(&bundle.access_token, "OAuth access token")?;
-    if let Some(refresh_token) = &bundle.refresh_token {
-        validate_secret(refresh_token, "OAuth refresh token")?;
-    }
-    Ok(format!(
-        "{OAUTH_BUNDLE_PREFIX}{}",
-        serde_json::to_string(bundle).context("encode OAuth credential bundle")?
-    ))
+    ensure!(
+        !token.starts_with("collar-oauth-v1:"),
+        "legacy Forgejo OAuth session; run collar auth login --web to replace it with SSO"
+    );
+    validate_secret(&token, "saved forge credential")?;
+    Ok(Some(token))
 }
 
 fn validate_secret(value: &str, label: &str) -> Result<()> {
@@ -153,20 +78,88 @@ fn validate_secret(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-fn unix_time() -> Result<u64> {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .context("system clock is before Unix epoch")
-        .map(|duration| duration.as_secs())
+struct SsoStore(collar::sso::Endpoints);
+impl SsoStore {
+    fn entry(&self, origin: &Url) -> Result<keyring::Entry> {
+        keyring::Entry::new(
+            "collar.sso",
+            &format!("{origin}|{}|{}", self.0.issuer, collar::sso::CLIENT_ID),
+        )
+        .map_err(store_error)
+    }
+}
+impl CredentialStore for SsoStore {
+    fn get(&self, origin: &Url) -> Result<Option<String>> {
+        match self.entry(origin)?.get_password() {
+            Ok(value) => Ok(Some(value)),
+            Err(keyring::Error::NoEntry) => Ok(None),
+            Err(error) => Err(store_error(error)),
+        }
+    }
+    fn set(&self, origin: &Url, value: &str) -> Result<()> {
+        self.entry(origin)?.set_password(value).map_err(store_error)
+    }
+    fn delete(&self, origin: &Url) -> Result<()> {
+        match self.entry(origin)?.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
+            Err(error) => Err(store_error(error)),
+        }
+    }
 }
 
-pub fn api(origin: Url, config: &Config) -> Result<Api> {
+fn session(
+    origin: &Url,
+    config: &Config,
+    store: &impl CredentialStore,
+    endpoints: &collar::sso::Endpoints,
+) -> Result<Option<collar::sso::Session>> {
+    if !config.has_login(origin) {
+        return Ok(None);
+    }
+    let Some(value) = store.get(origin)? else {
+        return Ok(None);
+    };
+    let json = value
+        .strip_prefix(SESSION_PREFIX)
+        .context("invalid saved SSO session; sign in again")?;
+    let mut session: collar::sso::Session = serde_json::from_str(json)
+        .map_err(|_| anyhow!("invalid saved SSO session; sign in again"))?;
+    ensure!(
+        endpoints.matches(&session),
+        "saved SSO session belongs to different endpoints; sign in again"
+    );
+    if session.expires_at <= collar::sso::now()?.saturating_add(30) {
+        session = collar::sso::refresh(endpoints, &session)?;
+        // Save refresh rotation before any subsequent service call can fail.
+        store.set(origin, &encode_session(&session)?)?;
+    }
+    Ok(Some(session))
+}
+
+fn encode_session(session: &collar::sso::Session) -> Result<String> {
+    Ok(format!(
+        "{SESSION_PREFIX}{}",
+        serde_json::to_string(session).context("encode SSO session")?
+    ))
+}
+
+pub fn grafana_session(
+    origin: &Url,
+    config: &Config,
+) -> Result<(collar::sso::Endpoints, collar::sso::Session)> {
+    let endpoints = collar::sso::Endpoints::from_env()?;
+    let value = session(origin, config, &SsoStore(endpoints.clone()), &endpoints)?
+        .context("Grafana requires collar auth login through SSO")?;
+    Ok((endpoints, value))
+}
+
+fn environment_token(origin: &Url, config: &Config) -> Result<Option<String>> {
     let configured = match std::env::var("COLLAR_HOST") {
         Ok(host) => host,
         Err(std::env::VarError::NotPresent) => config.host().into(),
         Err(error) => return Err(error).context("read COLLAR_HOST"),
     };
-    let environment = if origin == host_url(&configured)? {
+    let environment = if *origin == host_url(&configured)? {
         match std::env::var("COLLAR_TOKEN") {
             Ok(token) => Some(token),
             Err(std::env::VarError::NotPresent) => None,
@@ -175,9 +168,27 @@ pub fn api(origin: Url, config: &Config) -> Result<Api> {
     } else {
         None
     };
+    Ok(environment)
+}
+
+pub fn api(origin: Url, config: &Config) -> Result<Api> {
+    let environment = environment_token(&origin, config)?;
     let token = match environment {
         Some(token) => Some(token),
-        None => saved_token(&origin, config, &OsStore)?,
+        None => match saved_token(&origin, config, &OsStore)? {
+            Some(token) => Some(token),
+            None if config.has_login(&origin) => {
+                let endpoints = collar::sso::Endpoints::from_env()?;
+                let session = session(&origin, config, &SsoStore(endpoints.clone()), &endpoints)?
+                    .context("saved SSO session is missing; run collar auth login")?;
+                Some(
+                    collar::sso::forge(&endpoints, &session)?
+                        .context("Forgejo account link required; run collar auth login")?
+                        .access_token,
+                )
+            }
+            None => None,
+        },
     };
     Api::new(origin, token)
 }
@@ -244,22 +255,50 @@ pub fn login(
                 "browser sign-in requires a terminal; pass --web to explicitly start it or use --with-token for token input",
             )?;
         }
-        let previous_refresh = if web {
+        ensure!(
+            origin.as_str() == "https://git.cmu.dev/",
+            "university SSO is bound to git.cmu.dev; use an explicit token for other forge hosts"
+        );
+        let endpoints = collar::sso::Endpoints::from_env()?;
+        let store = SsoStore(endpoints.clone());
+        let previous = if web {
             None
         } else {
-            saved_refresh_token(&origin, config, &OsStore)?
+            session(&origin, config, &store, &endpoints)?
         };
-        let mut credential = crate::oauth::browser_login(&origin, previous_refresh.as_deref())?;
-        if credential.refresh_token.is_none() {
-            credential.refresh_token = previous_refresh;
+        let mut session = match previous {
+            Some(session) => session,
+            None => collar::sso::browser::login(&endpoints, false)?,
+        };
+        persist(config, &store, &origin, Some(&encode_session(&session)?))?;
+        OsStore.delete(&origin)?;
+        let mut forge = collar::sso::forge(&endpoints, &session)?;
+        if forge.is_none() {
+            let linked = collar::sso::browser::login(&endpoints, true)?;
+            ensure!(
+                linked.subject == session.subject,
+                "account linking changed the signed-in user"
+            );
+            session = linked;
+            persist(config, &store, &origin, Some(&encode_session(&session)?))?;
+            forge = collar::sso::forge(&endpoints, &session)?;
         }
-        let token = credential.access_token.clone();
-        let stored = encode_oauth(&OAuthBundle {
-            access_token: credential.access_token,
-            refresh_token: credential.refresh_token,
-            expires_at: credential.expires_at,
-        })?;
-        (token, stored)
+        let forge = forge.context(
+            "Forgejo account is still not linked; complete account linking and sign in again",
+        )?;
+        let api = Api::new(origin.clone(), Some(forge.access_token))?;
+        let user: crate::pr::User = api.json(Method::GET, &["user"], &[], None)?;
+        ensure!(
+            !user.login.trim().is_empty() && !user.login.chars().any(char::is_control),
+            "forge returned an invalid login name"
+        );
+        println!(
+            "Logged in to {origin} as {} through university SSO",
+            user.login
+        );
+        collar::sso::grafana(&endpoints, &session)?;
+        println!("Grafana access verified at {}", endpoints.grafana);
+        return Ok(());
     };
     let api = Api::new(origin.clone(), Some(token.clone()))?;
     let user: crate::pr::User = api.json(Method::GET, &["user"], &[], None)?;
@@ -276,10 +315,58 @@ pub fn login(
 }
 
 pub fn logout(config: &mut Config, origin: Url) -> Result<()> {
-    persist(config, &OsStore, &origin, None)?;
-    println!(
-        "Removed the saved credential for {origin}; environment tokens and server tokens are unchanged"
-    );
+    config.require_writable()?;
+    let endpoints = collar::sso::Endpoints::from_env()?;
+    let store = SsoStore(endpoints.clone());
+    logout_with(config, origin, &endpoints, &store, &OsStore)
+}
+
+fn logout_with(
+    config: &mut Config,
+    origin: Url,
+    endpoints: &collar::sso::Endpoints,
+    store: &impl CredentialStore,
+    forge_store: &impl CredentialStore,
+) -> Result<()> {
+    let revoked = match store.get(&origin)? {
+        Some(value) => {
+            let decoded = value
+                .strip_prefix(SESSION_PREFIX)
+                .and_then(|value| serde_json::from_str::<collar::sso::Session>(value).ok());
+            match decoded {
+                Some(session) => collar::sso::logout(endpoints, &session),
+                None => Err(anyhow!(
+                    "invalid saved SSO session; remote logout cannot be confirmed"
+                )),
+            }
+        }
+        None => Ok(()),
+    };
+    let removed = store.delete(&origin);
+    let metadata = persist(config, forge_store, &origin, None);
+    removed?;
+    metadata?;
+    revoked.context("local credentials removed; remote SSO logout was not confirmed; revoke the session in Keycloak")?;
+    println!("Removed saved credentials for {origin}; its SSO session was revoked when present");
+    Ok(())
+}
+
+pub fn status(config: &Config, origin: Url) -> Result<()> {
+    let api = api(origin.clone(), config)?;
+    api.require_token()?;
+    let user: crate::pr::User = api.json(Method::GET, &["user"], &[], None)?;
+    println!("Logged in to {origin} as {}", user.login);
+    if environment_token(&origin, config)?.is_some()
+        || !config.has_login(&origin)
+        || OsStore.get(&origin)?.is_some()
+    {
+        return Ok(());
+    }
+    let endpoints = collar::sso::Endpoints::from_env()?;
+    if let Some(session) = session(&origin, config, &SsoStore(endpoints.clone()), &endpoints)? {
+        collar::sso::grafana(&endpoints, &session)?;
+        println!("Grafana access verified at {}", endpoints.grafana);
+    }
     Ok(())
 }
 

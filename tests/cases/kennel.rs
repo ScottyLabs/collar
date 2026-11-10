@@ -233,3 +233,27 @@ fn status_combines_nixbot_checks_with_kennel_deployments() {
     assert_eq!(report["deployments"][0]["name"], "web");
     server.finish();
 }
+
+#[test]
+fn deployment_log_lines_reject_wrong_identity_before_authentication() {
+    for value in [
+        json!({"project":"other","branch":"pr-42","request":request("deployed", None),"deployments":[]}),
+        json!({"project":"terrier","branch":"pr-43","request":request("deployed", None),"deployments":[]}),
+        json!({"project":"terrier","branch":"pr-42","request":{"commit":"b".repeat(40),"status":"deployed","failure_stage":null},"deployments":[]}),
+    ] {
+        let server = Server::new(vec![Response::json(pull(HEAD)), Response::json(value)]);
+        let output = kennel(&server, false)
+            .args(["kennel", "logs", "42", "--lines", "--json"])
+            .output()
+            .unwrap();
+        assert!(!output.status.success());
+        assert!(output.stdout.is_empty());
+        assert_eq!(server.finish().len(), 2);
+        let error = String::from_utf8_lossy(&output.stderr);
+        assert!(
+            error.contains("different project or branch")
+                || error.contains("no request or deployment"),
+            "{error}"
+        );
+    }
+}

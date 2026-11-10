@@ -31,6 +31,8 @@ mod checkout;
 
 #[path = "cases/auth.rs"]
 mod auth;
+#[path = "cases/sso.rs"]
+mod sso;
 
 #[cfg(unix)]
 #[cfg(unix)]
@@ -53,9 +55,6 @@ mod actions;
 mod clone;
 
 #[cfg(unix)]
-#[path = "cases/oauth.rs"]
-mod oauth;
-
 #[path = "cases/docs.rs"]
 mod docs;
 

@@ -85,3 +85,20 @@ fn unavailable_os_store_does_not_save_plaintext_or_login_metadata() {
     assert_eq!(std::fs::read_dir(temp.path()).unwrap().count(), 0);
     assert_eq!(server.finish().len(), 1);
 }
+
+#[test]
+fn environment_token_status_needs_no_sso_settings_or_credential_store() {
+    let server = Server::new(vec![Response::json(json!({"login":"fixture-user"}))]);
+    let output = server
+        .command(true)
+        .env("COLLAR_SSO_ISSUER", "invalid-and-unrelated")
+        .env(
+            "DBUS_SESSION_BUS_ADDRESS",
+            "unix:path=/missing-collar-test-bus",
+        )
+        .args(["auth", "status"])
+        .output()
+        .unwrap();
+    success(&output);
+    assert_eq!(server.finish().len(), 1);
+}

@@ -31,7 +31,13 @@ pub enum Command {
     /// Print nixbot's statuses and failure logs and Kennel's deploy outcome for a PR head
     Logs {
         selector: Option<String>,
-        /// Log lines to print for each failed check
+        /// Read deployment log lines through authenticated Grafana instead of the report.
+        #[arg(long)]
+        lines: bool,
+        /// Minutes of deployment logs to query, up to the 30-day retention.
+        #[arg(long, requires = "lines", default_value_t = 60, value_parser = clap::value_parser!(u64).range(1..=43200))]
+        since: u64,
+        /// Maximum log lines (per failed check in report mode).
         #[arg(long, default_value_t = 50, value_parser = clap::value_parser!(u64).range(1..=1000))]
         tail: u64,
         #[command(flatten)]
@@ -49,7 +55,7 @@ pub enum Command {
     },
 }
 
-pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
+pub fn run(command: Command, api: &Api, repo: &Repo, config: &crate::config::Config) -> Result<()> {
     match command {
         Command::Preview { selector, output } => {
             output.validate_fields(&["number", "headRefOid", "deployments"])?;
@@ -75,7 +81,20 @@ pub fn run(command: Command, api: &Api, repo: &Repo) -> Result<()> {
             selector,
             tail,
             output,
+            lines,
+            since,
         } => {
+            if lines {
+                return deployment_logs(
+                    api,
+                    repo,
+                    config,
+                    selector.as_deref(),
+                    tail,
+                    since,
+                    &output,
+                );
+            }
             output.validate_fields(&["number", "headRefOid", "statuses", "failures", "request"])?;
             let pull = selected_pull(api, repo, selector.as_deref())?;
             let statuses = nixbot_statuses(api, repo, &pull.head.sha)?;
@@ -361,4 +380,55 @@ fn timeout_error(
     anyhow::anyhow!(
         "timed out waiting for the nixbot build and Kennel deployment of {sha}: nixbot build {build}, Kennel deploy {deploy}"
     )
+}
+
+fn deployment_logs(
+    api: &Api,
+    repo: &Repo,
+    config: &crate::config::Config,
+    selector: Option<&str>,
+    limit: u64,
+    since: u64,
+    output: &Output,
+) -> Result<()> {
+    output.validate_fields(&["timestamp", "line"])?;
+    let pull = selected_pull(api, repo, selector)?;
+    let expected_branch = kennel_api::preview_branch(pull.number);
+    let branch = kennel_api::branch(&repo.name, &expected_branch)?;
+    ensure!(
+        branch.project == repo.name && branch.branch == expected_branch,
+        "Kennel returned a different project or branch"
+    );
+    let matches = branch
+        .request
+        .as_ref()
+        .is_some_and(|request| request.commit == pull.head.sha)
+        || branch
+            .deployments
+            .iter()
+            .any(|deployment| deployment.commit == pull.head.sha);
+    ensure!(
+        matches,
+        "Kennel has no request or deployment for the selected PR head"
+    );
+    let (endpoints, session) = crate::auth::grafana_session(&repo.origin, config)?;
+    let lines = collar::sso::logs::read(
+        &endpoints,
+        &session,
+        &branch.project,
+        &branch.branch,
+        &pull.head.sha,
+        limit,
+        since,
+    )?;
+    let current = pr::get(api, repo, pull.number)?;
+    ensure!(
+        current.head.sha == pull.head.sha,
+        "PR head changed while reading deployment logs; select the new revision explicitly"
+    );
+    output.print(&serde_json::to_value(&lines)?, || {
+        for line in &lines {
+            ui::detail(&line.timestamp, &line.line);
+        }
+    })
 }

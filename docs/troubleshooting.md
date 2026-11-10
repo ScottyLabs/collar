@@ -10,11 +10,11 @@ Public API reads do not require authentication. Writes need the credential from 
 
 On Linux, unlock Secret Service and make sure the session bus is available. Headless environments can use a token supplied through `COLLAR_TOKEN` and `COLLAR_HOST`. Collar does not fall back to saving plaintext tokens.
 
-If the browser helper itself fails, confirm `git-credential-oauth` is on `PATH`. Use the Nix package or Collar's development shell to get the helper. Browser login needs Forgejo's pre-registered helper application and a local browser for its callback.
+Browser login needs a local browser, the registered Keycloak client, and the Forgejo broker. Linux uses `xdg-open`; macOS uses `open`. Check the [SSO rollout prerequisites](design/oidc.md) if Keycloak rejects the client or the broker is unavailable. There is no direct Forgejo OAuth fallback.
 
 ## A saved credential has expired
 
-Ordinary commands refresh an expired OAuth access token silently using the saved refresh token. You do not need to run `auth login` after restarting your computer. If the refresh token has expired or been revoked, run `collar auth login --web`, then `collar auth status`. Commands never open a browser automatically. For an environment token, update the runner's secret and check the host binding.
+Ordinary commands refresh an expired Keycloak access token using the saved Keycloak refresh token. You do not need to run `auth login` after restarting your computer. If the refresh token has expired or been revoked, run `collar auth login --web`, then `collar auth status`. Commands never open a browser automatically. For an environment token, update the runner's secret and check the host binding.
 
 ## Repository or host selection fails
 

@@ -26,7 +26,6 @@ mod issues;
 mod kennel;
 mod kennel_api;
 mod nixbot;
-mod oauth;
 mod output;
 mod pr;
 mod process;

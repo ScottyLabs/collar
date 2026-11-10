@@ -10,7 +10,14 @@ use reqwest::Method;
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 
-use crate::{client::Api, output::Output, repo::Repo, ui};
+use crate::{
+    client::{Api, HttpStatus},
+    output::Output,
+    repo::Repo,
+    ui,
+};
+
+const LABEL_LIMIT: usize = 1000;
 
 #[derive(Subcommand)]
 pub enum IssueCommand {
@@ -20,6 +27,9 @@ pub enum IssueCommand {
         state: IssueState,
         #[arg(long, default_value_t = 30)]
         limit: usize,
+        /// Only issues with this label; repeat to require every label.
+        #[arg(long = "label", value_name = "NAME")]
+        labels: Vec<String>,
         #[command(flatten)]
         output: Output,
     },
@@ -31,6 +41,9 @@ pub enum IssueCommand {
         title: String,
         #[command(flatten)]
         body: BodyInput,
+        /// Add a repository or organization label by name; repeatable.
+        #[arg(long = "label", value_name = "NAME")]
+        labels: Vec<String>,
         #[command(flatten)]
         output: Output,
     },
@@ -41,6 +54,12 @@ pub enum IssueCommand {
         title: Option<String>,
         #[command(flatten)]
         body: BodyInput,
+        /// Add a repository or organization label by name; repeatable.
+        #[arg(long = "add-label", value_name = "NAME")]
+        add_labels: Vec<String>,
+        /// Remove a label by name; repeatable.
+        #[arg(long = "remove-label", value_name = "NAME")]
+        remove_labels: Vec<String>,
         #[command(flatten)]
         output: Output,
     },
@@ -239,20 +258,35 @@ pub fn run_issue(api: &Api, repo: &Repo, command: IssueCommand) -> Result<()> {
         IssueCommand::List {
             state,
             limit,
+            labels,
             output,
-        } => list_issues(api, repo, state, limit, output),
+        } => list_issues(api, repo, state, limit, &labels, output),
         IssueCommand::View(selection) => view_issue(api, repo, selection),
         IssueCommand::Create {
             title,
             body,
+            labels,
             output,
-        } => create_issue(api, repo, title, body, output),
+        } => create_issue(api, repo, title, body, &labels, output),
         IssueCommand::Edit {
             number: raw,
             title,
             body,
+            add_labels,
+            remove_labels,
             output,
-        } => edit_issue(api, repo, raw, title, body, output),
+        } => edit_issue(
+            api,
+            repo,
+            raw,
+            title,
+            body,
+            LabelChange {
+                add: add_labels,
+                remove: remove_labels,
+            },
+            output,
+        ),
         IssueCommand::Comment {
             number: raw,
             body,
@@ -297,6 +331,90 @@ fn label_path(repo: &Repo, id: u64) -> Vec<String> {
 
 fn path_refs(path: &[String]) -> Vec<&str> {
     path.iter().map(String::as_str).collect()
+}
+
+/// Labels usable on this repository's issues: its own, then its organization's.
+fn available_labels(api: &Api, repo: &Repo) -> Result<Vec<Label>> {
+    let mut path = repo.path().to_vec();
+    path.push("labels");
+    let mut labels: Vec<Label> = api.list(&path, &[], LABEL_LIMIT)?;
+    match api.list::<Label>(&["orgs", &repo.owner, "labels"], &[], LABEL_LIMIT) {
+        Ok(organization) => labels.extend(organization),
+        // Repositories owned by users have no organization labels.
+        Err(error) if HttpStatus::is(&error, 404) => {}
+        Err(error) => return Err(error),
+    }
+    Ok(labels)
+}
+
+/// Resolve label names to IDs; repository labels shadow organization labels.
+fn resolve_labels(available: &[Label], names: &[String]) -> Result<Vec<u64>> {
+    names
+        .iter()
+        .map(|name| {
+            ensure!(!name.trim().is_empty(), "label name must be nonempty");
+            available
+                .iter()
+                .find(|label| label.name == *name)
+                .map(|label| label.id)
+                .with_context(|| {
+                    let mut known: Vec<_> =
+                        available.iter().map(|label| label.name.as_str()).collect();
+                    known.sort_unstable();
+                    known.dedup();
+                    format!(
+                        "unknown label {name:?}; available: {}",
+                        if known.is_empty() {
+                            "none".to_owned()
+                        } else {
+                            known.join(", ")
+                        }
+                    )
+                })
+        })
+        .collect()
+}
+
+pub struct LabelChange {
+    add: Vec<String>,
+    remove: Vec<String>,
+}
+
+impl LabelChange {
+    fn is_empty(&self) -> bool {
+        self.add.is_empty() && self.remove.is_empty()
+    }
+
+    /// Reject contradictory requests before any network call.
+    fn validate(&self) -> Result<()> {
+        if let Some(name) = self.add.iter().find(|name| self.remove.contains(name)) {
+            anyhow::bail!("label {name:?} is both added and removed");
+        }
+        Ok(())
+    }
+
+    /// The issue's label IDs after this change, or None when nothing changes.
+    fn apply(&self, api: &Api, repo: &Repo, current: &[Label]) -> Result<Option<Vec<u64>>> {
+        let available = available_labels(api, repo)?;
+        let add = resolve_labels(&available, &self.add)?;
+        for name in &self.remove {
+            if !current.iter().any(|label| label.name == *name) {
+                resolve_labels(&available, std::slice::from_ref(name))?;
+            }
+        }
+        let before: Vec<u64> = current.iter().map(|label| label.id).collect();
+        let mut after: Vec<u64> = current
+            .iter()
+            .filter(|label| !self.remove.contains(&label.name))
+            .map(|label| label.id)
+            .collect();
+        for id in add {
+            if !after.contains(&id) {
+                after.push(id);
+            }
+        }
+        Ok((after != before).then_some(after))
+    }
 }
 
 fn get(api: &Api, repo: &Repo, number: u64) -> Result<Issue> {
@@ -367,28 +485,35 @@ fn list_issues(
     repo: &Repo,
     state: IssueState,
     limit: usize,
+    labels: &[String],
     output: Output,
 ) -> Result<()> {
     ensure!(limit > 0, "list limit must be positive");
     output.validate_fields(Issue::FIELDS)?;
+    let mut query = vec![
+        (
+            "state".into(),
+            match state {
+                IssueState::Open => "open",
+                IssueState::Closed => "closed",
+                IssueState::All => "all",
+            }
+            .into(),
+        ),
+        ("type".into(), "issues".into()),
+    ];
+    if !labels.is_empty() {
+        ensure!(
+            labels.iter().all(|name| !name.contains(',')),
+            "label filters cannot contain commas"
+        );
+        // Forgejo ignores unknown names in this filter, which would list every issue.
+        resolve_labels(&available_labels(api, repo)?, labels)?;
+        query.push(("labels".into(), labels.join(",")));
+    }
     let mut path = repo.path().to_vec();
     path.push("issues");
-    let issues: Vec<Issue> = api.list(
-        &path,
-        &[
-            (
-                "state".into(),
-                match state {
-                    IssueState::Open => "open",
-                    IssueState::Closed => "closed",
-                    IssueState::All => "all",
-                }
-                .into(),
-            ),
-            ("type".into(), "issues".into()),
-        ],
-        limit,
-    )?;
+    let issues: Vec<Issue> = api.list(&path, &query, limit)?;
     ensure!(
         issues.iter().all(|issue| issue.pull_request.is_none()),
         "Forgejo returned a pull request for type=issues"
@@ -449,22 +574,22 @@ fn create_issue(
     repo: &Repo,
     title: String,
     body: BodyInput,
+    labels: &[String],
     output: Output,
 ) -> Result<()> {
     validate_write(api, &output, Issue::FIELDS)?;
     ensure!(!title.trim().is_empty(), "title must be nonempty");
     let body = body.read()?.unwrap_or_default();
+    let mut request = json!({
+        "title": title,
+        "body": body
+    });
+    if !labels.is_empty() {
+        request["labels"] = resolve_labels(&available_labels(api, repo)?, labels)?.into();
+    }
     let mut path = repo.path().to_vec();
     path.push("issues");
-    let issue: Issue = api.json(
-        Method::POST,
-        &path,
-        &[],
-        Some(&json!({
-            "title": title,
-            "body": body
-        })),
-    )?;
+    let issue: Issue = api.json(Method::POST, &path, &[], Some(&request))?;
     ensure!(
         issue.pull_request.is_none(),
         "Forgejo returned a pull request for issue creation"
@@ -478,6 +603,7 @@ fn edit_issue(
     raw: String,
     title: Option<String>,
     body: BodyInput,
+    labels: LabelChange,
     output: Output,
 ) -> Result<()> {
     validate_write(api, &output, Issue::FIELDS)?;
@@ -489,16 +615,52 @@ fn edit_issue(
     if let Some(body) = body.read()? {
         change.insert("body".into(), body.into());
     }
-    ensure!(!change.is_empty(), "provide --title or --body/--body-file");
+    ensure!(
+        !change.is_empty() || !labels.is_empty(),
+        "provide --title, --body/--body-file, --add-label, or --remove-label"
+    );
+    labels.validate()?;
     let number = number(&raw)?;
-    ensure_issue(api, repo, number)?;
-    let path = issue_path(repo, number);
-    let refs = path_refs(&path);
-    let issue: Issue = api.json(Method::PATCH, &refs, &[], Some(&Value::Object(change)))?;
+    let mut issue = get(api, repo, number)?;
     ensure!(
         issue.pull_request.is_none(),
-        "Forgejo returned a pull request for issue edit"
+        "number identifies a pull request, not an issue"
     );
+    // Resolve every label before the first write.
+    let label_ids = if labels.is_empty() {
+        None
+    } else {
+        labels.apply(api, repo, &issue.labels)?
+    };
+    let path = issue_path(repo, number);
+    let edited = !change.is_empty();
+    if edited {
+        issue = api.json(
+            Method::PATCH,
+            &path_refs(&path),
+            &[],
+            Some(&Value::Object(change)),
+        )?;
+        ensure!(
+            issue.pull_request.is_none(),
+            "Forgejo returned a pull request for issue edit"
+        );
+    }
+    if let Some(ids) = label_ids {
+        let mut path = path;
+        path.push("labels".into());
+        let result: Result<Vec<Label>> = api.json(
+            Method::PUT,
+            &path_refs(&path),
+            &[],
+            Some(&json!({ "labels": ids })),
+        );
+        issue.labels = if edited {
+            result.context("the title or body was updated, but the labels were not")?
+        } else {
+            result?
+        };
+    }
     output.print(&issue.output(), || println!("{}", issue.html_url))
 }
 

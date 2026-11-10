@@ -29,6 +29,16 @@ collar issue reopen 12
 
 Issue lists omit pull requests. `issue edit` changes supplied title/body fields; omitted fields remain unchanged. An empty body clears it. Long descriptions can use `--body-file PATH` or `--body-file -` for stdin.
 
+### Label issues
+
+```sh
+collar issue list --label type/bug --label urgency/high
+collar issue create --title 'Preview times out' --label type/bug
+collar issue edit 12 --add-label stage/in-progress --remove-label stage/todo
+```
+
+Label names match the repository's labels, then its organization's, so ScottyLabs-wide labels such as `type/bug` work in every repository. Repeated `--label` filters list issues that have every label. An unknown name fails with the available names before any issue is listed or changed, because Forgejo would otherwise ignore it. `issue edit` replaces the issue's labels in one request and skips the request when nothing changes. When it also changes the title or body, that edit is applied first; if the label request then fails, the error says so. Project boards are not available through the Forgejo API, so labels do not move board cards.
+
 ## Maintain labels
 
 ```sh

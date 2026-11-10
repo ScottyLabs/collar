@@ -90,7 +90,7 @@ enum Command {
     },
     /// Work with Forgejo issues.
     #[command(
-        after_long_help = "Examples:\n  collar issue list\n  collar issue create --title 'Preview times out' --body 'Steps to reproduce...'"
+        after_long_help = "Examples:\n  collar issue list\n  collar issue list --label type/bug --label urgency/high\n  collar issue create --title 'Preview times out' --body 'Steps to reproduce...' --label type/bug\n  collar issue edit 54 --add-label stage/in-progress --remove-label stage/todo\n\nLabel names match repository labels, then organization labels. Unknown names fail before any request that lists or changes issues."
     )]
     Issue {
         #[command(subcommand)]

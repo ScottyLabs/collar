@@ -23,7 +23,11 @@ Options:
 
 Examples:
   collar issue list
-  collar issue create --title 'Preview times out' --body 'Steps to reproduce...'
+  collar issue list --label type/bug --label urgency/high
+  collar issue create --title 'Preview times out' --body 'Steps to reproduce...' --label type/bug
+  collar issue edit 54 --add-label stage/in-progress --remove-label stage/todo
+
+Label names match repository labels, then organization labels. Unknown names fail before any request that lists or changes issues.
 ```
 
 ## `collar issue list`
@@ -40,6 +44,9 @@ Options:
 
       --limit <LIMIT>
           [default: 30]
+
+      --label <NAME>
+          Only issues with this label; repeat to require every label
 
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all
@@ -84,6 +91,9 @@ Options:
       --body-file <PATH>
           Read exact body text from a file, or stdin when set to -
 
+      --label <NAME>
+          Add a repository or organization label by name; repeatable
+
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all
 
@@ -111,6 +121,12 @@ Options:
 
       --body-file <PATH>
           Read exact body text from a file, or stdin when set to -
+
+      --add-label <NAME>
+          Add a repository or organization label by name; repeatable
+
+      --remove-label <NAME>
+          Remove a label by name; repeatable
 
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all

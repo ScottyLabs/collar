@@ -162,11 +162,15 @@ impl Api {
                 300..=399 => "redirect refused; use the canonical forge host",
                 _ => "the server could not complete the request",
             };
-            bail!(
-                "{method} {}: HTTP {}: {advice}",
-                path.join("/"),
-                status.as_u16()
-            );
+            return Err(HttpStatus {
+                status: status.as_u16(),
+                message: format!(
+                    "{method} {}: HTTP {}: {advice}",
+                    path.join("/"),
+                    status.as_u16()
+                ),
+            }
+            .into());
         }
         read_body(response)
     }
@@ -209,6 +213,34 @@ impl Api {
         bail!("pagination exceeded {PAGE_LIMIT} pages; narrow the query or lower --limit")
     }
 }
+
+/// An unsuccessful HTTP status, for callers that treat one status as an answer.
+pub struct HttpStatus {
+    pub status: u16,
+    message: String,
+}
+
+impl HttpStatus {
+    pub fn is(error: &anyhow::Error, status: u16) -> bool {
+        error
+            .downcast_ref::<Self>()
+            .is_some_and(|error| error.status == status)
+    }
+}
+
+impl fmt::Display for HttpStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.message)
+    }
+}
+
+impl fmt::Debug for HttpStatus {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, formatter)
+    }
+}
+
+impl Error for HttpStatus {}
 
 struct ResponseDecodeError(serde_json::Error);
 

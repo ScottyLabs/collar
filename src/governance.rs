@@ -2,43 +2,36 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, Result, ensure};
+use governance_core::loader::GovernanceData;
 use governance_schema::team::{self, GroupFields, Repo, Team, TeamFile};
-use governance_schema::tech::{ForgejoConfig, KeycloakConnection, TechConfig};
-use serde::{Deserialize, Serialize};
+use governance_schema::tech::{ForgejoConfig, KeycloakConnection};
+use serde::Serialize;
 
-/// Governance's normalized data, generated from `data/` by `governance generate`
-pub const DATA: &str = "generated/data.json";
-
-#[derive(Deserialize)]
-pub struct Data {
-    tech: TechConfig,
-    teams: Vec<TeamFile>,
+pub fn data_directory(checkout: &Path) -> PathBuf {
+    checkout.join("data")
 }
 
-impl Data {
-    pub fn forgejo(&self) -> Result<&ForgejoConfig> {
-        self.tech
-            .forgejo
-            .as_ref()
-            .context("governance data declares no Forgejo organization")
-    }
-
-    pub fn keycloak(&self) -> Result<&KeycloakConnection> {
-        self.tech
-            .keycloak
-            .as_ref()
-            .context("governance data declares no Keycloak realm")
-    }
+pub fn forgejo(data: &GovernanceData) -> Result<&ForgejoConfig> {
+    data.tech
+        .forgejo
+        .as_ref()
+        .context("governance data declares no Forgejo organization")
 }
 
-pub fn load(checkout: &Path) -> Result<Data> {
-    let text = std::fs::read_to_string(checkout.join(DATA))
-        .with_context(|| format!("read governance data at {DATA}"))?;
-    serde_json::from_str(&text).map_err(|error| {
-        anyhow::anyhow!(
-            "invalid governance data at line {}, column {}; update Collar if governance added fields",
-            error.line(),
-            error.column()
+pub fn keycloak(data: &GovernanceData) -> Result<&KeycloakConnection> {
+    data.tech
+        .keycloak
+        .as_ref()
+        .context("governance data declares no Keycloak realm")
+}
+
+pub fn load(checkout: &Path) -> Result<GovernanceData> {
+    let directory = data_directory(checkout);
+
+    GovernanceData::load(&directory).with_context(|| {
+        format!(
+            "invalid governance data at {}; update Collar if governance added fields",
+            directory.display()
         )
     })
 }
@@ -84,9 +77,10 @@ pub fn projects(checkout: &Path) -> Result<Vec<Project>> {
     let data = load(checkout)?;
     ensure!(!data.teams.is_empty(), "governance data declares no teams");
 
-    let source = checkout.join(DATA);
+    let directory = data_directory(checkout);
     let mut result = Vec::new();
     for TeamFile { team } in &data.teams {
+        let source = team_source(&directory, &team.group.slug);
         let groups = std::iter::once(&team.group).chain(team.projects.iter().map(|p| &p.group));
         for group in groups.filter(|group| !group.repos.is_empty()) {
             result.push(project(&data.teams, team, group, &source)?);
@@ -105,6 +99,16 @@ pub fn projects(checkout: &Path) -> Result<Vec<Project>> {
     }
     result.sort_by(|a, b| a.slug.cmp(&b.slug));
     Ok(result)
+}
+
+/// The team's YAML file when named by its slug, else the data directory
+fn team_source(directory: &Path, slug: &str) -> PathBuf {
+    let file = directory.join("teams").join(format!("{slug}.yaml"));
+    if file.is_file() {
+        return file;
+    }
+
+    directory.to_owned()
 }
 
 /// A group's view of its team's leads, with members from both the team and the group

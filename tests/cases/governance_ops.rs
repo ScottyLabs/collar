@@ -47,7 +47,7 @@ fn service_access_resolves_selected_repository_and_declared_feature_families() {
     let value: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(value["repository"], "ScottyLabs/collie-api");
     assert_eq!(value["team"], "tech");
-    assert_eq!(value["leads"], json!(["Lead"]));
+    assert_eq!(value["leads"], json!(["lead"]));
     assert_eq!(value["members"], json!(["member"]));
     assert_eq!(value["declaredOnly"], true);
     assert_eq!(

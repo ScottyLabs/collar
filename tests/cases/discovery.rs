@@ -19,7 +19,7 @@ fn governance_uses_project_namespace_and_team_leads() {
     success(&output);
     let project: Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(project["secretNamespace"], "collie");
-    assert_eq!(project["leads"], json!(["Lead", "Other"]));
+    assert_eq!(project["leads"], json!(["lead", "other"]));
     assert_eq!(project["repos"][0]["features"], json!({"kennel": {}}));
     write_governance(
         checkout.path(),
@@ -57,7 +57,7 @@ fn project_context_uses_canonical_ownership_and_repository_specific_features() {
     assert_eq!(
         serde_json::from_slice::<Value>(&output.stdout).unwrap(),
         json!({
-            "slug": "collie", "team": "tech", "leads": ["Lead"], "members": ["member"],
+            "slug": "collie", "team": "tech", "leads": ["lead"], "members": ["member"],
             "features": {"kennel": {}}, "secretNamespace": "collie", "declaredOnly": true,
             "linkedAccountsUrl": "https://idp.scottylabs.org/realms/scottylabs/account/account-security/linked-accounts"
         })

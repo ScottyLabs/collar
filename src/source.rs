@@ -58,7 +58,9 @@ impl Kind {
                         .strip_prefix("updates/")
                         .is_some_and(|name| crate::changelog::update_number(name).is_some())
             }
-            Self::Governance => path == "README.md" || path == crate::governance::DATA,
+            Self::Governance => {
+                path == "README.md" || (path.starts_with("data/") && path.ends_with(".yaml"))
+            }
         }
     }
 }

@@ -33,7 +33,7 @@ fn offline_doctor_reports_manual_checks_and_never_resolves_secrets() {
         "[project]\nname = 'collie-api'\nrevision = '1.0'\n[profiles.dev]\n",
     )
     .unwrap();
-    std::fs::write(temp.path().join("governance/generated/data.json"), "broken").unwrap();
+    std::fs::write(temp.path().join("governance/data/tech.yaml"), "broken").unwrap();
     let output = doctor_command(temp.path(), &project, &bin)
         .arg("--offline")
         .output()
@@ -66,7 +66,7 @@ fn online_doctor_verifies_forge_and_bao_without_echoing_tool_output() {
         Response::json(json!({"version": "16.0.5"})),
         Response::json(json!({"login": "member"})),
     ]);
-    let data_path = temp.path().join("governance/generated/data.json");
+    let data_path = temp.path().join("governance/data/tech.yaml");
     let data = std::fs::read_to_string(&data_path)
         .unwrap()
         .replace("https://git.cmu.dev", &server.origin);

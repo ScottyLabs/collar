@@ -72,9 +72,9 @@ impl Project {
 }
 
 pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
-    let organization_source = checkout.join(governance::DATA);
+    let organization_source = governance::data_directory(checkout);
     let data = governance::load(checkout)?;
-    let (forgejo, keycloak) = (data.forgejo()?, data.keycloak()?);
+    let (forgejo, keycloak) = (governance::forgejo(&data)?, governance::keycloak(&data)?);
     ensure!(
         repo.origin == host_url(&forgejo.url)?,
         "selected repository is on a different forge from governance"
@@ -133,7 +133,7 @@ pub fn resolve(checkout: &Path, repo: &Repo) -> Result<Project> {
 
 pub fn organization_origin(checkout: &Path) -> Result<Url> {
     let data = governance::load(checkout)?;
-    let forgejo = data.forgejo()?;
+    let forgejo = governance::forgejo(&data)?;
     ensure!(
         !forgejo.org.trim().is_empty(),
         "governance organization must be nonempty"
@@ -144,6 +144,6 @@ pub fn organization_origin(checkout: &Path) -> Result<Url> {
 
 pub fn repository(checkout: &Path, name: &str) -> Result<Repo> {
     let data = governance::load(checkout)?;
-    let forgejo = data.forgejo()?;
+    let forgejo = governance::forgejo(&data)?;
     Repo::parse(&format!("{}/{name}", forgejo.org), Some(&forgejo.url))
 }

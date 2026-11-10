@@ -13,7 +13,7 @@ collar governance project view collar
 collar governance service-access -R ScottyLabs/collar
 ```
 
-Project views read governance's generated `data.json` and show the owning team, the team's leads, the members, enabled features, and secret namespace. The namespace is the governance slug, which can differ from the repository name. A team-owned repository may have no namespace.
+Project views load governance's `data/` YAML through governance's own loader and show the owning team, the team's leads, the members, enabled features, and secret namespace. The namespace is the governance slug, which can differ from the repository name. A team-owned repository may have no namespace.
 
 `project select` is a terminal picker that prints the selected project's context.
 It does not save a repository selection for later commands.

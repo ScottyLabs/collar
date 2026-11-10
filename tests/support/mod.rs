@@ -200,17 +200,41 @@ pub(crate) fn collie_team() -> Value {
     }})
 }
 
-pub(crate) fn governance_data(tech: Value, teams: Value) -> String {
-    json!({"tech": tech, "teams": teams}).to_string()
+/// Governance `data/` files as JSON text, which is valid YAML
+pub(crate) fn governance_data(tech: Value, teams: Value) -> Vec<(String, String)> {
+    let committees = json!({
+        "director": "lead",
+        "committees": {"tech": {"name": "Tech", "director": "lead"}}
+    });
+    let mut files = vec![
+        (
+            "data/tech.yaml".to_owned(),
+            json!({"tech": tech}).to_string(),
+        ),
+        ("data/committees.yaml".to_owned(), committees.to_string()),
+        (
+            "data/grouper.yaml".to_owned(),
+            json!({"google_groups": {}}).to_string(),
+        ),
+    ];
+
+    for (index, team) in teams.as_array().unwrap().iter().enumerate() {
+        let slug = team["team"]["slug"]
+            .as_str()
+            .map_or_else(|| format!("team-{index}"), str::to_owned);
+        files.push((format!("data/teams/{slug}.yaml"), team.to_string()));
+    }
+
+    files
 }
 
 pub(crate) fn write_governance(checkout: &std::path::Path, tech: Value, teams: Value) {
-    std::fs::create_dir_all(checkout.join("generated")).unwrap();
-    std::fs::write(
-        checkout.join("generated/data.json"),
-        governance_data(tech, teams),
-    )
-    .unwrap();
+    let _ = std::fs::remove_dir_all(checkout.join("data/teams"));
+    std::fs::create_dir_all(checkout.join("data/teams")).unwrap();
+
+    for (path, content) in governance_data(tech, teams) {
+        std::fs::write(checkout.join(path), content).unwrap();
+    }
 }
 
 pub(crate) fn project_governance(checkout: &std::path::Path) {

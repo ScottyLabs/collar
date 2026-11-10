@@ -9,13 +9,22 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
             tech(origin),
             json!([{"team": {"slug": "collie", "name": "Collie", "repos": [{"name": "collie-api"}]}}]),
         );
+        let total = data.len() + 1;
+        let tree: Vec<Value> = data
+            .iter()
+            .map(|(path, content)| tree_entry(path, content))
+            .collect();
         let mut responses = source_head();
         responses.extend([
-            Response::json(json!({"page": 1, "total_count": 2, "truncated": true, "tree": [tree_entry("README.md", readme)]})),
-            Response::json(json!({"page": 2, "total_count": 2, "truncated": false, "tree": [tree_entry("generated/data.json", &data)]})),
+            Response::json(json!({"page": 1, "total_count": total, "truncated": true, "tree": [tree_entry("README.md", readme)]})),
+            Response::json(json!({"page": 2, "total_count": total, "truncated": false, "tree": tree})),
             Response {status: 200, body: readme.into(), headers: String::new()},
-            Response {status: 200, body: data, headers: String::new()},
         ]);
+        responses.extend(data.into_iter().map(|(_, body)| Response {
+            status: 200,
+            body,
+            headers: String::new(),
+        }));
         responses.extend(source_head());
         responses.push(Response {
             status: 503,
@@ -50,8 +59,8 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     assert_eq!(value["dataSource"]["offline"], false);
     success(&run(true));
     let source_file = std::path::Path::new(value["source"].as_str().unwrap());
-    // The fixture is stored at REVISION/generated/data.json.
-    let cache = source_file.ancestors().nth(3).unwrap();
+    // The fixture is stored at REVISION/data/teams/collie.yaml
+    let cache = source_file.ancestors().nth(4).unwrap();
     let obsolete = cache.join("2".repeat(40));
     std::fs::create_dir(&obsolete).unwrap();
     std::fs::write(obsolete.join("old-content"), "obsolete").unwrap();
@@ -91,10 +100,10 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     let value: Value = serde_json::from_slice(&cached.stdout).unwrap();
     assert_eq!(value["dataSource"]["offline"], true);
     let requests = server.finish();
-    assert_eq!(requests.len(), 9);
+    assert_eq!(requests.len(), 12);
     assert!(requests[2].contains("recursive=true&page=1&per_page=1000"));
     assert!(requests[3].contains("page=2"));
-    for request in &requests[4..6] {
+    for request in &requests[4..9] {
         assert!(request.contains(&format!("ref={SOURCE_REVISION}")));
     }
     let mut source = command();
@@ -137,17 +146,17 @@ fn source_snapshots_reject_unsafe_incomplete_and_symlink_trees_before_raw_reads(
             "unsafe path",
         ),
         (
-            json!({"path":"generated/data.json", "type":"blob", "mode":"120000", "size":2, "sha":SOURCE_REVISION}),
+            json!({"path":"data/tech.yaml", "type":"blob", "mode":"120000", "size":2, "sha":SOURCE_REVISION}),
             1,
             "symlinks",
         ),
         (
-            json!({"path":"generated/data.json", "type":"blob", "mode":"100644", "size":2, "sha":SOURCE_REVISION}),
+            json!({"path":"data/tech.yaml", "type":"blob", "mode":"100644", "size":2, "sha":SOURCE_REVISION}),
             2,
             "incomplete",
         ),
         (
-            json!({"path":"generated/data.json", "type":"blob", "mode":"100644", "size":u64::MAX, "sha":SOURCE_REVISION}),
+            json!({"path":"data/tech.yaml", "type":"blob", "mode":"100644", "size":u64::MAX, "sha":SOURCE_REVISION}),
             1,
             "exceeds 8 MiB",
         ),
@@ -175,7 +184,7 @@ fn failed_snapshot_download_does_not_publish_an_offline_source() {
     let temp = TempDir::new().unwrap();
     let mut responses = source_head();
     responses.extend([
-        Response::json(json!({"page":1,"total_count":1,"truncated":false,"tree":[tree_entry("generated/data.json", "{}")]})),
+        Response::json(json!({"page":1,"total_count":1,"truncated":false,"tree":[tree_entry("data/tech.yaml", "{}")]})),
         Response {status:403,body:"never-print-server-secret".into(),headers:String::new()},
     ]);
     let server = Server::new(responses);

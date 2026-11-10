@@ -57,6 +57,24 @@ Put that context in the instruction file your client loads. The skill supplies t
 
 The root `AGENTS.md` in Collar is for maintaining this repository. It is separate from the installed skill, which teaches agents to use the CLI.
 
+## Connect an MCP client
+
+Clients that cannot run shell commands can use Collar through the [Model Context Protocol](https://modelcontextprotocol.io). `collar mcp` serves tools over stdio, so register it as a local command:
+
+```json
+{
+  "mcpServers": {
+    "collar": { "command": "collar", "args": ["mcp"] }
+  }
+}
+```
+
+For Claude Code, `claude mcp add collar -- collar mcp` does the same. Sign in with `collar auth login` first; the server uses the same stored credentials or `COLLAR_HOST` and `COLLAR_TOKEN`.
+
+Each tool runs a Collar command with `--json` and returns its output, so field selection, errors, and exit statuses match the CLI. The default tools only read: `status`, `pr_list`, `pr_view`, `pr_diff`, `pr_checks`, `issue_list`, `issue_view`, `actions_list`, `actions_jobs`, `actions_logs`, `kennel_status`, `kennel_logs`, `kennel_preview`, `docs_search`, `docs_view`, `repo_view`, and `api_get`. Start the server with `--allow-writes` to add `pr_comment`, `pr_review`, `issue_create`, and `issue_comment`; writes are never retried. Pass `-R` before `mcp` to set a default repository, for example `collar -R terrier mcp`. A failed check or command returns an error result containing the command's message and any JSON it printed. Output over 256 KiB is truncated; request fewer fields instead.
+
+Agents that can run commands should prefer the CLI and the bundled skill, which cover every command.
+
 ## Inspect without writing
 
 ```sh

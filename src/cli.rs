@@ -72,6 +72,11 @@ enum Command {
         after_long_help = "Examples:\n  collar status\n  collar status --owner ScottyLabs\n  collar status --interactive\n  collar status --json reviewRequests\n\nRequires sign-in. Shows up to --limit recently updated open items in each category. This is a host-wide inbox; use --owner to narrow it, rather than -R. CI checks remain available through pr checks and actions commands."
     )]
     Status(crate::status::Args),
+    /// Serve Collar tools to MCP clients over stdio.
+    #[command(
+        after_long_help = "Examples:\n  collar mcp\n  collar mcp --allow-writes\n  collar -R terrier mcp\n\nSpeaks the Model Context Protocol on stdin and stdout for clients that cannot run shell commands. Tools run this binary with --json and share its credentials and validation. Read-only tools are exposed by default; --allow-writes adds PR comments, PR reviews, issue creation, and issue comments. -R sets the default repository for repository tools."
+    )]
+    Mcp(crate::mcp::Args),
     /// Read and search canonical ScottyLabs documentation.
     #[command(
         after_long_help = "Examples:\n  collar docs search secrets\n  collar docs list --service kennel"
@@ -225,6 +230,7 @@ pub fn run(cli: Cli) -> Result<()> {
     if let Command::Skill { command } = cli.command {
         return crate::skill::run(command);
     }
+
     let creating = matches!(
         &cli.command,
         Command::Config {
@@ -233,7 +239,7 @@ pub fn run(cli: Cli) -> Result<()> {
             command: AuthCommand::Login { .. }
         }
     );
-    let mut config = Config::load(cli.config, cli.no_config, creating)?;
+    let mut config = Config::load(cli.config.clone(), cli.no_config, creating)?;
     let sources = Sources {
         config: &config,
         host: cli.host.as_deref(),
@@ -241,6 +247,16 @@ pub fn run(cli: Cli) -> Result<()> {
     };
     match cli.command {
         Command::Skill { command } => crate::skill::run(command),
+        Command::Mcp(args) => crate::mcp::run(
+            args,
+            crate::mcp::Globals {
+                host: cli.host.clone(),
+                repo: cli.repo,
+                config: cli.config,
+                cache_dir: cli.cache_dir.clone(),
+                no_config: cli.no_config,
+            },
+        ),
         Command::Status(args) => {
             anyhow::ensure!(
                 cli.repo.is_none(),

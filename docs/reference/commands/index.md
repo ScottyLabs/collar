@@ -4,6 +4,7 @@ These pages are generated from Collar's Clap definitions. Use the help shipped w
 
 - [`collar skill`](skill.md)
 - [`collar status`](status.md)
+- [`collar mcp`](mcp.md)
 - [`collar docs`](docs.md)
 - [`collar completion`](completion.md)
 - [`collar issue`](issue.md)
@@ -36,6 +37,7 @@ Usage: collar [OPTIONS] <COMMAND>
 Commands:
   skill       Show or install Collar's bundled agent skill
   status      Show your review requests, authored PRs, and assigned issues across the forge
+  mcp         Serve Collar tools to MCP clients over stdio
   docs        Read and search canonical ScottyLabs documentation
   completion  Generate shell completions
   issue       Work with Forgejo issues

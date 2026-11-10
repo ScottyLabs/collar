@@ -42,6 +42,9 @@ mod governance_ops;
 #[path = "cases/kennel.rs"]
 mod kennel;
 
+#[path = "cases/mcp.rs"]
+mod mcp;
+
 #[path = "cases/issues.rs"]
 mod issues;
 

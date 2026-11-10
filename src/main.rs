@@ -25,6 +25,7 @@ mod governance_ops;
 mod issues;
 mod kennel;
 mod kennel_api;
+mod mcp;
 mod nixbot;
 mod output;
 mod pr;

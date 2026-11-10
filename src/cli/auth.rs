@@ -1,14 +1,13 @@
 use anyhow::Result;
 use clap::Subcommand;
-use reqwest::Method;
 
-use crate::{auth::api, client::host_url, config::Config, environment, pr};
+use crate::{client::host_url, config::Config, environment};
 
 #[derive(Subcommand)]
 pub(super) enum AuthCommand {
     /// Sign in through your browser and save the verified credential.
     #[command(
-        after_long_help = "Examples:\n  collar auth login\n  collar auth login --token\n\nBrowser sign-in is the default; choose university SSO in Forgejo. Git SSH authentication is separate. Headless sessions can use COLLAR_HOST and COLLAR_TOKEN supplied through a secret environment."
+        after_long_help = "Examples:\n  collar auth login\n  collar auth login --token\n\nBrowser sign-in is the default; uses Keycloak and the Forgejo broker. Git SSH authentication is separate. Headless sessions can use COLLAR_HOST and COLLAR_TOKEN supplied through a secret environment."
     )]
     Login {
         /// Read a personal access token from stdin instead of opening a browser.
@@ -17,18 +16,18 @@ pub(super) enum AuthCommand {
         /// Use a hidden personal-access-token prompt instead of browser SSO.
         #[arg(long, conflicts_with_all = ["with_token", "web"])]
         token: bool,
-        /// Open browser sign-in instead of refreshing the saved session.
+        /// Start a fresh browser sign-in instead of reusing the saved SSO session.
         #[arg(long, conflicts_with_all = ["with_token", "token"])]
         web: bool,
     },
-    /// Remove this host's saved credential without revoking it on the server.
+    /// Revoke this host's SSO session and remove its saved credentials.
     Logout,
     /// Sign in to OpenBao for project secrets; separate from Forgejo login.
     Bao {
         #[command(subcommand)]
         command: environment::BaoCommand,
     },
-    /// Verify your API credential against the selected forge.
+    /// Verify Forgejo access and Grafana access for a saved SSO session.
     Status,
 }
 
@@ -48,11 +47,7 @@ pub(super) fn run(command: AuthCommand, config: &mut Config, host: Option<&str>)
         }
         AuthCommand::Bao { command } => environment::bao(command),
         AuthCommand::Status => {
-            let api = api(host_url(host.unwrap_or(config.host()))?, config)?;
-            api.require_token()?;
-            let user: pr::User = api.json(Method::GET, &["user"], &[], None)?;
-            println!("Logged in to {} as {}", api.origin(), user.login);
-            Ok(())
+            crate::auth::status(config, host_url(host.unwrap_or(config.host()))?)
         }
     }
 }

@@ -23,7 +23,7 @@ pub(super) fn run(
         KennelCommand::Workflows(command) => {
             let repo = config.repo(repository, host)?;
             let api = api(repo.origin.clone(), config)?;
-            kennel::run(command, &api, &repo)
+            kennel::run(command, &api, &repo, config)
         }
         KennelCommand::Status(selection) => {
             selection.output.validate_fields(&[

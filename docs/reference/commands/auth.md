@@ -9,9 +9,9 @@ Usage: collar auth <COMMAND>
 
 Commands:
   login   Sign in through your browser and save the verified credential
-  logout  Remove this host's saved credential without revoking it on the server
+  logout  Revoke this host's SSO session and remove its saved credentials
   bao     Sign in to OpenBao for project secrets; separate from Forgejo login
-  status  Verify your API credential against the selected forge
+  status  Verify Forgejo access and Grafana access for a saved SSO session
   help    Print this message or the help of the given subcommand(s)
 
 Options:
@@ -39,7 +39,7 @@ Options:
           Use a hidden personal-access-token prompt instead of browser SSO
 
       --web
-          Open browser sign-in instead of refreshing the saved session
+          Start a fresh browser sign-in instead of reusing the saved SSO session
 
   -h, --help
           Print help (see a summary with '-h')
@@ -48,13 +48,13 @@ Examples:
   collar auth login
   collar auth login --token
 
-Browser sign-in is the default; choose university SSO in Forgejo. Git SSH authentication is separate. Headless sessions can use COLLAR_HOST and COLLAR_TOKEN supplied through a secret environment.
+Browser sign-in is the default; uses Keycloak and the Forgejo broker. Git SSH authentication is separate. Headless sessions can use COLLAR_HOST and COLLAR_TOKEN supplied through a secret environment.
 ```
 
 ## `collar auth logout`
 
 ```text
-Remove this host's saved credential without revoking it on the server
+Revoke this host's SSO session and remove its saved credentials
 
 Usage: collar auth logout
 
@@ -107,7 +107,7 @@ Options:
 ## `collar auth status`
 
 ```text
-Verify your API credential against the selected forge
+Verify Forgejo access and Grafana access for a saved SSO session
 
 Usage: collar auth status
 

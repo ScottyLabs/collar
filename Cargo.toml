@@ -1,5 +1,6 @@
 [package]
 name = "collar"
+default-run = "collar"
 description = "ScottyLabs forge, governance, and development tools"
 readme = "README.md"
 version = "0.1.0"
@@ -19,8 +20,12 @@ dialoguer = { version = "0.12.0", default-features = false, features = [
 directories = "6.0.0"
 governance-core = { git = "https://git.cmu.dev/ScottyLabs/governance" }
 governance-schema = { git = "https://git.cmu.dev/ScottyLabs/governance" }
+jsonwebtoken = { version = "11.1.0", default-features = false, features = [
+  "aws_lc_rs",
+] }
 kennel-config = { git = "https://git.cmu.dev/ScottyLabs/kennel" }
 keyring = { version = "4.2.0", default-features = false, features = ["v1"] }
+openidconnect = { version = "4.1.0", default-features = false }
 pulldown-cmark = "0.13.4"
 reqwest = { version = "0.13.5", default-features = false, features = [
   "blocking",
@@ -33,5 +38,9 @@ sha1 = "0.10.7"
 sha2 = "0.10.9"
 sigpipe = "0.1.3"
 tempfile = "3.27.0"
+tiny_http = "0.12.0"
 toml = "1.1.8"
 url = { version = "2.5.8", features = ["serde"] }
+
+[dev-dependencies]
+base64 = "0.23.1"

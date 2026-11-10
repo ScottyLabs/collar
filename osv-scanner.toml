@@ -10,3 +10,7 @@ reason = "Unmaintained zbus_names is required by keyring's zbus 5 backend."
 [[IgnoredVulns]]
 id = "RUSTSEC-2026-0372"
 reason = "Unmaintained zvariant_derive is required by keyring's zbus 5 backend."
+
+[[IgnoredVulns]]
+id = "RUSTSEC-2023-0071"
+reason = "In production, Collar uses openidconnect for RSA public-key verification only; its RSA private-key operations are unused."

@@ -80,9 +80,8 @@ fn saved_token_skips_unregistered_hosts_and_errors_for_missing_credentials() {
     let missing = FakeStore::default();
     assert!(
         saved_token(&registered, &config, &missing)
-            .unwrap_err()
-            .to_string()
-            .contains("saved forge credential is missing")
+            .unwrap()
+            .is_none()
     );
     let failing = FakeStore {
         fail_get: true,
@@ -94,46 +93,6 @@ fn saved_token_skips_unregistered_hosts_and_errors_for_missing_credentials() {
             .to_string()
             .contains("injected get failure")
     );
-}
-
-#[test]
-fn oauth_bundle_round_trips_refresh_token_and_rejects_expiry_without_refresh() {
-    let temp = tempfile::tempdir().unwrap();
-    let origin = origin("forge.example");
-    let mut config = config(temp.path().join("config.toml"));
-    let store = FakeStore::default();
-    let bundle = OAuthBundle {
-        access_token: "access-secret".to_owned(),
-        refresh_token: Some("refresh-secret".to_owned()),
-        expires_at: Some(1),
-    };
-    let encoded = encode_oauth(&bundle).unwrap();
-    store
-        .credentials
-        .borrow_mut()
-        .insert(origin.to_string(), encoded);
-    config.set_login(&origin, true).unwrap();
-
-    assert_eq!(
-        saved_refresh_token(&origin, &config, &store)
-            .unwrap()
-            .as_deref(),
-        Some("refresh-secret")
-    );
-    let bundle = OAuthBundle {
-        refresh_token: None,
-        ..bundle
-    };
-    store
-        .credentials
-        .borrow_mut()
-        .insert(origin.to_string(), encode_oauth(&bundle).unwrap());
-    let error = saved_token(&origin, &config, &store)
-        .expect_err("expired access token without refresh is rejected")
-        .to_string();
-    assert!(error.contains("run collar auth login"));
-    assert!(!error.contains("access-secret"));
-    assert!(!error.contains("refresh-secret"));
 }
 
 #[test]
@@ -205,54 +164,119 @@ fn rollback_failure_preserves_metadata_error_and_recovery_guidance() {
 }
 
 #[test]
-fn expired_oauth_is_refreshed_once_and_rotated_credentials_are_saved() {
-    use std::io::{Read, Write};
-    use std::net::TcpListener;
-
-    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-    let origin = Url::parse(&format!("http://{}/", listener.local_addr().unwrap())).unwrap();
-    let server = std::thread::spawn(move || {
-        let (mut stream, _) = listener.accept().unwrap();
-        stream
-            .set_read_timeout(Some(std::time::Duration::from_secs(5)))
-            .unwrap();
-        let mut request = [0; 4096];
-        let _ = stream.read(&mut request).unwrap();
-        let body =
-            r#"{"access_token":"new-access","refresh_token":"new-refresh","expires_in":3600}"#;
-        write!(
-            stream,
-            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
-            body.len()
-        )
-        .unwrap();
-    });
+fn legacy_forge_refresh_credentials_are_not_used() {
     let temp = tempfile::tempdir().unwrap();
+    let origin = origin("forge.example");
     let mut config = config(temp.path().join("config.toml"));
     let store = FakeStore::default();
-    let expired = OAuthBundle {
-        access_token: "old-access".into(),
-        refresh_token: Some("old-refresh".into()),
-        expires_at: Some(1),
+    persist(
+        &mut config,
+        &store,
+        &origin,
+        Some("collar-oauth-v1:legacy-secret"),
+    )
+    .unwrap();
+    let error = saved_token(&origin, &config, &store)
+        .unwrap_err()
+        .to_string();
+    assert!(error.contains("legacy Forgejo OAuth"));
+    assert!(!error.contains("legacy-secret"));
+}
+
+#[test]
+fn saved_sso_session_is_bound_to_endpoints_before_any_refresh() {
+    let temp = tempfile::tempdir().unwrap();
+    let origin = origin("git.cmu.dev");
+    let mut config = config(temp.path().join("config.toml"));
+    let endpoints = collar::sso::Endpoints {
+        issuer: Url::parse("https://idp.example/realms/test").unwrap(),
+        broker: Url::parse("https://broker.example/").unwrap(),
+        grafana: Url::parse("https://grafana.example/").unwrap(),
     };
-    store
-        .set(&origin, &encode_oauth(&expired).unwrap())
-        .unwrap();
-    config.set_login(&origin, true).unwrap();
-    assert_eq!(
-        saved_token(&origin, &config, &store).unwrap().as_deref(),
-        Some("new-access")
-    );
-    server.join().unwrap();
-    // The listener is now closed: this read must reuse the unexpired token.
-    assert_eq!(
-        saved_token(&origin, &config, &store).unwrap().as_deref(),
-        Some("new-access")
-    );
-    assert_eq!(
-        saved_refresh_token(&origin, &config, &store)
+    let value = collar::sso::Session {
+        issuer: "https://other.example/realms/test".into(),
+        client_id: "collar".into(),
+        broker: endpoints.broker.to_string(),
+        grafana: endpoints.grafana.to_string(),
+        subject: "user-a".into(),
+        nonce: "fixture-nonce".into(),
+        auth_time: None,
+        access_token: "access-secret".into(),
+        refresh_token: "refresh-secret".into(),
+        expires_at: 1,
+    };
+    let store = FakeStore::default();
+    persist(
+        &mut config,
+        &store,
+        &origin,
+        Some(&encode_session(&value).unwrap()),
+    )
+    .unwrap();
+    let error = session(&origin, &config, &store, &endpoints)
+        .err()
+        .unwrap()
+        .to_string();
+    assert!(error.contains("different endpoints"));
+    assert!(!error.contains("refresh-secret"));
+}
+
+#[test]
+fn logout_clears_local_credentials_when_remote_revoke_fails() {
+    let temp = tempfile::tempdir().unwrap();
+    let origin = origin("git.cmu.dev");
+    let mut config = config(temp.path().join("config.toml"));
+    let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
+    let base = format!("http://{}", server.server_addr());
+    let endpoints = collar::sso::Endpoints {
+        issuer: Url::parse(&format!("{base}/realms/test")).unwrap(),
+        broker: Url::parse(&format!("{base}/")).unwrap(),
+        grafana: Url::parse(&format!("{base}/")).unwrap(),
+    };
+    let task = std::thread::spawn(move || {
+        let request = server
+            .recv_timeout(std::time::Duration::from_secs(5))
             .unwrap()
-            .as_deref(),
-        Some("new-refresh")
-    );
+            .unwrap();
+        assert_eq!(request.url(), "/realms/test/protocol/openid-connect/logout");
+        request
+            .respond(
+                tiny_http::Response::from_string("private-upstream-error").with_status_code(503),
+            )
+            .unwrap();
+    });
+    let session = collar::sso::Session {
+        issuer: endpoints.issuer.to_string(),
+        client_id: "collar".into(),
+        broker: endpoints.broker.to_string(),
+        grafana: endpoints.grafana.to_string(),
+        subject: "user-a".into(),
+        nonce: "fixture-nonce".into(),
+        auth_time: None,
+        access_token: "private-access".into(),
+        refresh_token: "private-refresh".into(),
+        expires_at: 1,
+    };
+    let store = FakeStore::default();
+    let forge_store = FakeStore::default();
+    persist(
+        &mut config,
+        &store,
+        &origin,
+        Some(&encode_session(&session).unwrap()),
+    )
+    .unwrap();
+    let error = logout_with(
+        &mut config,
+        origin.clone(),
+        &endpoints,
+        &store,
+        &forge_store,
+    )
+    .unwrap_err();
+    assert!(!config.has_login(&origin));
+    assert!(store.credentials.borrow().is_empty());
+    assert!(error.to_string().contains("local credentials removed"));
+    assert!(!format!("{error:#}").contains("private-"));
+    task.join().unwrap();
 }

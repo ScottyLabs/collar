@@ -40,7 +40,9 @@ collar auth login
 collar auth status
 ```
 
-The first login opens Forgejo in your browser. Choose university SSO there. Ordinary commands silently refresh expired OAuth access tokens using the saved refresh token. `auth login` can also refresh an existing session without opening a browser. Use `collar auth login --web` to start a fresh browser sign-in; an existing Forgejo or university browser session may sign you in automatically. Collar verifies the credential and saves it in your operating system's credential store. Browser login runs on the same machine as the browser.
+Browser login uses Keycloak with PKCE and a loopback callback. It links your `cmu-dev` account when needed, verifies Forgejo access through the broker, and checks Grafana. The browser must run on the same machine as Collar. The SSO client, broker, and Grafana JWT configuration must be provisioned first; see the [SSO rollout plan](design/oidc.md).
+
+Collar stores the Keycloak session in the OS credential store. Forgejo refresh tokens remain in Keycloak. Ordinary commands refresh an expired Keycloak session without opening a browser. Use `collar auth login --web` for a fresh browser sign-in. Existing direct Forgejo OAuth sessions must be replaced by signing in again.
 
 SSH authenticates Git clone, fetch, and push. PR reviews and other API writes use the separate credential from `collar auth login`; an SSH key alone does not authenticate API requests.
 

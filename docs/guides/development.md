@@ -9,7 +9,7 @@ collar doctor
 collar doctor --offline
 ```
 
-Doctor checks tools, Git identity, SSH-agent keys, the project flake, declared project ownership, secretspec configuration, infrastructure sources, and authentication. It prints the whole report before returning a failure status. Checks can pass, fail, require a manual step, or be skipped.
+Doctor checks tools, whether Nix substitutes from the ScottyLabs binary cache, Git identity, SSH-agent keys, the project flake, declared project ownership, secretspec configuration, infrastructure sources, and authentication. It prints the whole report before returning a failure status. Checks can pass, fail, require a manual step, or be skipped.
 
 Pitchfork is checked when the checkout has `pitchfork.toml` or the generated `.config/pitchfork.toml`. Secrets tooling and OpenBao access are checked when `secretspec.toml` exists. Projects without these configurations skip those checks. Enter `nix develop` first to generate the project's local process configuration.
 

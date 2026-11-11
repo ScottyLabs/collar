@@ -19,6 +19,9 @@ use crate::{auth, pr, process, project, repo};
 const LOGIN: &str = "nix run git+https://git.cmu.dev/ScottyLabs/kennel#login";
 const ACCOUNTS: &str =
     "https://idp.scottylabs.org/realms/scottylabs/account/account-security/linked-accounts";
+const CACHE: &str = "https://scottylabs.cachix.org";
+const CACHE_KEY: &str = "scottylabs.cachix.org-1:hajjEX5SLi/Y7yYloiXTt2IOr3towcTGRhMh1vu6Tjg=";
+const NIX_COMMAND: &str = "extra-experimental-features = nix-command";
 
 #[derive(ClapArgs)]
 pub struct Args {
@@ -139,6 +142,182 @@ fn flake(root: &Path) -> Result<String> {
     Ok("flake.nix present; evaluation and shell readiness are not verified".into())
 }
 
+fn nix_json(args: &[&str], system_only: bool) -> Result<serde_json::Value> {
+    let mut command = Command::new("nix");
+    command.args(args).stdin(std::process::Stdio::null());
+    if system_only {
+        command
+            .env("NIX_USER_CONF_FILES", "/dev/null")
+            .env("NIX_CONFIG", NIX_COMMAND);
+    } else {
+        let config = std::env::var("NIX_CONFIG").unwrap_or_default();
+        command.env("NIX_CONFIG", format!("{config}\n{NIX_COMMAND}"));
+    }
+    let output = command.output().context("run Nix diagnostic")?;
+    ensure!(
+        output.status.success(),
+        "nix {} failed ({})",
+        args.join(" "),
+        output.status
+    );
+    serde_json::from_slice(&output.stdout).context("Nix diagnostic is not JSON")
+}
+
+fn strings(config: &serde_json::Value, setting: &str) -> Vec<String> {
+    config[setting]["value"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|value| value.as_str().map(str::to_owned))
+        .collect()
+}
+
+fn trusted_user() -> Result<bool> {
+    let store = nix_json(&["store", "info", "--json"], false)
+        .or_else(|_| nix_json(&["store", "ping", "--json"], false))?;
+    Ok(store["trusted"].as_bool() == Some(true) || store["trusted"].as_u64() == Some(1))
+}
+
+fn accepted_flake_settings(config: &serde_json::Value) -> (Vec<String>, Vec<String>) {
+    if config["accept-flake-config"]["value"].as_bool() == Some(true) {
+        return (vec![CACHE.into()], vec![CACHE_KEY.into()]);
+    }
+    let saved = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/share")))
+        .and_then(|data| std::fs::read(data.join("nix/trusted-settings.json")).ok())
+        .and_then(|saved| serde_json::from_slice::<serde_json::Value>(&saved).ok())
+        .unwrap_or_default();
+    let approved = |settings: [&str; 2]| -> Vec<String> {
+        settings
+            .iter()
+            .filter_map(|setting| saved[*setting].as_object())
+            .flatten()
+            .filter(|(_, approved)| approved.as_bool() == Some(true))
+            .flat_map(|(values, _)| values.split_whitespace().map(str::to_owned))
+            .collect()
+    };
+    (
+        approved(["extra-substituters", "substituters"]),
+        approved(["extra-trusted-public-keys", "trusted-public-keys"]),
+    )
+}
+
+fn daemon_caches() -> Result<(Vec<String>, Vec<String>)> {
+    let system = nix_json(&["config", "show", "--json"], true)?;
+    let config = nix_json(&["config", "show", "--json"], false)?;
+    let (flake_substituters, flake_keys) = accepted_flake_settings(&config);
+    let mut substituters = strings(&system, "substituters");
+    let mut keys = strings(&system, "trusted-public-keys");
+    let requested = strings(&config, "substituters")
+        .into_iter()
+        .chain(flake_substituters);
+    if trusted_user()? {
+        substituters.extend(requested);
+        keys.extend(
+            strings(&config, "trusted-public-keys")
+                .into_iter()
+                .chain(flake_keys),
+        );
+    } else {
+        let allowed = strings(&system, "trusted-substituters");
+        substituters.extend(requested.filter(|substituter| allowed.contains(substituter)));
+    }
+    let mut seen = std::collections::HashSet::new();
+    substituters.retain(|substituter| seen.insert(substituter.clone()));
+    Ok((substituters, keys))
+}
+
+fn store_hash() -> Option<String> {
+    let in_store = |path: PathBuf| {
+        std::fs::canonicalize(path)
+            .ok()
+            .filter(|path| path.starts_with("/nix/store"))
+    };
+    let path = std::env::current_exe()
+        .ok()
+        .and_then(in_store)
+        .or_else(|| {
+            std::env::split_paths(&std::env::var_os("PATH")?)
+                .find_map(|directory| in_store(directory.join("collar")))
+        })?;
+    let entry = path
+        .strip_prefix("/nix/store")
+        .ok()?
+        .iter()
+        .next()?
+        .to_str()?;
+    Some(entry.split_once('-')?.0.to_owned())
+}
+
+fn binary_cache(hash: &str) -> Result<String> {
+    let (substituters, keys) = daemon_caches()?;
+    let names: Vec<&str> = keys
+        .iter()
+        .filter_map(|key| key.split_once(':').map(|(name, _)| name))
+        .collect();
+    let client = reqwest::blocking::Client::builder()
+        .user_agent(concat!("collar/", env!("CARGO_PKG_VERSION")))
+        .timeout(Duration::from_secs(5))
+        .build()
+        .context("create HTTP client")?;
+    for substituter in &substituters {
+        let base = substituter
+            .split('?')
+            .next()
+            .unwrap_or_default()
+            .trim_end_matches('/');
+        if !(base.starts_with("https://") || base.starts_with("http://")) {
+            continue;
+        }
+        let Ok(response) = client.get(format!("{base}/{hash}.narinfo")).send() else {
+            continue;
+        };
+        if !response.status().is_success() {
+            continue;
+        }
+        let Ok(narinfo) = response.text() else {
+            continue;
+        };
+        let signed = narinfo
+            .lines()
+            .filter_map(|line| line.strip_prefix("Sig: "))
+            .filter_map(|signature| signature.split_once(':'))
+            .any(|(name, _)| names.contains(&name));
+        if signed {
+            return Ok(format!("{base} serves ScottyLabs packages"));
+        }
+    }
+    anyhow::bail!(
+        "no cache Nix uses serves ScottyLabs packages, so nix develop builds them from source"
+    )
+}
+
+fn check_cache(checks: &mut Vec<Check>, offline: bool) {
+    if offline {
+        skipped(
+            checks,
+            "nix-cache",
+            "offline mode; cache access was not checked",
+        );
+        return;
+    }
+    let Some(hash) = store_hash() else {
+        skipped(
+            checks,
+            "nix-cache",
+            "collar is not installed from the Nix store, so there is no ScottyLabs package to look up",
+        );
+        return;
+    };
+    record(
+        checks,
+        "nix-cache",
+        binary_cache(&hash),
+        "Add the ScottyLabs cache to the system Nix configuration and restart the Nix daemon: https://docs.kennel.scottylabs.org/guides/local-development/",
+    );
+}
+
 fn check_revision(checks: &mut Vec<Check>, source: &Source, name: &str, action: &str) {
     record(
         checks,
@@ -186,7 +365,7 @@ fn check_governance(
     context
 }
 
-fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
+fn check_local(checks: &mut Vec<Check>, offline: bool) -> Result<PathBuf> {
     let root = repo::root();
     let processes = root.as_ref().is_ok_and(|root| {
         ["pitchfork.toml", ".config/pitchfork.toml"]
@@ -219,6 +398,7 @@ fn check_local(checks: &mut Vec<Check>) -> Result<PathBuf> {
             "Install Lix and enter the project's dev shell with nix develop; ScottyLabs shared tooling supplies pitchfork, Bao, and secretspec.",
         );
     }
+    check_cache(checks, offline);
     record(
         checks,
         "checkout",
@@ -352,7 +532,7 @@ pub fn run(
     args.output
         .validate_fields(&["name", "status", "detail", "action"])?;
     let mut checks = Vec::new();
-    let root = check_local(&mut checks);
+    let root = check_local(&mut checks, args.offline);
     let secrets = root
         .as_ref()
         .is_ok_and(|root| root.join("secretspec.toml").symlink_metadata().is_ok());

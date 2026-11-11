@@ -102,7 +102,7 @@
             customDomain = "docs.collar.scottylabs.org";
           };
 
-          checks = collar.passthru.checks;
+          tools.collar.package = collar;
         };
     };
 }

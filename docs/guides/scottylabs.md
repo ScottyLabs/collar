@@ -7,12 +7,15 @@ Remote inspection resolves the latest canonical revision through Forgejo's API. 
 ```sh
 collar project view ScottyLabs/collar
 collar project select
+collar governance team list --json
 collar governance project list
 collar governance project view collar
 collar governance service-access -R ScottyLabs/collar
 ```
 
 Project views load governance's `data/` YAML through governance's own loader and show the owning team, the team's leads, the members, enabled features, and secret namespace. The namespace is the governance slug, which can differ from the repository name. A team-owned repository may have no namespace.
+
+`governance team list --json` returns the full team hierarchy, including projects and teams that do not own repositories yet. Each team includes its display name, description, leads, members, direct repositories, and nested projects. Projects retain their own repositories and inherit the team's members. The `dataSource` field records the canonical revision or explicit local checkout. Use these identities for project navigation instead of inferring teams from repository names.
 
 `project select` is a terminal picker that prints the selected project's context. It does not save a repository selection for later commands.
 

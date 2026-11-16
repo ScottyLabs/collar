@@ -212,7 +212,7 @@ enum Command {
     Api(ApiArgs),
     /// Discover declared ownership and service access without a clone.
     #[command(
-        after_long_help = "Examples:\n  collar governance project list\n  collar governance project view collar"
+        after_long_help = "Examples:\n  collar governance team list --json\n  collar governance project list\n  collar governance project view collar"
     )]
     Governance {
         #[command(subcommand)]

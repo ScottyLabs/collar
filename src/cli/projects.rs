@@ -44,10 +44,30 @@ pub(super) enum ContextCommand {
 pub(super) enum GovernanceCommand {
     #[command(flatten)]
     Workflows(governance_ops::Command),
+    /// Inspect the full declared team and project hierarchy.
+    Team {
+        #[command(subcommand)]
+        command: TeamCommand,
+    },
     /// List governed projects or inspect one by name.
     Project {
         #[command(subcommand)]
         command: ProjectCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub(super) enum TeamCommand {
+    /// List every team with its projects and repositories, including empty groups.
+    List {
+        /// Inspect local governance changes instead of the latest canonical revision.
+        #[arg(long, env = "COLLAR_GOVERNANCE")]
+        checkout: Option<PathBuf>,
+        /// Read an existing snapshot without refreshing it.
+        #[arg(long)]
+        offline: bool,
+        #[command(flatten)]
+        output: Output,
     },
 }
 
@@ -149,6 +169,50 @@ pub(super) fn run_governance(
     match command {
         GovernanceCommand::Workflows(command) => {
             governance_ops::run(command, sources, selection, host)
+        }
+        GovernanceCommand::Team {
+            command:
+                TeamCommand::List {
+                    checkout,
+                    offline,
+                    output,
+                },
+        } => {
+            output.validate_fields(&[
+                "slug",
+                "name",
+                "description",
+                "leads",
+                "members",
+                "repos",
+                "projects",
+                "dataSource",
+            ])?;
+            let source = sources.load(Kind::Governance, checkout, offline)?;
+            let teams = governance::teams(&source.directory)?;
+            output.print(&source.attach(&teams)?, || {
+                ui::heading(&format!("Governance teams - {}", source.describe()));
+                ui::table(
+                    &["Team", "Name", "Projects", "Repositories"],
+                    &teams
+                        .iter()
+                        .map(|team| {
+                            vec![
+                                team.slug.clone(),
+                                team.name.clone(),
+                                team.projects.len().to_string(),
+                                (team.repos.len()
+                                    + team
+                                        .projects
+                                        .iter()
+                                        .map(|project| project.repos.len())
+                                        .sum::<usize>())
+                                .to_string(),
+                            ]
+                        })
+                        .collect::<Vec<_>>(),
+                );
+            })
         }
         GovernanceCommand::Project { command } => match command {
             ProjectCommand::List {

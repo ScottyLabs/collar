@@ -9,6 +9,7 @@ Usage: collar governance <COMMAND>
 
 Commands:
   service-access  Show declared service access and the platform entry points
+  team            Inspect the full declared team and project hierarchy
   project         List governed projects or inspect one by name
   help            Print this message or the help of the given subcommand(s)
 
@@ -17,6 +18,7 @@ Options:
           Print help (see a summary with '-h')
 
 Examples:
+  collar governance team list --json
   collar governance project list
   collar governance project view collar
 ```
@@ -36,6 +38,45 @@ Options:
 
       --offline
           Read the cached canonical governance snapshot without refreshing it
+
+      --json [<FIELDS>]
+          Output selected JSON fields (comma-separated); omit fields for all
+
+  -h, --help
+          Print help
+```
+
+## `collar governance team`
+
+```text
+Inspect the full declared team and project hierarchy
+
+Usage: collar governance team <COMMAND>
+
+Commands:
+  list  List every team with its projects and repositories, including empty groups
+  help  Print this message or the help of the given subcommand(s)
+
+Options:
+  -h, --help
+          Print help
+```
+
+### `collar governance team list`
+
+```text
+List every team with its projects and repositories, including empty groups
+
+Usage: collar governance team list [OPTIONS]
+
+Options:
+      --checkout <CHECKOUT>
+          Inspect local governance changes instead of the latest canonical revision
+
+          [env: COLLAR_GOVERNANCE]
+
+      --offline
+          Read an existing snapshot without refreshing it
 
       --json [<FIELDS>]
           Output selected JSON fields (comma-separated); omit fields for all

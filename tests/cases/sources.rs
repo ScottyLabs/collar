@@ -88,6 +88,25 @@ fn canonical_governance_snapshots_paginate_pin_files_and_require_explicit_offlin
     assert_eq!(value["dataSource"]["revision"], SOURCE_REVISION);
     assert_eq!(value["dataSource"]["offline"], false);
     success(&run(true));
+    let teams = command()
+        .args(["--host", &server.origin, "--cache-dir"])
+        .arg(temp.path())
+        .args([
+            "governance",
+            "team",
+            "list",
+            "--offline",
+            "--json",
+            "slug,projects,dataSource",
+        ])
+        .output()
+        .unwrap();
+    success(&teams);
+    let hierarchy: Value = serde_json::from_slice(&teams.stdout).unwrap();
+    assert_eq!(hierarchy[0]["slug"], "collie");
+    assert_eq!(hierarchy[0]["projects"], json!([]));
+    assert_eq!(hierarchy[0]["dataSource"]["revision"], SOURCE_REVISION);
+    assert_eq!(hierarchy[0]["dataSource"]["offline"], true);
     let source_file = std::path::Path::new(value["source"].as_str().unwrap());
     // The fixture is stored at REVISION/data/teams/collie.yaml
     let cache = source_file.ancestors().nth(4).unwrap();

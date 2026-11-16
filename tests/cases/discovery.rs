@@ -122,3 +122,60 @@ fn project_context_uses_canonical_ownership_and_repository_specific_features() {
         .unwrap();
     failure(&output, "ambiguous governance ownership");
 }
+
+#[test]
+fn governance_team_list_preserves_projects_and_empty_groups() {
+    let checkout = TempDir::new().unwrap();
+    write_governance(
+        checkout.path(),
+        tech("https://git.cmu.dev"),
+        json!([
+            {"team": {"slug":"devops","name":"DevOps","description":"Infrastructure and deployment","leads":["Lead"],"members":["Member"],"repos":[{"name":"shared-tools"}],"projects":[
+                {"slug":"infrastructure","name":"Infrastructure","members":["ProjectMember"],"repos":[{"name":"infrastructure","features":{"kennel":{}}},{"name":"infrastructure-vendor"}]},
+                {"slug":"planning","name":"Planning","description":"Work before a repository exists"}
+            ]}},
+            {"team":{"slug":"empty","name":"Empty team"}}
+        ]),
+    );
+    let output = command()
+        .args(["governance", "team", "list", "--checkout"])
+        .arg(checkout.path())
+        .args(["--json"])
+        .output()
+        .unwrap();
+    success(&output);
+    let teams: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(teams.as_array().unwrap().len(), 2);
+    assert_eq!(teams[0]["slug"], "devops");
+    assert_eq!(teams[0]["name"], "DevOps");
+    assert_eq!(teams[0]["description"], "Infrastructure and deployment");
+    assert_eq!(teams[0]["leads"], json!(["lead"]));
+    assert_eq!(teams[0]["repos"][0]["name"], "shared-tools");
+    assert_eq!(teams[0]["projects"][0]["slug"], "infrastructure");
+    assert_eq!(
+        teams[0]["projects"][0]["repos"].as_array().unwrap().len(),
+        2
+    );
+    assert_eq!(
+        teams[0]["projects"][0]["repos"][0]["features"],
+        json!({"kennel":{}})
+    );
+    assert_eq!(
+        teams[0]["projects"][0]["members"],
+        json!(["member", "projectmember"])
+    );
+    assert_eq!(teams[0]["projects"][1]["repos"], json!([]));
+    assert_eq!(teams[0]["dataSource"]["kind"], "checkout");
+    assert_eq!(teams[1]["projects"], json!([]));
+    assert_eq!(teams[1]["repos"], json!([]));
+    let output = command()
+        .args(["governance", "team", "list", "--checkout"])
+        .arg(checkout.path())
+        .args(["--json", "slug,projects"])
+        .output()
+        .unwrap();
+    success(&output);
+    let selected: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(selected[0].as_object().unwrap().len(), 2);
+    assert!(selected[0].get("dataSource").is_none());
+}

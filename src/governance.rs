@@ -72,6 +72,80 @@ pub struct Project {
     pub source: PathBuf,
 }
 
+#[derive(Serialize)]
+pub struct TeamSummary {
+    pub slug: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub leads: Vec<String>,
+    pub members: Vec<String>,
+    pub repos: Vec<Repository>,
+    pub projects: Vec<ProjectSummary>,
+}
+
+#[derive(Serialize)]
+pub struct ProjectSummary {
+    pub slug: String,
+    pub name: String,
+    pub description: Option<String>,
+    pub members: Vec<String>,
+    pub repos: Vec<Repository>,
+}
+
+/// The full declared hierarchy, including teams and projects without repositories.
+pub fn teams(checkout: &Path) -> Result<Vec<TeamSummary>> {
+    let data = load(checkout)?;
+    ensure!(!data.teams.is_empty(), "governance data declares no teams");
+    let mut repositories = BTreeSet::new();
+    let mut result = Vec::new();
+    for TeamFile { team } in &data.teams {
+        for repo in team.repos() {
+            ensure!(
+                repositories.insert(repo.name.to_lowercase()),
+                "repository {} has ambiguous governance ownership",
+                repo.name
+            );
+        }
+        let mut projects = team
+            .projects
+            .iter()
+            .map(|project| {
+                let group = &project.group;
+                let members: BTreeSet<&String> =
+                    team.group.members.iter().chain(&group.members).collect();
+                Ok(ProjectSummary {
+                    slug: group.slug.clone(),
+                    name: group.name.clone(),
+                    description: group.description.clone(),
+                    members: members.into_iter().cloned().collect(),
+                    repos: group
+                        .repos
+                        .iter()
+                        .map(Repository::new)
+                        .collect::<Result<Vec<_>>>()?,
+                })
+            })
+            .collect::<Result<Vec<_>>>()?;
+        projects.sort_by(|a, b| a.slug.cmp(&b.slug));
+        result.push(TeamSummary {
+            slug: team.group.slug.clone(),
+            name: team.group.name.clone(),
+            description: team.group.description.clone(),
+            leads: team.leads.iter().cloned().collect(),
+            members: team.group.members.iter().cloned().collect(),
+            repos: team
+                .group
+                .repos
+                .iter()
+                .map(Repository::new)
+                .collect::<Result<Vec<_>>>()?,
+            projects,
+        });
+    }
+    result.sort_by(|a, b| a.slug.cmp(&b.slug));
+    Ok(result)
+}
+
 /// The teams and projects that own repositories
 pub fn projects(checkout: &Path) -> Result<Vec<Project>> {
     let data = load(checkout)?;

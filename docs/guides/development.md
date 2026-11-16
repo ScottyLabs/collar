@@ -9,11 +9,13 @@ collar doctor
 collar doctor --offline
 ```
 
-Doctor checks tools, whether Nix substitutes from the ScottyLabs binary cache, Git identity, SSH-agent keys, the project flake, declared project ownership, secretspec configuration, infrastructure sources, and authentication. It prints the whole report before returning a failure status. Checks can pass, fail, require a manual step, or be skipped.
+Doctor checks local tools, Git identity, SSH-agent keys, the project flake, declared ownership, secretspec configuration, infrastructure sources, and authentication. It also uses Nix to check the ScottyLabs cache configuration, signing-key trust, and reachability. It prints the whole report before returning a failure status. Checks can pass, fail, require a manual step, or be skipped.
 
 Pitchfork is checked when the checkout has `pitchfork.toml` or the generated `.config/pitchfork.toml`. Secrets tooling and OpenBao access are checked when `secretspec.toml` exists. Projects without these configurations skip those checks. Enter `nix develop` first to generate the project's local process configuration.
 
 Online checks include Forgejo and OpenBao token verification. Offline mode uses cached canonical sources and skips network probes. Doctor never resolves secret values or applies infrastructure. It checks configuration and access prerequisites; it does not prove deployment health or access to every project secret.
+
+Cache contents vary by build; an uncached output can still need compilation.
 
 Follow the suggested actions for failed checks. Doctor can't verify that your accounts are linked in Keycloak or that your team membership has been applied, so it reports that check as manual. Linking accounts is the first step of governance's [joining a team](https://git.cmu.dev/ScottyLabs/governance#joining-a-team).
 

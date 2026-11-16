@@ -48,6 +48,8 @@ collar label edit 7 --description 'Unexpected behavior'
 collar label delete 7
 ```
 
+`label list` shows repository labels. Read shared organization labels with `collar api orgs/ScottyLabs/labels --method GET`; issue commands resolve names from both lists.
+
 Editing and deleting use the label ID from `label list`. Label colors use six hexadecimal digits, optionally prefixed by `#`.
 
 ## Publish release metadata

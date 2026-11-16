@@ -23,7 +23,7 @@ collar pr checks 42
 
 PR selectors accept a number, a URL in the selected repository, or a branch name. Omit the selector inside a checkout to find the open PR for the current branch. If more than one PR matches, select a number explicitly. Pass `-R OWNER/REPO` for remote work without a clone.
 
-`pr view --comments` includes discussion comments, submitted reviews, and inline review comments. Use `--json` to read the same conversation as structured data. Add `--compact` with `--comments --json` to keep text, authors, URLs, dates, and inline context while omitting unrelated provider metadata. Discussion and inline comments are paginated; default JSON remains unchanged.
+`pr view --comments` includes discussion comments, submitted reviews, and inline review comments. Use `--json` to read the same conversation as structured data. Add `--compact` with `--comments --json` to keep text, authors, URLs, dates, and inline context while omitting unrelated provider metadata. Default JSON remains unchanged.
 
 Filter lists without a local checkout:
 

@@ -27,7 +27,7 @@ Use the run ID shown by `actions list`. `--status` and `--limit` narrow the list
 
 `watch` prints progress on stderr and waits up to 600 seconds by default, polling every five seconds. `--timeout` and `--interval` adjust those limits. It returns failure for an unsuccessful run or a timeout. With `--json`, stdout contains only the final result; a blocked run keeps waiting for manual approval until timeout.
 
-`logs` prints job logs directly, using each job's reported attempt. `--failed` selects failed jobs. `--json` returns job IDs, attempts, and log text. Each log response is limited to 8 MiB. Treat CI logs as potentially sensitive before sharing them or placing them in an agent's context.
+`logs` prints runner job logs directly, using each job's reported attempt. Reusable-workflow summary jobs have no runner log and are excluded. `--failed` selects failed jobs. `--json` returns job IDs, attempts, and log text. Each log response is limited to 8 MiB. Treat CI logs as potentially sensitive before sharing them or placing them in an agent's context.
 
 ## Dispatch a workflow
 
@@ -65,4 +65,4 @@ collar kennel logs 42 --lines --since 60 --tail 50
 collar kennel logs 42 --lines --json timestamp,line
 ```
 
-`--since` is in minutes and is limited to 30 days; `--tail` allows up to 1,000 lines. The query uses Kennel's canonical project, branch, and matching commit. A changed PR head or mismatched deployment fails explicitly. Queries go through Grafana with your own SSO session and its existing permissions. Browser log links remain available in the ordinary report.
+`--since` is in minutes and is limited to 30 days; `--tail` allows up to 1,000 lines. The query uses Kennel's canonical project, branch, and matching commit. A changed PR head or mismatched deployment fails explicitly. Queries go through Grafana with your own SSO session and its existing permissions. Browser log links remain available in the ordinary report. Once a PR is merged or closed, its preview may be removed; log-line queries require a matching Kennel request or deployment.

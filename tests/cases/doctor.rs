@@ -235,3 +235,79 @@ fn doctor_aggregates_tool_namespace_and_profile_failures() {
     assert!(checks.iter().any(|check| check["name"] == "secretspec"
         && check["detail"].as_str().unwrap().contains("profile prod")));
 }
+
+#[cfg(unix)]
+#[test]
+fn doctor_checks_effective_cache_trust_and_native_nix_reachability() {
+    use std::os::unix::fs::PermissionsExt;
+    const CACHE: &str = "https://scottylabs.cachix.org";
+    const KEY: &str = "scottylabs.cachix.org-1:hajjEX5SLi/Y7yYloiXTt2IOr3towcTGRhMh1vu6Tjg=";
+    let temp = TempDir::new().unwrap();
+    let (project, bin) = doctor_fixture(temp.path());
+    std::fs::write(
+        bin.join("nix"),
+        r#"#!/bin/sh
+printf '%s\n' "$*" >> "$COLLAR_TEST_LOG"
+case "$*" in
+  'config show --json') printf '%s\n' "$COLLAR_TEST_NIX_CONFIG" ;;
+  'store info --json') printf '%s\n' '{"trusted":true}' ;;
+  'store info --store https://scottylabs.cachix.org') exit "$COLLAR_TEST_CACHE_EXIT" ;;
+  '--version') exit 0 ;;
+  *) exit 9 ;;
+esac
+"#,
+    )
+    .unwrap();
+    std::fs::set_permissions(bin.join("nix"), std::fs::Permissions::from_mode(0o755)).unwrap();
+    let config = json!({"substituters":{"value":[CACHE]},"trusted-public-keys":{"value":[KEY]},"accept-flake-config":{"value":false}});
+    for (configuration, exit, expected, detail) in [
+        (
+            config.clone(),
+            "0",
+            "pass",
+            "individual build availability is not checked",
+        ),
+        (config.clone(), "1", "fail", "could not reach"),
+        (
+            {
+                let mut c = config.clone();
+                c["trusted-public-keys"]["value"] = json!([]);
+                c
+            },
+            "0",
+            "fail",
+            "does not trust",
+        ),
+        (
+            {
+                let mut c = config.clone();
+                c["substituters"]["value"] = json!([]);
+                c
+            },
+            "0",
+            "fail",
+            "not an effective",
+        ),
+    ] {
+        let server = Server::new(vec![
+            Response::json(json!({"version":"17.0.1"})),
+            Response::json(json!({"login":"member"})),
+        ]);
+        let output = doctor_command(temp.path(), &project, &bin)
+            .env("COLLAR_HOST", &server.origin)
+            .env("COLLAR_TOKEN", "test-token")
+            .env("XDG_DATA_HOME", temp.path().join("data"))
+            .env("COLLAR_TEST_NIX_CONFIG", configuration.to_string())
+            .env("COLLAR_TEST_CACHE_EXIT", exit)
+            .output()
+            .unwrap();
+        let checks: Vec<Value> = serde_json::from_slice(&output.stdout).unwrap();
+        let cache = checks.iter().find(|c| c["name"] == "nix-cache").unwrap();
+        assert_eq!(cache["status"], expected, "{checks:?}");
+        assert!(
+            cache["detail"].as_str().unwrap().contains(detail),
+            "{cache}"
+        );
+        server.finish();
+    }
+}

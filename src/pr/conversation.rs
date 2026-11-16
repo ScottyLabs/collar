@@ -66,7 +66,7 @@ impl Conversation {
         let number = number.to_string();
         let mut path = repo.path().to_vec();
         path.extend(["issues", &number, "comments"]);
-        let comments: Vec<Discussion> = api.list(&path, &[], 5001)?;
+        let comments: Vec<Discussion> = api.json(reqwest::Method::GET, &path, &[], None)?;
         ensure!(
             comments.len() <= 5000,
             "PR has too many discussion comments; inspect its conversation in the browser"
@@ -83,7 +83,7 @@ impl Conversation {
                 let id = review.id.to_string();
                 let mut comment_path = path.clone();
                 comment_path.extend([&id, "comments"]);
-                review.comments = api.list(&comment_path, &[], 5001)?;
+                review.comments = api.json(reqwest::Method::GET, &comment_path, &[], None)?;
                 ensure!(
                     review.comments.len() <= 5000,
                     "PR review has too many inline comments; inspect its conversation in the browser"

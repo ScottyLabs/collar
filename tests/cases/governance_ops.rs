@@ -12,9 +12,10 @@ fn service_access_resolves_selected_repository_and_declared_feature_families() {
         "cdn": {},
         "docs": {},
         "kennel": {},
+        "lax": {},
         "mobile_app": {"google_play": "org.scottylabs.collie", "app_store": null},
-        "oidc_client": {"admin": false, "public": false, "groups": []},
-        "posthog": {"server_side": false},
+        "oidc_client": {"admin": false, "public": false, "groups": [], "audiences": [], "redirect_uris": null},
+        "posthog": {"server_side": false, "introspect": false},
         "sentry": {}
     });
     let team = json!({"team": {
@@ -55,7 +56,7 @@ fn service_access_resolves_selected_repository_and_declared_feature_families() {
         "https://identity.example.test/realms/custom-realm/account/account-security/linked-accounts"
     );
     let reported = value["features"].as_array().unwrap();
-    assert_eq!(reported.len(), 8);
+    assert_eq!(reported.len(), 9);
     for feature in reported {
         let name = feature["name"].as_str().unwrap();
         assert_eq!(feature["declaration"], declared[name], "{name}");

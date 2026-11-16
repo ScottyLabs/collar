@@ -200,7 +200,7 @@ fn logs(args: Logs, api: &Api, repo: &Repo) -> Result<()> {
         .validate_fields(&["id", "name", "status", "attempt", "log"])?;
     let mut logs = Vec::new();
     for job in get_jobs(api, repo, args.id)? {
-        if args.failed && job.status != Status::Failure {
+        if job.is_workflow_call() || (args.failed && job.status != Status::Failure) {
             continue;
         }
         let id = job.id.to_string();

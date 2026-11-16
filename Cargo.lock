@@ -1281,7 +1281,7 @@ dependencies = [
 [[package]]
 name = "governance-core"
 version = "0.1.0"
-source = "git+https://git.cmu.dev/ScottyLabs/governance#9b749fbb019b5627ee6ab69fe91189b69a169536"
+source = "git+https://git.cmu.dev/ScottyLabs/governance#9eb43177420e9b37dc4b4738156e93f3bda33a4f"
 dependencies = [
  "governance-schema",
  "parking_lot",
@@ -1295,7 +1295,7 @@ dependencies = [
 [[package]]
 name = "governance-schema"
 version = "0.1.0"
-source = "git+https://git.cmu.dev/ScottyLabs/governance#9b749fbb019b5627ee6ab69fe91189b69a169536"
+source = "git+https://git.cmu.dev/ScottyLabs/governance#9eb43177420e9b37dc4b4738156e93f3bda33a4f"
 dependencies = [
  "schemars 1.2.3",
  "serde",

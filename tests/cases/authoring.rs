@@ -269,26 +269,22 @@ fn pull_list_uses_native_author_and_branch_filters_without_a_checkout() {
 }
 
 #[test]
-fn compact_conversation_paginates_and_preserves_context_without_metadata() {
+fn compact_conversation_uses_native_comment_endpoints_and_preserves_context() {
     for compact in [false, true] {
         let server = Server::new(vec![
             Response::json(pull("head")),
-            Response::json(
-                json!([{"id":1,"body":"First","user":{"login":"alice","avatar_url":"opaque"},"provider":"opaque"}]),
-            ),
-            Response::json(
-                json!([{"id":2,"body":"Later discussion","html_url":"discussion-url","created_at":"today","user":{"login":"bob","id":99}}]),
-            ),
-            Response::json(json!([])),
+            Response::json(json!([
+                {"id":1,"body":"First","user":{"login":"alice","avatar_url":"opaque"},"provider":"opaque"},
+                {"id":2,"body":"Later discussion","html_url":"discussion-url","created_at":"today","user":{"login":"bob","id":99}}
+            ])),
             Response::json(
                 json!([{"id":3,"state":"COMMENT","body":"Review","comments_count":2,"provider":"opaque","user":{"login":"reviewer","avatar_url":"opaque"}}]),
             ),
             Response::json(json!([])),
-            Response::json(json!([{"id":4,"path":"src/main.rs","body":"First inline"}])),
-            Response::json(
-                json!([{"id":5,"path":"src/lib.rs","body":"Later inline","diff_hunk":"@@ -1 +2 @@","line":2,"old_line_num":1,"new_line_num":2,"side":"RIGHT","start_line":1,"original_position":7,"html_url":"inline-url","updated_at":"today","user":{"login":"reviewer","avatar_url":"opaque"},"resolver":{"login":"maintainer","avatar_url":"opaque"},"provider":"opaque"}]),
-            ),
-            Response::json(json!([])),
+            Response::json(json!([
+                {"id":4,"path":"src/main.rs","body":"First inline"},
+                {"id":5,"path":"src/lib.rs","body":"Later inline","diff_hunk":"@@ -1 +2 @@","line":2,"old_line_num":1,"new_line_num":2,"side":"RIGHT","start_line":1,"original_position":7,"html_url":"inline-url","updated_at":"today","user":{"login":"reviewer","avatar_url":"opaque"},"resolver":{"login":"maintainer","avatar_url":"opaque"},"provider":"opaque"}
+            ])),
         ]);
         let mut command = server.command(false);
         command.args([
@@ -335,8 +331,16 @@ fn compact_conversation_paginates_and_preserves_context_without_metadata() {
             assert_eq!(inline["user"]["avatar_url"], "opaque");
         }
         let requests = server.finish();
-        assert!(requests[2].contains("issues/42/comments?page=2&limit=50"));
-        assert!(requests[7].contains("reviews/3/comments?page=2&limit=50"));
+        assert_eq!(requests.len(), 5);
+        assert!(
+            requests[1].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/42/comments ")
+        );
+        assert!(requests[2].contains("reviews?page=1&limit=50"));
+        assert!(requests[3].contains("reviews?page=2&limit=50"));
+        assert!(
+            requests[4]
+                .starts_with("GET /api/v1/repos/ScottyLabs/terrier/pulls/42/reviews/3/comments ")
+        );
     }
 }
 

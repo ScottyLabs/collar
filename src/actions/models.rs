@@ -171,6 +171,19 @@ pub struct Job {
 }
 
 impl Job {
+    /// Reusable-workflow call jobs aggregate child results and have no runner log.
+    pub fn is_workflow_call(&self) -> bool {
+        self.metadata
+            .get("runs_on")
+            .and_then(Value::as_array)
+            .is_some_and(Vec::is_empty)
+            && self
+                .metadata
+                .get("needs")
+                .and_then(Value::as_array)
+                .is_some_and(|needs| !needs.is_empty())
+    }
+
     pub fn detail(&self, name: &str) -> String {
         self.metadata.get(name).map(display).unwrap_or_default()
     }

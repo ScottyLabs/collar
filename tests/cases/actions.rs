@@ -357,3 +357,49 @@ fn failed_logs_only_fetch_failed_jobs_with_their_attempt() {
             .starts_with("GET /api/v1/repos/ScottyLabs/terrier/actions/jobs/90/logs?attempt=2 ")
     );
 }
+
+#[test]
+fn logs_skip_workflow_call_parents_but_keep_runner_errors() {
+    for status in ["success", "failure"] {
+        let server = Server::new(vec![
+            Response::json(json!([
+                {"id":90,"name":"checks","status":status,"runs_on":[],"needs":["checks-child"]},
+                {"id":91,"name":"checks-child","status":status,"runs_on":["native"],"needs":null,"attempt":1}
+            ])),
+            Response {
+                status: 200,
+                body: "runner log\n".into(),
+                headers: String::new(),
+            },
+        ]);
+        let output = server
+            .command(false)
+            .args(["actions", "logs", "7", "--json"])
+            .output()
+            .unwrap();
+        success(&output);
+        let logs: Value = serde_json::from_slice(&output.stdout).unwrap();
+        assert_eq!(logs.as_array().unwrap().len(), 1);
+        assert_eq!(logs[0]["id"], 91);
+        let requests = server.finish();
+        assert_eq!(requests.len(), 2);
+        assert!(requests[1].contains("jobs/91/logs?attempt=1"));
+    }
+    let server = Server::new(vec![
+        Response::json(
+            json!([{"id":91,"name":"checks","status":"failure","runs_on":["native"],"needs":["build"]}]),
+        ),
+        Response {
+            status: 500,
+            body: "{}".into(),
+            headers: String::new(),
+        },
+    ]);
+    let output = server
+        .command(false)
+        .args(["actions", "logs", "7", "--failed", "--json"])
+        .output()
+        .unwrap();
+    failure(&output, "HTTP 500");
+    assert_eq!(server.finish().len(), 2);
+}

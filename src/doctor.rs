@@ -173,8 +173,7 @@ fn strings(config: &serde_json::Value, setting: &str) -> Vec<String> {
 }
 
 fn trusted_user() -> Result<bool> {
-    let store = nix_json(&["store", "info", "--json"], false)
-        .or_else(|_| nix_json(&["store", "ping", "--json"], false))?;
+    let store = nix_json(&["store", "info", "--json"], false)?;
     Ok(store["trusted"].as_bool() == Some(true) || store["trusted"].as_u64() == Some(1))
 }
 
@@ -228,69 +227,27 @@ fn daemon_caches() -> Result<(Vec<String>, Vec<String>)> {
     Ok((substituters, keys))
 }
 
-fn store_hash() -> Option<String> {
-    let in_store = |path: PathBuf| {
-        std::fs::canonicalize(path)
-            .ok()
-            .filter(|path| path.starts_with("/nix/store"))
-    };
-    let path = std::env::current_exe()
-        .ok()
-        .and_then(in_store)
-        .or_else(|| {
-            std::env::split_paths(&std::env::var_os("PATH")?)
-                .find_map(|directory| in_store(directory.join("collar")))
-        })?;
-    let entry = path
-        .strip_prefix("/nix/store")
-        .ok()?
-        .iter()
-        .next()?
-        .to_str()?;
-    Some(entry.split_once('-')?.0.to_owned())
-}
-
-fn binary_cache(hash: &str) -> Result<String> {
+fn binary_cache() -> Result<String> {
     let (substituters, keys) = daemon_caches()?;
-    let names: Vec<&str> = keys
-        .iter()
-        .filter_map(|key| key.split_once(':').map(|(name, _)| name))
-        .collect();
-    let client = reqwest::blocking::Client::builder()
-        .user_agent(concat!("collar/", env!("CARGO_PKG_VERSION")))
-        .timeout(Duration::from_secs(5))
-        .build()
-        .context("create HTTP client")?;
-    for substituter in &substituters {
-        let base = substituter
+    ensure!(
+        substituters.iter().any(|url| url
             .split('?')
             .next()
             .unwrap_or_default()
-            .trim_end_matches('/');
-        if !(base.starts_with("https://") || base.starts_with("http://")) {
-            continue;
-        }
-        let Ok(response) = client.get(format!("{base}/{hash}.narinfo")).send() else {
-            continue;
-        };
-        if !response.status().is_success() {
-            continue;
-        }
-        let Ok(narinfo) = response.text() else {
-            continue;
-        };
-        let signed = narinfo
-            .lines()
-            .filter_map(|line| line.strip_prefix("Sig: "))
-            .filter_map(|signature| signature.split_once(':'))
-            .any(|(name, _)| names.contains(&name));
-        if signed {
-            return Ok(format!("{base} serves ScottyLabs packages"));
-        }
-    }
-    anyhow::bail!(
-        "no cache Nix uses serves ScottyLabs packages, so nix develop builds them from source"
+            .trim_end_matches('/')
+            == CACHE),
+        "the ScottyLabs cache is not an effective Nix substituter"
+    );
+    ensure!(
+        keys.iter().any(|key| key == CACHE_KEY),
+        "Nix does not trust the ScottyLabs cache signing key"
+    );
+    process::check(
+        Command::new("nix").args(["store", "info", "--store", CACHE]),
+        Duration::from_secs(5),
     )
+    .context("Nix could not reach the ScottyLabs cache")?;
+    Ok("ScottyLabs cache is configured, trusted, and reachable; individual build availability is not checked".into())
 }
 
 fn check_cache(checks: &mut Vec<Check>, offline: bool) {
@@ -302,18 +259,10 @@ fn check_cache(checks: &mut Vec<Check>, offline: bool) {
         );
         return;
     }
-    let Some(hash) = store_hash() else {
-        skipped(
-            checks,
-            "nix-cache",
-            "collar is not installed from the Nix store, so there is no ScottyLabs package to look up",
-        );
-        return;
-    };
     record(
         checks,
         "nix-cache",
-        binary_cache(&hash),
+        binary_cache(),
         "Add the ScottyLabs cache to the system Nix configuration and restart the Nix daemon: https://docs.kennel.scottylabs.org/guides/local-development/",
     );
 }

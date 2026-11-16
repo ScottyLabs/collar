@@ -74,7 +74,7 @@ enum Command {
     Status(crate::status::Args),
     /// Serve Collar tools to MCP clients over stdio.
     #[command(
-        after_long_help = "Examples:\n  collar mcp\n  collar mcp --allow-writes\n  collar -R terrier mcp\n\nSpeaks the Model Context Protocol on stdin and stdout for clients that cannot run shell commands. Tools run this binary with --json and share its credentials and validation. Read-only tools are exposed by default; --allow-writes adds PR comments, PR reviews, issue creation, and issue comments. -R sets the default repository for repository tools."
+        after_long_help = "Examples:\n  collar mcp\n  collar mcp --allow-writes\n  collar -R terrier mcp\n\nSpeaks the Model Context Protocol on stdin and stdout for clients that cannot run shell commands. Tools run this binary with --json and share its credentials and validation. Read-only tools are exposed by default; --allow-writes adds PR authoring and reviews, issue authoring, and issue label updates. -R sets the default repository for repository tools."
     )]
     Mcp(crate::mcp::Args),
     /// Read and search canonical ScottyLabs documentation.
@@ -227,6 +227,11 @@ enum Command {
 }
 
 pub fn run(cli: Cli) -> Result<()> {
+    if let Command::Mcp(args) = &cli.command
+        && args.worker
+    {
+        return crate::mcp::worker(&args.worker_args);
+    }
     if let Command::Skill { command } = cli.command {
         return crate::skill::run(command);
     }

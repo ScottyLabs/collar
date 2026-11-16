@@ -27,7 +27,12 @@ fn render(command: &Command, page: &mut String, depth: usize) {
     let mut help = command.clone().color(ColorChoice::Never).term_width(88);
     let args: Vec<_> = help
         .get_arguments()
-        .map(|arg| (arg.get_id().clone(), arg.is_global_set()))
+        .map(|arg| {
+            (
+                arg.get_id().clone(),
+                arg.is_global_set() || arg.is_hide_set(),
+            )
+        })
         .collect();
     for (id, global) in args {
         help = help.mut_arg(id, |arg| arg.hide_env_values(true).hide(global));

@@ -37,7 +37,7 @@ collar issue create --title 'Preview times out' --label type/bug
 collar issue edit 12 --add-label stage/in-progress --remove-label stage/todo
 ```
 
-Label names match the repository's labels, then its organization's, so ScottyLabs-wide labels such as `type/bug` work in every repository. Repeated `--label` filters list issues that have every label. An unknown name fails with the available names before any issue is listed or changed, because Forgejo would otherwise ignore it. `issue edit` replaces the issue's labels in one request and skips the request when nothing changes. When it also changes the title or body, that edit is applied first; if the label request then fails, the error says so. Project boards are not available through the Forgejo API, so labels do not move board cards.
+Label names match the repository's labels, then its organization's, so ScottyLabs-wide labels such as `type/bug` work in every repository. Repeated `--label` filters list issues that have every label. An unknown name fails with the available names before any issue is listed or changed, because Forgejo would otherwise ignore it. `issue edit` adds labels with one request, removes each requested label individually, and then reads the current labels. Unrelated concurrent label changes are preserved, and unchanged labels cause no writes. Title/body edits run first. If a later request fails, earlier changes may already be applied; inspect the issue before retrying. Project boards are not available through the Forgejo API, so labels do not move board cards.
 
 ## Maintain labels
 

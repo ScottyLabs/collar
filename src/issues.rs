@@ -393,27 +393,32 @@ impl LabelChange {
         Ok(())
     }
 
-    /// The issue's label IDs after this change, or None when nothing changes.
-    fn apply(&self, api: &Api, repo: &Repo, current: &[Label]) -> Result<Option<Vec<u64>>> {
+    /// Resolve all names before writing and select only the requested changes.
+    fn resolve_changes(
+        &self,
+        api: &Api,
+        repo: &Repo,
+        current: &[Label],
+    ) -> Result<(Vec<u64>, Vec<u64>)> {
         let available = available_labels(api, repo)?;
-        let add = resolve_labels(&available, &self.add)?;
+        let requested = resolve_labels(&available, &self.add)?;
         for name in &self.remove {
             if !current.iter().any(|label| label.name == *name) {
                 resolve_labels(&available, std::slice::from_ref(name))?;
             }
         }
-        let before: Vec<u64> = current.iter().map(|label| label.id).collect();
-        let mut after: Vec<u64> = current
-            .iter()
-            .filter(|label| !self.remove.contains(&label.name))
-            .map(|label| label.id)
-            .collect();
-        for id in add {
-            if !after.contains(&id) {
-                after.push(id);
+        let mut add = Vec::new();
+        for id in requested {
+            if !current.iter().any(|label| label.id == id) && !add.contains(&id) {
+                add.push(id);
             }
         }
-        Ok((after != before).then_some(after))
+        let remove = current
+            .iter()
+            .filter(|label| self.remove.contains(&label.name))
+            .map(|label| label.id)
+            .collect();
+        Ok((add, remove))
     }
 }
 
@@ -627,10 +632,10 @@ fn edit_issue(
         "number identifies a pull request, not an issue"
     );
     // Resolve every label before the first write.
-    let label_ids = if labels.is_empty() {
-        None
+    let (add, remove) = if labels.is_empty() {
+        (Vec::new(), Vec::new())
     } else {
-        labels.apply(api, repo, &issue.labels)?
+        labels.resolve_changes(api, repo, &issue.labels)?
     };
     let path = issue_path(repo, number);
     let edited = !change.is_empty();
@@ -646,20 +651,30 @@ fn edit_issue(
             "Forgejo returned a pull request for issue edit"
         );
     }
-    if let Some(ids) = label_ids {
-        let mut path = path;
-        path.push("labels".into());
-        let result: Result<Vec<Label>> = api.json(
-            Method::PUT,
-            &path_refs(&path),
-            &[],
-            Some(&json!({ "labels": ids })),
-        );
-        issue.labels = if edited {
-            result.context("the title or body was updated, but the labels were not")?
+    if !add.is_empty() || !remove.is_empty() {
+        let result = (|| -> Result<Vec<Label>> {
+            let mut path = path;
+            path.push("labels".into());
+            if !add.is_empty() {
+                let _: Vec<Label> = api.json(
+                    Method::POST,
+                    &path_refs(&path),
+                    &[],
+                    Some(&json!({ "labels": add })),
+                )?;
+            }
+            for id in remove {
+                let mut removal = path.clone();
+                removal.push(id.to_string());
+                api.text(Method::DELETE, &path_refs(&removal), &[], None)?;
+            }
+            api.json(Method::GET, &path_refs(&path), &[], None)
+        })();
+        issue.labels = result.context(if edited {
+            "the title or body was updated; label changes may be partially applied; inspect the issue before retrying"
         } else {
-            result?
-        };
+            "label changes may be partially applied; inspect the issue before retrying"
+        })?;
     }
     output.print(&issue.output(), || println!("{}", issue.html_url))
 }

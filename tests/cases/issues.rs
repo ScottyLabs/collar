@@ -251,7 +251,7 @@ fn issue_list_sends_validated_label_filter() {
 }
 
 #[test]
-fn issue_edit_replaces_labels_in_one_write() {
+fn issue_edit_preserves_concurrent_labels_with_targeted_writes() {
     let mut current = issue(54, false);
     current["labels"] = json!([label(5, "stage/todo"), label(113, "type/bug")]);
     let server = Server::with_responses(|_| {
@@ -264,8 +264,20 @@ fn issue_edit_replaces_labels_in_one_write() {
             Response::json(json!([])),
             not_found(),
             Response::json(json!([
+                label(5, "stage/todo"),
                 label(113, "type/bug"),
-                label(6, "stage/in-progress")
+                label(6, "stage/in-progress"),
+                label(120, "urgency/high")
+            ])),
+            Response {
+                status: 204,
+                body: String::new(),
+                headers: String::new(),
+            },
+            Response::json(json!([
+                label(113, "type/bug"),
+                label(6, "stage/in-progress"),
+                label(120, "urgency/high")
             ])),
         ]
     });
@@ -282,11 +294,13 @@ fn issue_edit_replaces_labels_in_one_write() {
         .iter()
         .map(|label| label["name"].as_str().unwrap().to_owned())
         .collect();
-    assert_eq!(names, ["type/bug", "stage/in-progress"]);
+    assert_eq!(names, ["type/bug", "stage/in-progress", "urgency/high"]);
     let requests = server.finish();
-    assert_eq!(requests.len(), 5);
-    assert!(requests[4].starts_with("PUT /api/v1/repos/ScottyLabs/terrier/issues/54/labels "));
-    assert_eq!(request_body(&requests[4]), json!({"labels":[113,6]}));
+    assert_eq!(requests.len(), 7);
+    assert!(requests[4].starts_with("POST /api/v1/repos/ScottyLabs/terrier/issues/54/labels "));
+    assert_eq!(request_body(&requests[4]), json!({"labels":[6]}));
+    assert!(requests[5].starts_with("DELETE /api/v1/repos/ScottyLabs/terrier/issues/54/labels/5 "));
+    assert!(requests[6].starts_with("GET /api/v1/repos/ScottyLabs/terrier/issues/54/labels "));
 }
 
 #[test]
@@ -331,11 +345,11 @@ fn issue_edit_skips_unchanged_labels_and_reports_partial_writes() {
         .unwrap();
     failure(
         &output,
-        "the title or body was updated, but the labels were not",
+        "the title or body was updated; label changes may be partially applied",
     );
     let requests = server.finish();
     assert!(requests[4].starts_with("PATCH "));
-    assert!(requests[5].starts_with("PUT "));
+    assert!(requests[5].starts_with("POST "));
 
     let server = Server::new(vec![]);
     let output = server
@@ -352,4 +366,49 @@ fn issue_edit_skips_unchanged_labels_and_reports_partial_writes() {
         .output()
         .unwrap();
     failure(&output, "x");
+}
+
+#[test]
+fn issue_label_removal_failure_reports_partial_changes_without_retrying() {
+    let mut current = issue(54, false);
+    current["labels"] = json!([label(5, "stage/todo")]);
+    let server = Server::new(vec![
+        Response::json(current),
+        Response::json(json!([
+            label(5, "stage/todo"),
+            label(6, "stage/in-progress")
+        ])),
+        Response::json(json!([])),
+        not_found(),
+        Response::json(json!([
+            label(5, "stage/todo"),
+            label(6, "stage/in-progress")
+        ])),
+        Response {
+            status: 422,
+            body: "{}".into(),
+            headers: String::new(),
+        },
+    ]);
+    let output = server
+        .command(true)
+        .args([
+            "issue",
+            "edit",
+            "54",
+            "--add-label",
+            "stage/in-progress",
+            "--remove-label",
+            "stage/todo",
+        ])
+        .output()
+        .unwrap();
+    failure(
+        &output,
+        "label changes may be partially applied; inspect the issue before retrying",
+    );
+    let requests = server.finish();
+    assert_eq!(requests.len(), 6);
+    assert!(requests[4].starts_with("POST "));
+    assert!(requests[5].starts_with("DELETE "));
 }

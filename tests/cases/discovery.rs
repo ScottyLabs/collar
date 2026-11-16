@@ -35,6 +35,34 @@ fn governance_uses_project_namespace_and_team_leads() {
 }
 
 #[test]
+fn governance_accepts_manually_managed_project_google_groups() {
+    let checkout = TempDir::new().unwrap();
+    write_governance(
+        checkout.path(),
+        tech("https://git.cmu.dev"),
+        json!([{"team": {
+            "slug": "courses", "name": "Courses",
+            "projects": [{
+                "slug": "courses-web", "name": "Courses web",
+                "repos": [{"name": "courses-web"}],
+                "google_groups": [{"email": "sl-courses@andrew.cmu.edu", "kind": "contact", "manual": true}]
+            }]
+        }}]),
+    );
+    let output = command()
+        .args(["governance", "project", "list", "--checkout"])
+        .arg(checkout.path())
+        .args(["--json", "slug,name,team,repos"])
+        .output()
+        .unwrap();
+    success(&output);
+    let projects: Value = serde_json::from_slice(&output.stdout).unwrap();
+    assert_eq!(projects[0]["slug"], "courses-web");
+    assert_eq!(projects[0]["team"], "courses");
+    assert_eq!(projects[0]["repos"][0]["name"], "courses-web");
+}
+
+#[test]
 fn project_context_uses_canonical_ownership_and_repository_specific_features() {
     let temp = TempDir::new().unwrap();
     project_governance(temp.path());

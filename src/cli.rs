@@ -47,9 +47,12 @@ pub struct Cli {
         conflicts_with = "no_config"
     )]
     config: Option<PathBuf>,
-    /// Override the user cache directory for canonical source snapshots.
+    /// Override the user cache directory for source snapshots and cached API reads.
     #[arg(long, global = true, env = "COLLAR_CACHE_DIR")]
     cache_dir: Option<PathBuf>,
+    /// Fetch API reads without reusing a response, then update the cache.
+    #[arg(long, global = true)]
+    refresh: bool,
     /// Ignore saved settings for reproducible automation.
     #[arg(long, global = true)]
     no_config: bool,
@@ -245,6 +248,8 @@ pub fn run(cli: Cli) -> Result<()> {
         }
     );
     let mut config = Config::load(cli.config.clone(), cli.no_config, creating)?;
+    config.read_cache.directory = cli.cache_dir.clone();
+    config.read_cache.refresh = cli.refresh;
     let sources = Sources {
         config: &config,
         host: cli.host.as_deref(),
@@ -260,6 +265,7 @@ pub fn run(cli: Cli) -> Result<()> {
                 config: cli.config,
                 cache_dir: cli.cache_dir.clone(),
                 no_config: cli.no_config,
+                refresh: cli.refresh,
             },
         ),
         Command::Status(args) => {

@@ -37,6 +37,7 @@ struct Settings {
 }
 
 pub struct Config {
+    pub read_cache: crate::client::ReadCache,
     path: Option<PathBuf>,
     settings: Settings,
 }
@@ -45,6 +46,7 @@ impl Config {
     pub fn load(explicit: Option<PathBuf>, disabled: bool, creating: bool) -> Result<Self> {
         if disabled {
             return Ok(Self {
+                read_cache: crate::client::ReadCache::default(),
                 path: None,
                 settings: Settings::default(),
             });
@@ -81,6 +83,7 @@ impl Config {
             .collect::<Result<_>>()
             .context("invalid saved login host")?;
         Ok(Self {
+            read_cache: crate::client::ReadCache::default(),
             path: Some(path),
             settings,
         })
@@ -180,6 +183,7 @@ mod tests {
     #[test]
     fn explicit_repository_hosts_override_saved_default() {
         let config = Config {
+            read_cache: crate::client::ReadCache::default(),
             path: None,
             settings: Settings {
                 host: Some("saved.example".into()),

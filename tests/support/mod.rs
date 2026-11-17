@@ -33,11 +33,16 @@ pub(crate) fn git_command() -> Command {
     command
 }
 
+fn test_cache() -> &'static std::path::Path {
+    static CACHE: std::sync::OnceLock<tempfile::TempDir> = std::sync::OnceLock::new();
+    CACHE.get_or_init(|| tempfile::tempdir().unwrap()).path()
+}
+
 pub(crate) fn isolated_command() -> Command {
     let mut command = Command::new(env!("CARGO_BIN_EXE_collar"));
     clear_git_repository_env(&mut command);
     command
-        .env_remove("COLLAR_CACHE_DIR")
+        .env("COLLAR_CACHE_DIR", test_cache())
         .env_remove("COLLAR_CONFIG")
         .env_remove("COLLAR_HOST")
         .env_remove("COLLAR_TOKEN")

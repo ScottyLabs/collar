@@ -190,7 +190,7 @@ pub fn api(origin: Url, config: &Config) -> Result<Api> {
             None => None,
         },
     };
-    Api::new(origin, token)
+    Ok(Api::new(origin, token)?.with_read_cache(config.read_cache.clone()))
 }
 
 fn persist(
@@ -286,7 +286,8 @@ pub fn login(
         let forge = forge.context(
             "Forgejo account is still not linked; complete account linking and sign in again",
         )?;
-        let api = Api::new(origin.clone(), Some(forge.access_token))?;
+        let api = Api::new(origin.clone(), Some(forge.access_token))?
+            .with_read_cache(config.read_cache.clone());
         let user: crate::pr::User = api.json(Method::GET, &["user"], &[], None)?;
         ensure!(
             !user.login.trim().is_empty() && !user.login.chars().any(char::is_control),
@@ -300,7 +301,8 @@ pub fn login(
         println!("Grafana access verified at {}", endpoints.grafana);
         return Ok(());
     };
-    let api = Api::new(origin.clone(), Some(token.clone()))?;
+    let api =
+        Api::new(origin.clone(), Some(token.clone()))?.with_read_cache(config.read_cache.clone());
     let user: crate::pr::User = api.json(Method::GET, &["user"], &[], None)?;
     ensure!(
         !user.login.trim().is_empty() && !user.login.chars().any(char::is_control),

@@ -38,6 +38,7 @@ pub struct Globals {
     pub config: Option<PathBuf>,
     pub cache_dir: Option<PathBuf>,
     pub no_config: bool,
+    pub refresh: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -919,6 +920,9 @@ impl Server {
             argv.push("--cache-dir".into());
             argv.push(cache.into());
         }
+        if globals.refresh {
+            argv.push("--refresh".into());
+        }
         if globals.no_config {
             argv.push("--no-config".into());
         }
@@ -1100,6 +1104,7 @@ mod tests {
                 config: None,
                 cache_dir: None,
                 no_config: true,
+                refresh: false,
             },
             allow_writes,
         }

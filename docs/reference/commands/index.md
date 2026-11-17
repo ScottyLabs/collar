@@ -76,9 +76,12 @@ Options:
           [env: COLLAR_CONFIG]
 
       --cache-dir <CACHE_DIR>
-          Override the user cache directory for canonical source snapshots
+          Override the user cache directory for source snapshots and cached API reads
 
           [env: COLLAR_CACHE_DIR]
+
+      --refresh
+          Fetch API reads without reusing a response, then update the cache
 
       --no-config
           Ignore saved settings for reproducible automation

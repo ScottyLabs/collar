@@ -9,6 +9,8 @@ use serde::de::DeserializeOwned;
 use serde_json::Value;
 use url::Url;
 
+mod cache;
+
 pub const DEFAULT_HOST: &str = "git.cmu.dev";
 const BODY_LIMIT: u64 = 8 * 1024 * 1024;
 const PAGE_LIMIT: usize = 100;
@@ -85,10 +87,16 @@ pub fn public_json<T: DeserializeOwned>(url: Url) -> Result<T> {
     })
 }
 
+#[derive(Clone, Default)]
+pub struct ReadCache {
+    pub directory: Option<std::path::PathBuf>,
+    pub refresh: bool,
+}
 pub struct Api {
     client: Client,
     origin: Url,
     token: Option<String>,
+    cache: ReadCache,
 }
 
 impl Api {
@@ -104,7 +112,13 @@ impl Api {
             client: http_client()?,
             origin,
             token,
+            cache: ReadCache::default(),
         })
+    }
+
+    pub fn with_read_cache(mut self, cache: ReadCache) -> Self {
+        self.cache = cache;
+        self
     }
 
     pub fn origin(&self) -> &Url {
@@ -126,6 +140,37 @@ impl Api {
         query: &[(String, String)],
         body: Option<&Value>,
     ) -> Result<String> {
+        if method == Method::GET && body.is_none() {
+            return self.read_text(path, query);
+        }
+        read_body(self.request(method, path, query, body)?)
+    }
+
+    fn request(
+        &self,
+        method: Method,
+        path: &[&str],
+        query: &[(String, String)],
+        body: Option<&Value>,
+    ) -> Result<Response> {
+        let mutating = !matches!(method, Method::GET | Method::HEAD);
+        if mutating {
+            self.invalidate_read_cache();
+        }
+        let result = self.request_headers(method.clone(), path, query, body, &[]);
+        if mutating {
+            self.invalidate_read_cache();
+        }
+        result
+    }
+    fn request_headers(
+        &self,
+        method: Method,
+        path: &[&str],
+        query: &[(String, String)],
+        body: Option<&Value>,
+        headers: &[(&str, &str)],
+    ) -> Result<Response> {
         if !matches!(method, Method::GET | Method::HEAD) {
             self.require_token()?;
         }
@@ -149,11 +194,16 @@ impl Api {
         if let Some(body) = body {
             request = request.json(body);
         }
+        for (name, value) in headers {
+            request = request.header(*name, *value);
+        }
         let response = request
             .send()
             .map_err(|error| anyhow::anyhow!("forge request failed: {}", error.without_url()))?;
         let status = response.status();
-        if !status.is_success() {
+        if !status.is_success()
+            && !(status == reqwest::StatusCode::NOT_MODIFIED && !headers.is_empty())
+        {
             let advice = match status.as_u16() {
                 401 | 403 => "check COLLAR_TOKEN and its permissions",
                 404 => "the resource or API capability is unavailable on this host",
@@ -172,7 +222,7 @@ impl Api {
             }
             .into());
         }
-        read_body(response)
+        Ok(response)
     }
 
     pub fn json<T: DeserializeOwned>(

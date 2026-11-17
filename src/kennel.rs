@@ -412,7 +412,7 @@ fn deployment_logs(
         "Kennel has no request or deployment for the selected PR head"
     );
     let (endpoints, session) = crate::auth::grafana_session(&repo.origin, config)?;
-    let lines = collar::sso::logs::read(
+    let lines = crate::sso::logs::read(
         &endpoints,
         &session,
         &branch.project,

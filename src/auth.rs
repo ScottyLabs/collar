@@ -78,12 +78,12 @@ fn validate_secret(value: &str, label: &str) -> Result<()> {
     Ok(())
 }
 
-struct SsoStore(collar::sso::Endpoints);
+struct SsoStore(crate::sso::Endpoints);
 impl SsoStore {
     fn entry(&self, origin: &Url) -> Result<keyring::Entry> {
         keyring::Entry::new(
             "collar.sso",
-            &format!("{origin}|{}|{}", self.0.issuer, collar::sso::CLIENT_ID),
+            &format!("{origin}|{}|{}", self.0.issuer, crate::sso::CLIENT_ID),
         )
         .map_err(store_error)
     }
@@ -111,8 +111,8 @@ fn session(
     origin: &Url,
     config: &Config,
     store: &impl CredentialStore,
-    endpoints: &collar::sso::Endpoints,
-) -> Result<Option<collar::sso::Session>> {
+    endpoints: &crate::sso::Endpoints,
+) -> Result<Option<crate::sso::Session>> {
     if !config.has_login(origin) {
         return Ok(None);
     }
@@ -122,21 +122,21 @@ fn session(
     let json = value
         .strip_prefix(SESSION_PREFIX)
         .context("invalid saved SSO session; sign in again")?;
-    let mut session: collar::sso::Session = serde_json::from_str(json)
+    let mut session: crate::sso::Session = serde_json::from_str(json)
         .map_err(|_| anyhow!("invalid saved SSO session; sign in again"))?;
     ensure!(
         endpoints.matches(&session),
         "saved SSO session belongs to different endpoints; sign in again"
     );
-    if session.expires_at <= collar::sso::now()?.saturating_add(30) {
-        session = collar::sso::refresh(endpoints, &session)?;
+    if session.expires_at <= crate::sso::now()?.saturating_add(30) {
+        session = crate::sso::refresh(endpoints, &session)?;
         // Save refresh rotation before any subsequent service call can fail.
         store.set(origin, &encode_session(&session)?)?;
     }
     Ok(Some(session))
 }
 
-fn encode_session(session: &collar::sso::Session) -> Result<String> {
+fn encode_session(session: &crate::sso::Session) -> Result<String> {
     Ok(format!(
         "{SESSION_PREFIX}{}",
         serde_json::to_string(session).context("encode SSO session")?
@@ -146,8 +146,8 @@ fn encode_session(session: &collar::sso::Session) -> Result<String> {
 pub fn grafana_session(
     origin: &Url,
     config: &Config,
-) -> Result<(collar::sso::Endpoints, collar::sso::Session)> {
-    let endpoints = collar::sso::Endpoints::from_env()?;
+) -> Result<(crate::sso::Endpoints, crate::sso::Session)> {
+    let endpoints = crate::sso::Endpoints::from_env()?;
     let value = session(origin, config, &SsoStore(endpoints.clone()), &endpoints)?
         .context("Grafana requires collar auth login through SSO")?;
     Ok((endpoints, value))
@@ -178,11 +178,11 @@ pub fn api(origin: Url, config: &Config) -> Result<Api> {
         None => match saved_token(&origin, config, &OsStore)? {
             Some(token) => Some(token),
             None if config.has_login(&origin) => {
-                let endpoints = collar::sso::Endpoints::from_env()?;
+                let endpoints = crate::sso::Endpoints::from_env()?;
                 let session = session(&origin, config, &SsoStore(endpoints.clone()), &endpoints)?
                     .context("saved SSO session is missing; run collar auth login")?;
                 Some(
-                    collar::sso::forge(&endpoints, &session)?
+                    crate::sso::forge(&endpoints, &session)?
                         .context("Forgejo account link required; run collar auth login")?
                         .access_token,
                 )
@@ -259,7 +259,7 @@ pub fn login(
             origin.as_str() == "https://git.cmu.dev/",
             "university SSO is bound to git.cmu.dev; use an explicit token for other forge hosts"
         );
-        let endpoints = collar::sso::Endpoints::from_env()?;
+        let endpoints = crate::sso::Endpoints::from_env()?;
         let store = SsoStore(endpoints.clone());
         let previous = if web {
             None
@@ -268,20 +268,20 @@ pub fn login(
         };
         let mut session = match previous {
             Some(session) => session,
-            None => collar::sso::browser::login(&endpoints, false)?,
+            None => crate::sso::browser::login(&endpoints, false)?,
         };
         persist(config, &store, &origin, Some(&encode_session(&session)?))?;
         OsStore.delete(&origin)?;
-        let mut forge = collar::sso::forge(&endpoints, &session)?;
+        let mut forge = crate::sso::forge(&endpoints, &session)?;
         if forge.is_none() {
-            let linked = collar::sso::browser::login(&endpoints, true)?;
+            let linked = crate::sso::browser::login(&endpoints, true)?;
             ensure!(
                 linked.subject == session.subject,
                 "account linking changed the signed-in user"
             );
             session = linked;
             persist(config, &store, &origin, Some(&encode_session(&session)?))?;
-            forge = collar::sso::forge(&endpoints, &session)?;
+            forge = crate::sso::forge(&endpoints, &session)?;
         }
         let forge = forge.context(
             "Forgejo account is still not linked; complete account linking and sign in again",
@@ -297,7 +297,7 @@ pub fn login(
             "Logged in to {origin} as {} through university SSO",
             user.login
         );
-        collar::sso::grafana(&endpoints, &session)?;
+        crate::sso::grafana(&endpoints, &session)?;
         println!("Grafana access verified at {}", endpoints.grafana);
         return Ok(());
     };
@@ -318,7 +318,7 @@ pub fn login(
 
 pub fn logout(config: &mut Config, origin: Url) -> Result<()> {
     config.require_writable()?;
-    let endpoints = collar::sso::Endpoints::from_env()?;
+    let endpoints = crate::sso::Endpoints::from_env()?;
     let store = SsoStore(endpoints.clone());
     logout_with(config, origin, &endpoints, &store, &OsStore)
 }
@@ -326,7 +326,7 @@ pub fn logout(config: &mut Config, origin: Url) -> Result<()> {
 fn logout_with(
     config: &mut Config,
     origin: Url,
-    endpoints: &collar::sso::Endpoints,
+    endpoints: &crate::sso::Endpoints,
     store: &impl CredentialStore,
     forge_store: &impl CredentialStore,
 ) -> Result<()> {
@@ -334,9 +334,9 @@ fn logout_with(
         Some(value) => {
             let decoded = value
                 .strip_prefix(SESSION_PREFIX)
-                .and_then(|value| serde_json::from_str::<collar::sso::Session>(value).ok());
+                .and_then(|value| serde_json::from_str::<crate::sso::Session>(value).ok());
             match decoded {
-                Some(session) => collar::sso::logout(endpoints, &session),
+                Some(session) => crate::sso::logout(endpoints, &session),
                 None => Err(anyhow!(
                     "invalid saved SSO session; remote logout cannot be confirmed"
                 )),
@@ -364,9 +364,9 @@ pub fn status(config: &Config, origin: Url) -> Result<()> {
     {
         return Ok(());
     }
-    let endpoints = collar::sso::Endpoints::from_env()?;
+    let endpoints = crate::sso::Endpoints::from_env()?;
     if let Some(session) = session(&origin, config, &SsoStore(endpoints.clone()), &endpoints)? {
-        collar::sso::grafana(&endpoints, &session)?;
+        crate::sso::grafana(&endpoints, &session)?;
         println!("Grafana access verified at {}", endpoints.grafana);
     }
     Ok(())

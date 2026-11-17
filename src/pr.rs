@@ -4,9 +4,9 @@ mod query;
 mod review;
 
 pub use conversation::{Conversation, ConversationView};
-pub use models::{Comment, LineComment, Pull, Side, Status, User};
+pub use models::{Branch, Comment, LineComment, Pull, Side, Status, User};
 pub use query::{Filters, filtered_list, list, select, statuses};
-pub use review::review;
+pub use review::{SubmittedReview, review};
 
 use anyhow::{Result, ensure};
 use reqwest::Method;

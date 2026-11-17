@@ -93,7 +93,7 @@ impl Conversation {
         Ok(Self { comments, reviews })
     }
 
-    pub fn print(&self) {
+    pub(crate) fn print(&self) {
         ui::heading("Discussion");
         if self.comments.is_empty() {
             println!("No discussion.");

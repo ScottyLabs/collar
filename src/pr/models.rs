@@ -58,7 +58,7 @@ impl Pull {
         })
     }
 
-    pub fn print(&self) {
+    pub(crate) fn print(&self) {
         ui::heading(&format!("PR #{} {}", self.number, self.title));
         let state = if self.merged { "merged" } else { &self.state };
         let color = if self.merged {

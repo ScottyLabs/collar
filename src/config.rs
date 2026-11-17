@@ -132,7 +132,7 @@ impl Config {
         }
     }
 
-    pub fn run(mut self, command: Command) -> Result<()> {
+    pub(crate) fn run(mut self, command: Command) -> Result<()> {
         match command {
             Command::Get { output } => {
                 let value = serde_json::json!({

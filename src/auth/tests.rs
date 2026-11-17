@@ -188,12 +188,12 @@ fn saved_sso_session_is_bound_to_endpoints_before_any_refresh() {
     let temp = tempfile::tempdir().unwrap();
     let origin = origin("git.cmu.dev");
     let mut config = config(temp.path().join("config.toml"));
-    let endpoints = collar::sso::Endpoints {
+    let endpoints = crate::sso::Endpoints {
         issuer: Url::parse("https://idp.example/realms/test").unwrap(),
         broker: Url::parse("https://broker.example/").unwrap(),
         grafana: Url::parse("https://grafana.example/").unwrap(),
     };
-    let value = collar::sso::Session {
+    let value = crate::sso::Session {
         issuer: "https://other.example/realms/test".into(),
         client_id: "collar".into(),
         broker: endpoints.broker.to_string(),
@@ -228,7 +228,7 @@ fn logout_clears_local_credentials_when_remote_revoke_fails() {
     let mut config = config(temp.path().join("config.toml"));
     let server = tiny_http::Server::http("127.0.0.1:0").unwrap();
     let base = format!("http://{}", server.server_addr());
-    let endpoints = collar::sso::Endpoints {
+    let endpoints = crate::sso::Endpoints {
         issuer: Url::parse(&format!("{base}/realms/test")).unwrap(),
         broker: Url::parse(&format!("{base}/")).unwrap(),
         grafana: Url::parse(&format!("{base}/")).unwrap(),
@@ -245,7 +245,7 @@ fn logout_clears_local_credentials_when_remote_revoke_fails() {
             )
             .unwrap();
     });
-    let session = collar::sso::Session {
+    let session = crate::sso::Session {
         issuer: endpoints.issuer.to_string(),
         client_id: "collar".into(),
         broker: endpoints.broker.to_string(),

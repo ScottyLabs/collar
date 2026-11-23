@@ -240,8 +240,8 @@ fn doctor_aggregates_tool_namespace_and_profile_failures() {
 #[test]
 fn doctor_checks_effective_cache_trust_and_native_nix_reachability() {
     use std::os::unix::fs::PermissionsExt;
-    const CACHE: &str = "https://scottylabs.cachix.org";
-    const KEY: &str = "scottylabs.cachix.org-1:hajjEX5SLi/Y7yYloiXTt2IOr3towcTGRhMh1vu6Tjg=";
+    const CACHE: &str = "https://cache.scottylabs.org";
+    const KEY: &str = "deploy-01.scottylabs.org-1:TtFRYjsx76lUXkCDvobNkTFZGOeLZFKTzdKX9oyiCcY=";
     let temp = TempDir::new().unwrap();
     let (project, bin) = doctor_fixture(temp.path());
     std::fs::write(
@@ -251,7 +251,7 @@ printf '%s\n' "$*" >> "$COLLAR_TEST_LOG"
 case "$*" in
   'config show --json') printf '%s\n' "$COLLAR_TEST_NIX_CONFIG" ;;
   'store info --json') printf '%s\n' '{"trusted":true}' ;;
-  'store info --store https://scottylabs.cachix.org') exit "$COLLAR_TEST_CACHE_EXIT" ;;
+  'store info --store https://cache.scottylabs.org') exit "$COLLAR_TEST_CACHE_EXIT" ;;
   '--version') exit 0 ;;
   *) exit 9 ;;
 esac

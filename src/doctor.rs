@@ -19,8 +19,8 @@ use crate::{auth, pr, process, project, repo};
 const LOGIN: &str = "nix run git+https://git.cmu.dev/ScottyLabs/kennel#login";
 const ACCOUNTS: &str =
     "https://idp.scottylabs.org/realms/scottylabs/account/account-security/linked-accounts";
-const CACHE: &str = "https://scottylabs.cachix.org";
-const CACHE_KEY: &str = "scottylabs.cachix.org-1:hajjEX5SLi/Y7yYloiXTt2IOr3towcTGRhMh1vu6Tjg=";
+const CACHE: &str = "https://cache.scottylabs.org";
+const CACHE_KEY: &str = "deploy-01.scottylabs.org-1:TtFRYjsx76lUXkCDvobNkTFZGOeLZFKTzdKX9oyiCcY=";
 const NIX_COMMAND: &str = "extra-experimental-features = nix-command";
 
 #[derive(ClapArgs)]
